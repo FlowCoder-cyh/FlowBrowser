@@ -1,0 +1,31 @@
+name: CI
+
+# Phase 0: placeholder. Phase 1 진입 시 lint / test / build 단계 실질 활성화.
+# 현재는 트리거되지 않도록 paths-ignore로 방어.
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**'
+
+jobs:
+  noop:
+    name: Phase 0 placeholder
+    runs-on: ubuntu-latest
+    steps:
+      - name: 안내
+        run: |
+          echo "Phase 0 단계입니다. CI는 Phase 1 진입 시 활성화됩니다."
+          echo "활성화 시 추가될 단계:"
+          echo "  - lint (ESLint / Prettier)"
+          echo "  - typecheck (TypeScript)"
+          echo "  - test (Vitest / Jest)"
+          echo "  - build (Electron Forge / electron-builder)"
+          echo "  - e2e (Playwright)"

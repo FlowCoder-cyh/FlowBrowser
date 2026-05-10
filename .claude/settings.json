@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "_comment": "FlowBrowser AI — Phase 0 최소 hook. Phase 1+에서 PostToolUse / Stop hook 점진 강화.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "_comment": "세션 시작 시 state.md + 최근 핸드오프를 자동 주입",
+        "matchers": [
+          {
+            "type": "always"
+          }
+        ],
+        "command": "echo '[FlowSet] SessionStart: state.md + 최근 핸드오프 + guardrails.md 참조 권장'"
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git remote*)",
+      "Bash(ls*)",
+      "Bash(cat*)",
+      "Bash(find /c/dev/Flowbrowser*)",
+      "Read(*)",
+      "Glob(*)",
+      "Grep(*)"
+    ]
+  }
+}
