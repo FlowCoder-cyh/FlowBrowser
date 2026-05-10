@@ -9,13 +9,13 @@
 - **Sprint**: — (Phase 1 진입 시 sprint-001 시작)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.2 (2026-05-11)
-- **최근 갱신**: 2026-05-11 (Spike 2 1차 조사 + evaluator Pass with conditions)
+- **최근 갱신**: 2026-05-11 (5개 Spike 모두 1차 조사 + evaluator 검증 완료)
 
 ## 현재 작업
 
-- Spike 1·4·5 머지 / Spike 2 PR 진행 중
-- 자율 진행 모드: 1 → 4 → 5 → **2 (현재)** → 3 → 종합 보고
-- 다음: Spike 2 PR 머지 → Spike 3 (오디오 캡처) 착수
+- 5개 Spike 모두 1차 조사 + evaluator 검증 완료 (Spike 3 PR 진행 중)
+- 자율 진행 모드: 1 → 4 → 5 → 2 → **3 (현재)** → 종합 보고
+- 다음: Spike 3 PR 머지 → PRD v0.3 영향 정리 + Phase 0 종합 보고
 
 ## 활성 Spike (5종)
 
@@ -23,7 +23,7 @@
 |---|---|---|---|---|
 | 1 | Codex/ChatGPT 인증 방식 검증 | **1차 조사 완료 (Pass w/ conditions)** — PR #1 머지 | [specs/spike-01-codex-auth.md](./specs/spike-01-codex-auth.md) | (미실행, 사용자 검토 시 추후) |
 | 2 | YouTube 자막/제어 PoC | **1차 조사 완료 (evaluator: Pass w/ conditions)** | [specs/spike-02-youtube.md](./specs/spike-02-youtube.md) | [eval-results/spike-02-2026-05-11.md](./eval-results/spike-02-2026-05-11.md) |
-| 3 | 시스템 오디오 캡처 PoC | 미시작 | [specs/spike-03-audio-capture.md](./specs/spike-03-audio-capture.md) | — |
+| 3 | 시스템 오디오 캡처 PoC | **1차 조사 완료 (evaluator: Pass w/ conditions)** | [specs/spike-03-audio-capture.md](./specs/spike-03-audio-capture.md) | [eval-results/spike-03-2026-05-11.md](./eval-results/spike-03-2026-05-11.md) |
 | 4 | TTS 3축 측정 | **1차 조사 완료 (evaluator: Partial — 차단 아님)** | [specs/spike-04-tts-3axis.md](./specs/spike-04-tts-3axis.md) | [eval-results/spike-04-2026-05-11.md](./eval-results/spike-04-2026-05-11.md) |
 | 5 | 사용자 인터뷰 5~10명 | **가이드 보강 완료 (evaluator: Pass)**, 실제 인터뷰는 사용자 진행 | [specs/spike-05-user-interview.md](./specs/spike-05-user-interview.md) | [eval-results/spike-05-2026-05-11.md](./eval-results/spike-05-2026-05-11.md) |
 
