@@ -9,13 +9,13 @@
 - **Sprint**: — (Phase 1 진입 시 sprint-001 시작)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.2 (2026-05-11)
-- **최근 갱신**: 2026-05-11 (5개 Spike 모두 1차 조사 + evaluator 검증 완료)
+- **최근 갱신**: 2026-05-11 (Phase 0 종합 보고 작성 + evaluator Partial)
 
 ## 현재 작업
 
-- 5개 Spike 모두 1차 조사 + evaluator 검증 완료 (Spike 3 PR 진행 중)
-- 자율 진행 모드: 1 → 4 → 5 → 2 → **3 (현재)** → 종합 보고
-- 다음: Spike 3 PR 머지 → PRD v0.3 영향 정리 + Phase 0 종합 보고
+- 5개 Spike 모두 머지 완료, Phase 0 종합 보고 PR 진행 중
+- 자율 진행 모드: 1 → 4 → 5 → 2 → 3 → **종합 보고 (현재)**
+- 다음: Phase 0 종합 보고 PR 머지 → 사용자에게 Phase 1 진입 결정 항목 보고
 
 ## 활성 Spike (5종)
 
