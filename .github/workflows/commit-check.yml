@@ -28,9 +28,9 @@ jobs:
         run: |
           # PR이면 PR 커밋만, push면 마지막 커밋 검증
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            COMMITS=$(git log --format="%H %s" origin/${{ github.base_ref }}..HEAD)
+            COMMITS=$(git log --no-merges --format="%H %s" origin/${{ github.base_ref }}..HEAD)
           else
-            COMMITS=$(git log --format="%H %s" -1)
+            COMMITS=$(git log --no-merges --format="%H %s" -1)
           fi
 
           PATTERN='^WI-([0-9A-Za-z]+(-[0-9]+)?-(feat|fix|docs|style|refactor|test|chore|perf|ci|revert)|chore|docs)\s+.+$'
