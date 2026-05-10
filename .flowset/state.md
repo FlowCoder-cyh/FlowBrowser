@@ -9,13 +9,13 @@
 - **Sprint**: — (Phase 1 진입 시 sprint-001 시작)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.2 (2026-05-11)
-- **최근 갱신**: 2026-05-11 (Spike 4 1차 조사 + evaluator 검증 완료)
+- **최근 갱신**: 2026-05-11 (Spike 5 가이드 보강 + evaluator Pass)
 
 ## 현재 작업
 
-- FlowSet v4.0.4 초기 셋업 / Spike 1 / Spike 4 완료 (PR 머지 + 1건 진행 중)
-- 자율 진행 모드: Spike 4 → 5 → 2 → 3 → 종합 보고 순서
-- 다음: Spike 4 PR 머지 후 Spike 5 (인터뷰 가이드 보강) 착수
+- FlowSet 셋업 / Spike 1·4 PR 머지 완료 / Spike 5 가이드 보강 PR 진행 중
+- 자율 진행 모드: 1 → 4 → **5 (현재)** → 2 → 3 → 종합 보고
+- 다음: Spike 5 PR 머지 → Spike 2 (YouTube) 착수
 
 ## 활성 Spike (5종)
 
@@ -25,7 +25,7 @@
 | 2 | YouTube 자막/제어 PoC | 미시작 | [specs/spike-02-youtube.md](./specs/spike-02-youtube.md) | — |
 | 3 | 시스템 오디오 캡처 PoC | 미시작 | [specs/spike-03-audio-capture.md](./specs/spike-03-audio-capture.md) | — |
 | 4 | TTS 3축 측정 | **1차 조사 완료 (evaluator: Partial — 차단 아님)** | [specs/spike-04-tts-3axis.md](./specs/spike-04-tts-3axis.md) | [eval-results/spike-04-2026-05-11.md](./eval-results/spike-04-2026-05-11.md) |
-| 5 | 사용자 인터뷰 5~10명 | 미시작 | [specs/spike-05-user-interview.md](./specs/spike-05-user-interview.md) | — |
+| 5 | 사용자 인터뷰 5~10명 | **가이드 보강 완료 (evaluator: Pass)**, 실제 인터뷰는 사용자 진행 | [specs/spike-05-user-interview.md](./specs/spike-05-user-interview.md) | [eval-results/spike-05-2026-05-11.md](./eval-results/spike-05-2026-05-11.md) |
 
 ## Phase 0 종료 조건
 
