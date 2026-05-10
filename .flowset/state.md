@@ -9,24 +9,23 @@
 - **Sprint**: — (Phase 1 진입 시 sprint-001 시작)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.2 (2026-05-11)
-- **최근 갱신**: 2026-05-11 (Spike 1 1차 조사 완료)
+- **최근 갱신**: 2026-05-11 (Spike 4 1차 조사 + evaluator 검증 완료)
 
 ## 현재 작업
 
-- FlowSet v4.0.4 초기 셋업 완료 + main push 완료
-- Spike 1 (Codex/ChatGPT 인증) 1차 조사 완료 — **Pass with conditions** 잠정 판정
-- 작업 브랜치: `docs/WI-S01-docs-codex-auth-research`
-- 다음: 사용자 검토 → 가드레일/PRD 반영 결정 → commit/PR → Spike 2~5
+- FlowSet v4.0.4 초기 셋업 / Spike 1 / Spike 4 완료 (PR 머지 + 1건 진행 중)
+- 자율 진행 모드: Spike 4 → 5 → 2 → 3 → 종합 보고 순서
+- 다음: Spike 4 PR 머지 후 Spike 5 (인터뷰 가이드 보강) 착수
 
 ## 활성 Spike (5종)
 
-| # | Spike | 상태 | 결과물 |
-|---|---|---|---|
-| 1 | Codex/ChatGPT 인증 방식 검증 | **1차 조사 완료 (Pass w/ conditions)** | [specs/spike-01-codex-auth.md](./specs/spike-01-codex-auth.md) |
-| 2 | YouTube 자막/제어 PoC | 미시작 | [specs/spike-02-youtube.md](./specs/spike-02-youtube.md) |
-| 3 | 시스템 오디오 캡처 PoC | 미시작 | [specs/spike-03-audio-capture.md](./specs/spike-03-audio-capture.md) |
-| 4 | TTS 3축 측정 | 미시작 | [specs/spike-04-tts-3axis.md](./specs/spike-04-tts-3axis.md) |
-| 5 | 사용자 인터뷰 5~10명 | 미시작 | [specs/spike-05-user-interview.md](./specs/spike-05-user-interview.md) |
+| # | Spike | 상태 | 결과물 | evaluator |
+|---|---|---|---|---|
+| 1 | Codex/ChatGPT 인증 방식 검증 | **1차 조사 완료 (Pass w/ conditions)** — PR #1 머지 | [specs/spike-01-codex-auth.md](./specs/spike-01-codex-auth.md) | (미실행, 사용자 검토 시 추후) |
+| 2 | YouTube 자막/제어 PoC | 미시작 | [specs/spike-02-youtube.md](./specs/spike-02-youtube.md) | — |
+| 3 | 시스템 오디오 캡처 PoC | 미시작 | [specs/spike-03-audio-capture.md](./specs/spike-03-audio-capture.md) | — |
+| 4 | TTS 3축 측정 | **1차 조사 완료 (evaluator: Partial — 차단 아님)** | [specs/spike-04-tts-3axis.md](./specs/spike-04-tts-3axis.md) | [eval-results/spike-04-2026-05-11.md](./eval-results/spike-04-2026-05-11.md) |
+| 5 | 사용자 인터뷰 5~10명 | 미시작 | [specs/spike-05-user-interview.md](./specs/spike-05-user-interview.md) | — |
 
 ## Phase 0 종료 조건
 
