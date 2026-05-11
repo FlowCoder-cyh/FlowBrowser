@@ -6,7 +6,7 @@
 ## 메타
 
 - **Phase**: **1 (웹 번역 MVP)** — Sprint 001 M1 진행 중
-- **Sprint**: 002 (정의 작성, 다음 M1 착수)
+- **Sprint**: 002 / M1 (ESLint + UsageLog UI) — evaluator Pass 13/0/0
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영)
 - **최근 갱신**: 2026-05-11 (Sprint 002 정의 작성, 통과 기준 Pass ≥ 8 적용)

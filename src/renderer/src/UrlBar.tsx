@@ -21,7 +21,7 @@ export default function UrlBar({ onOpenSettings }: Props = {}): JSX.Element {
 
   useEffect(() => {
     void navigate(DEFAULT_URL)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   async function navigate(target: string): Promise<void> {
