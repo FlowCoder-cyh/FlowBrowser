@@ -5,7 +5,8 @@ import {
   rebuildAllProviders,
   WebContentsRegistry,
   executeTranslateRequest,
-  scanWebContentsFields
+  scanWebContentsFields,
+  extractWebContentsParagraphs
 } from './services'
 
 let mainWindow: BrowserWindow | null = null
@@ -75,13 +76,22 @@ function createMainWindow(): void {
   })
 }
 
+const PANEL_WIDTH = 420
+let panelOpen = false
+
+ipcMain.handle('panel:set-open', (_event, open: boolean): void => {
+  panelOpen = !!open
+  updateBrowserViewBounds()
+})
+
 function updateBrowserViewBounds(): void {
   if (!mainWindow || !browserView) return
   const bounds = mainWindow.getContentBounds()
+  const rightInset = panelOpen ? PANEL_WIDTH : 0
   browserView.setBounds({
     x: 0,
     y: URL_BAR_HEIGHT,
-    width: bounds.width,
+    width: Math.max(0, bounds.width - rightInset),
     height: Math.max(0, bounds.height - URL_BAR_HEIGHT)
   })
 }
@@ -129,6 +139,95 @@ ipcMain.handle('get-current-url', (): string => {
 ipcMain.handle('browser:get-view-id', (): number | null => {
   return browserView?.webContents.id ?? null
 })
+
+ipcMain.handle(
+  'translate:paragraphs',
+  async (
+    _event,
+    args: { providerType: string; sourceLanguage: string; targetLanguage: string }
+  ): Promise<{ ok: boolean; total: number; reason?: string }> => {
+    if (!mainWindow || !browserView) {
+      return { ok: false, total: 0, reason: 'browser-not-ready' }
+    }
+    const url = browserView.webContents.getURL()
+    const webContentsId = browserView.webContents.id
+    const paragraphs = await extractWebContentsParagraphs(webContentsId)
+    if (paragraphs.length === 0) {
+      return { ok: false, total: 0, reason: '문단을 찾지 못했습니다.' }
+    }
+
+    const fieldScan = await scanWebContentsFields(webContentsId)
+
+    mainWindow.webContents.send('translate:paragraphs-start', {
+      url,
+      total: paragraphs.length,
+      paragraphs
+    })
+
+    let completed = 0
+    let blocked = 0
+    let failed = 0
+
+    for (const p of paragraphs) {
+      if (!mainWindow) break
+      const result = await executeTranslateRequest({
+        providerType: args.providerType as 'openai',
+        input: {
+          sourceText: p.text,
+          sourceLanguage: args.sourceLanguage,
+          targetLanguage: args.targetLanguage,
+          requestType: 'paragraph',
+          context: { url }
+        },
+        context: {
+          url,
+          hasPasswordField: fieldScan.hasPasswordField,
+          hasCardField: fieldScan.hasCardField
+        }
+      })
+
+      if (result.ok && result.output) {
+        completed++
+      } else if (result.decision === 'blocked') {
+        blocked++
+      } else {
+        failed++
+      }
+
+      mainWindow.webContents.send('translate:paragraph-progress', {
+        id: p.id,
+        completed,
+        blocked,
+        failed,
+        total: paragraphs.length,
+        translatedText: result.output?.translatedText,
+        fromCache: result.fromCache,
+        reason: result.reason,
+        decision: result.decision
+      })
+
+      if (result.decision === 'blocked') {
+        // 페이지 전체 차단 사유 (예: consent / password) — 더 진행 안 함
+        if (
+          result.reason &&
+          (result.reason.includes('전역 동의') ||
+            result.reason.includes('비밀번호') ||
+            result.reason.includes('결제'))
+        ) {
+          break
+        }
+      }
+    }
+
+    mainWindow.webContents.send('translate:paragraphs-done', {
+      total: paragraphs.length,
+      completed,
+      blocked,
+      failed
+    })
+    return { ok: true, total: paragraphs.length }
+  }
+)
 
 async function handleContextMenuTranslate(
   selectionText: string,

@@ -381,6 +381,27 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
 }
 
 /**
+ * 외부 페이지(WebContentsView)에서 문단을 추출한다.
+ */
+export async function extractWebContentsParagraphs(
+  webContentsId: number
+): Promise<Array<{ id: string; text: string; tag: string }>> {
+  const wc = WebContentsRegistry.get(webContentsId)
+  if (!wc) return []
+  try {
+    const { extractParagraphsScript } = await import('../perception/ParagraphExtractor')
+    const result = (await wc.executeJavaScript(extractParagraphsScript())) as Array<{
+      id: string
+      text: string
+      tag: string
+    }>
+    return Array.isArray(result) ? result : []
+  } catch {
+    return []
+  }
+}
+
+/**
  * 외부 페이지(WebContentsView)에서 민감 필드를 스캔한다.
  * 본문 카드 패턴은 sourceText에 대해 evaluatePrivacy 안에서 별도로 평가됨.
  */
