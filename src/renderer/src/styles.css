@@ -109,3 +109,312 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Loading */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 20px;
+  color: #777;
+}
+
+/* Consent */
+.consent {
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px;
+  background: #1a1a1a;
+  user-select: text;
+}
+
+.consent-card {
+  max-width: 720px;
+  background: #2a2a2a;
+  border-radius: 12px;
+  padding: 32px 36px;
+  color: #e0e0e0;
+  border: 1px solid #3a3a3a;
+}
+
+.consent-title {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.consent-subtitle {
+  font-size: 14px;
+  color: #999;
+  margin-bottom: 24px;
+}
+
+.consent-section {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 24px 0 12px;
+  color: #cccccc;
+}
+
+.consent-list {
+  list-style: disc;
+  padding-left: 20px;
+  margin-bottom: 8px;
+}
+
+.consent-list li {
+  margin-bottom: 8px;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.consent-muted {
+  color: #999;
+  font-size: 12px;
+}
+
+.consent-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 24px 0 16px;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.consent-checkbox input {
+  margin-top: 3px;
+  cursor: pointer;
+}
+
+.consent-agree {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: #4a9eff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.consent-agree:hover:not(:disabled) {
+  background: #3a8eef;
+}
+
+.consent-agree:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.consent-foot {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #777;
+  text-align: center;
+}
+
+/* Settings */
+.settings {
+  height: 100vh;
+  overflow-y: auto;
+  background: #1a1a1a;
+  padding: 24px 32px;
+  color: #e0e0e0;
+  user-select: text;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.settings-header h1 {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.settings-close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.settings-close:hover {
+  background: #3a3a3a;
+}
+
+.settings-section {
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+.settings-section h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.settings-muted {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 16px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.settings-label {
+  width: 140px;
+  font-size: 13px;
+  color: #ccc;
+}
+
+.settings-input {
+  flex: 1;
+  height: 32px;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  color: #e0e0e0;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 13px;
+  outline: none;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.settings-input:focus {
+  border-color: #4a9eff;
+}
+
+.settings-btn {
+  height: 32px;
+  padding: 0 14px;
+  background: #4a9eff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.settings-btn:hover:not(:disabled) {
+  background: #3a8eef;
+}
+
+.settings-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-btn-link {
+  background: transparent;
+  color: #ff7070;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.settings-btn-link:hover {
+  text-decoration: underline;
+}
+
+.settings-message {
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 8px 0 12px;
+  font-size: 13px;
+}
+
+.settings-message.info {
+  background: #1a3a5a;
+  color: #aaccff;
+}
+
+.settings-message.success {
+  background: #1a4a2a;
+  color: #aaffcc;
+}
+
+.settings-message.error {
+  background: #4a1a1a;
+  color: #ffaaaa;
+}
+
+.settings-subhead {
+  font-size: 13px;
+  color: #999;
+  margin: 16px 0 8px;
+  font-weight: 500;
+}
+
+.settings-cred-list {
+  list-style: none;
+  padding: 0;
+}
+
+.settings-cred {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.settings-cred-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.settings-cred-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+.settings-cred-status.status-active {
+  background: #1a4a2a;
+  color: #88ffaa;
+}
+
+.settings-cred-status.status-invalid,
+.settings-cred-status.status-expired {
+  background: #4a1a1a;
+  color: #ffaaaa;
+}
+
+.settings-cred-status.status-disabled {
+  background: #3a3a3a;
+  color: #999;
+}
+
+.settings-cred-type {
+  font-size: 11px;
+  color: #777;
+}

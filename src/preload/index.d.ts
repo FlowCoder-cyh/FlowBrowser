@@ -1,8 +1,20 @@
-import type { BrowserApi } from './index'
+import type {
+  BrowserApi,
+  ConsentApi,
+  CredentialApi,
+  PrivacyApi,
+  UsageApi,
+  TranslateApi
+} from './index'
 
 declare global {
   interface Window {
     browserApi: BrowserApi
+    consentApi: ConsentApi
+    credentialApi: CredentialApi
+    privacyApi: PrivacyApi
+    usageApi: UsageApi
+    translateApi: TranslateApi
   }
 }
 
