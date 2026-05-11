@@ -84,6 +84,63 @@
 | 지원 OS (MVP) | Windows / macOS |
 | 개발 언어 (예정) | TypeScript (Electron) |
 
+## 개발 환경 셋업
+
+### 사전 조건
+
+- Node.js ≥ 20 (검증: v24.12.0)
+- npm ≥ 10 (검증: 11.6.2)
+- Git, GitHub CLI (`gh`)
+
+### 의존성 설치
+
+```
+npm install
+```
+
+### 개발 실행 (HMR)
+
+```
+npm run dev
+```
+
+### 빌드 (production)
+
+```
+npm run build
+```
+
+빌드 산출물: `out/main/`, `out/preload/`, `out/renderer/`.
+
+### Typecheck
+
+```
+npm run typecheck
+```
+
+main / preload (node) + renderer (web) 모두 strict 모드.
+
+### 테스트 (M4 진행 후 활성)
+
+```
+npm test
+```
+
+### 빌드된 앱 미리보기
+
+```
+npm start
+```
+
+## 기술 스택
+
+- **Electron**: ≥ 39.0.0 (40.1.0 회피, PRD §19.6 v0.3 정책)
+- **Build**: electron-vite (Vite 6)
+- **UI**: React 18 + TypeScript 5
+- **Test**: Vitest
+- **Format / Lint**: Prettier (활성), ESLint (M2~M4 활성화)
+- **Patterns**: contextIsolation + sandbox 외부 페이지
+
 ## 라이선스 / 기여
 
 (추가 예정)
