@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import UrlBar from './UrlBar'
 import Consent from './onboarding/Consent'
 import SettingsPage from './settings/SettingsPage'
+import TranslationPopup from './translation/TranslationPopup'
 
 type Stage = 'loading' | 'consent' | 'browser' | 'settings'
 
@@ -32,6 +33,7 @@ export default function App(): JSX.Element {
   return (
     <div className="app">
       <UrlBar onOpenSettings={() => setStage('settings')} />
+      <TranslationPopup />
     </div>
   )
 }

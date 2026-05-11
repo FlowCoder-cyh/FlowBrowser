@@ -99,12 +99,48 @@ const translateApi = {
   request: (args: TranslateRequest) => ipcRenderer.invoke('translate:request', args)
 }
 
+interface PopupShowPayload {
+  sourceText: string
+  url: string
+  anchorX: number
+  anchorY: number
+  status: 'loading'
+}
+
+interface PopupResultPayload {
+  ok: boolean
+  decision: string
+  reason?: string
+  output?: {
+    translatedText: string
+    modelUsed: string
+    inputTokens: number
+    outputTokens: number
+    estimatedCostUsd: number
+    durationMs: number
+  }
+}
+
+const popupApi = {
+  onShow: (handler: (payload: PopupShowPayload) => void): (() => void) => {
+    const listener = (_event: unknown, payload: PopupShowPayload): void => handler(payload)
+    ipcRenderer.on('translation:popup-show', listener)
+    return () => ipcRenderer.removeListener('translation:popup-show', listener)
+  },
+  onResult: (handler: (payload: PopupResultPayload) => void): (() => void) => {
+    const listener = (_event: unknown, payload: PopupResultPayload): void => handler(payload)
+    ipcRenderer.on('translation:popup-result', listener)
+    return () => ipcRenderer.removeListener('translation:popup-result', listener)
+  }
+}
+
 contextBridge.exposeInMainWorld('browserApi', browserApi)
 contextBridge.exposeInMainWorld('consentApi', consentApi)
 contextBridge.exposeInMainWorld('credentialApi', credentialApi)
 contextBridge.exposeInMainWorld('privacyApi', privacyApi)
 contextBridge.exposeInMainWorld('usageApi', usageApi)
 contextBridge.exposeInMainWorld('translateApi', translateApi)
+contextBridge.exposeInMainWorld('popupApi', popupApi)
 
 export type BrowserApi = typeof browserApi
 export type ConsentApi = typeof consentApi
@@ -112,3 +148,4 @@ export type CredentialApi = typeof credentialApi
 export type PrivacyApi = typeof privacyApi
 export type UsageApi = typeof usageApi
 export type TranslateApi = typeof translateApi
+export type PopupApi = typeof popupApi
