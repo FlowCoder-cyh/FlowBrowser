@@ -74,7 +74,10 @@ const privacyApi = {
 
 const usageApi = {
   summary: (sinceMs?: number) => ipcRenderer.invoke('usage:summary', sinceMs),
-  list: (sinceMs?: number) => ipcRenderer.invoke('usage:list', sinceMs)
+  list: (sinceMs?: number) => ipcRenderer.invoke('usage:list', sinceMs),
+  clearAll: (): Promise<void> => ipcRenderer.invoke('usage:clear-all'),
+  purgeOlderThan: (beforeMs: number): Promise<number> =>
+    ipcRenderer.invoke('usage:purge-older-than', beforeMs)
 }
 
 interface TranslateRequest {

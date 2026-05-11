@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import UsagePanel from './UsagePanel'
 
 interface CredentialRecord {
   id: string
@@ -145,12 +146,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
         )}
       </section>
 
-      <section className="settings-section">
-        <h2>개인정보</h2>
-        <p className="settings-muted">
-          외부 전송 차단/허용 정책 변경, 차단 통계, 사용량 로그는 추후 추가됩니다.
-        </p>
-      </section>
+      <UsagePanel />
     </div>
   )
 }

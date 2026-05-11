@@ -50,7 +50,7 @@ let domainFilter!: DomainFilter
 let transmissionLogger!: TransmissionLogger
 let credentialsStore!: CredentialsStore
 let usageLog!: UsageLog
-let providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
+const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 
 let consentStatePath!: string
 let domainStatePath!: string
@@ -219,6 +219,12 @@ function registerUsageIpc(): void {
   )
   ipcMain.handle('usage:list', async (_event, sinceMs?: number) =>
     sinceMs ? usageLog.readSince(sinceMs) : usageLog.readAll()
+  )
+  ipcMain.handle('usage:clear-all', async (): Promise<void> => {
+    await usageLog.clearAll()
+  })
+  ipcMain.handle('usage:purge-older-than', async (_event, beforeMs: number): Promise<number> =>
+    usageLog.purgeOlderThan(beforeMs)
   )
 }
 

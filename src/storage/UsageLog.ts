@@ -104,6 +104,17 @@ export class UsageLog {
     return summary
   }
 
+  async clearAll(): Promise<void> {
+    this.writeQueue = this.writeQueue.then(async () => {
+      try {
+        await fs.unlink(this.filePath)
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+      }
+    })
+    await this.writeQueue
+  }
+
   async purgeOlderThan(beforeMs: number): Promise<number> {
     const all = await this.readAll()
     const kept = all.filter((e) => e.createdAt >= beforeMs)
