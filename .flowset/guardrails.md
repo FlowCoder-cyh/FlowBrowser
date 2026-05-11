@@ -85,10 +85,24 @@
 
 ## Phase 0에서 발견한 패턴
 
-(아직 없음 — Spike 진행하며 누적)
+### G-011 [active] 공개 endpoint 회색지대 허용
+
+- **규칙**: 다음은 허용한다.
+  - 공개 OAuth 클라이언트 ID 재사용 (예: Codex `app_EMoamEEZ73f0CkXaXp7hrann` + PKCE — OpenClaw / Roo Code / 다수 3rd-party 사례)
+  - 공개 caption track URL 직접 fetch (`timedtext.googlevideo.com` 등)
+  - 비공식 transcript 라이브러리 (`youtube-transcript-api` 등)
+- **금지** (G-003에 따른 절대 금지):
+  - ChatGPT 웹 세션 / 쿠키 재사용
+  - 사용자 자격증명 / 세션 모방
+  - 비공식 토큰 추출 (Codex CLI 인증 우회 등)
+  - 사용량 한도 우회
+- **Why**: Spike 1·2 1차 조사 결과 — 공개 endpoint 재사용은 다수 3rd-party 사례 (OpenClaw / Roo Code / youtube-transcript-api)와 함께 OpenAI / Google 모두 명시 차단 안 함. 회색지대지만 사실상 묵인 패턴. PRD 11.3 / 15.3 / 18.1과 정합.
+- **How to apply**: 코드 작성 시 "공개" 여부 명확히 구분. 사용자 자격증명 / 세션 / 쿠키를 다루는 코드 발견 시 즉시 차단. 회색지대 사용 시 UI에 "비공식 호환 모드, 차단 가능성 있음" 고지 + OpenAI API Key / 공식 자막 모드 폴백 항상 유지.
+- **출처**: Spike 1 spec / Spike 2 spec / phase0-summary §2, §8
 
 ---
 
 ## 변경 이력
 
 - 2026-05-11: G-001 ~ G-010 초기 등록 (PRD v0.2 + 사용자 글로벌 규칙 기반)
+- 2026-05-11: G-011 추가 (Phase 0 종합 보고 §8 권고 반영, Spike 1·2 회색지대 패턴 명문화)
