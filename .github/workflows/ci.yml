@@ -1,31 +1,38 @@
 name: CI
 
-# Phase 0: placeholder. Phase 1 진입 시 lint / test / build 단계 실질 활성화.
-# 현재는 트리거되지 않도록 paths-ignore로 방어.
+# Phase 1 활성: typecheck + test + build
+# 추후 ESLint / e2e 추가 예정
 
 on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '**'
   pull_request:
     branches:
       - main
-    paths-ignore:
-      - '**'
 
 jobs:
-  noop:
-    name: Phase 0 placeholder
+  ci:
+    name: typecheck + test + build
     runs-on: ubuntu-latest
     steps:
-      - name: 안내
-        run: |
-          echo "Phase 0 단계입니다. CI는 Phase 1 진입 시 활성화됩니다."
-          echo "활성화 시 추가될 단계:"
-          echo "  - lint (ESLint / Prettier)"
-          echo "  - typecheck (TypeScript)"
-          echo "  - test (Vitest / Jest)"
-          echo "  - build (Electron Forge / electron-builder)"
-          echo "  - e2e (Playwright)"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npx electron-vite build
