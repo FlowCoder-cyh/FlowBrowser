@@ -5,17 +5,18 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — sprint-001 정의 완료, 사용자 승인 후 코드 착수
-- **Sprint**: 001 (정의 완료, 미시작)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001 M1 진행 중
+- **Sprint**: 001 / M1 (Electron 셸 + URL Bar) — evaluator Pass (4/1/0)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영)
-- **최근 갱신**: 2026-05-11 (Phase 1 활성화 PR B)
+- **최근 갱신**: 2026-05-11 (Sprint 001 M1 코드 작성 + 자동 검증 통과)
 
 ## 현재 작업
 
-- Phase 0 finalize 완료 (PR A1 / A2 머지)
-- Phase 1 활성화 (PR B — 현재): sprint-001 / ownership / lead-workflow
-- 다음: PR B 머지 → 사용자 sprint-001 착수 승인 → 코드 작업 시작
+- Sprint 001 M1 코드 완료: Electron 셸 + WebContentsView + URL Bar
+- 자동 검증: `npm install` (258 packages) → `typecheck` (PASS) → `build` (PASS)
+- evaluator: **Pass** (4/1/0) — 실 GUI 시나리오는 M4 수동 QA 이관
+- 다음: M1 PR auto-merge → M2 (Privacy Layer + Provider Adapter + 동의 화면) 착수
 
 ## 활성 Spike (5종)
 
