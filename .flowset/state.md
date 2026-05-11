@@ -6,10 +6,10 @@
 ## 메타
 
 - **Phase**: **1 (웹 번역 MVP)** — Sprint 001 M1 진행 중
-- **Sprint**: 001 — **M4 (테스트 + Sprint 종료)** — Sprint 종합 evaluator Pass (조건부)
+- **Sprint**: 002 (정의 작성, 다음 M1 착수)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영)
-- **최근 갱신**: 2026-05-11 (Sprint 001 종료 evaluator + 단위 테스트 47/47)
+- **최근 갱신**: 2026-05-11 (Sprint 002 정의 작성, 통과 기준 Pass ≥ 8 적용)
 
 ## 현재 작업
 
