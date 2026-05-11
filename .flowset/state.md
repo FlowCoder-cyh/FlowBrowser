@@ -5,17 +5,17 @@
 
 ## 메타
 
-- **Phase**: 0 (치명 가설 검증 Spike)
-- **Sprint**: — (Phase 1 진입 시 sprint-001 시작)
+- **Phase**: **1 (웹 번역 MVP)** — sprint-001 정의 완료, 사용자 승인 후 코드 착수
+- **Sprint**: 001 (정의 완료, 미시작)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영)
-- **최근 갱신**: 2026-05-11 (PRD v0.3 발행)
+- **최근 갱신**: 2026-05-11 (Phase 1 활성화 PR B)
 
 ## 현재 작업
 
-- Phase 0 finalize PR A2 (PRD v0.3 발행) 진행 중
-- 자율 진행: PR A1 머지 완료 → PR A2 (현재) → PR B (Phase 1 활성화)
-- 다음: PR A2 머지 → PR B (sprint-001 / ownership / lead-workflow / CI lint+test)
+- Phase 0 finalize 완료 (PR A1 / A2 머지)
+- Phase 1 활성화 (PR B — 현재): sprint-001 / ownership / lead-workflow
+- 다음: PR B 머지 → 사용자 sprint-001 착수 승인 → 코드 작업 시작
 
 ## 활성 Spike (5종)
 

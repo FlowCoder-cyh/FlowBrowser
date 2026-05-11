@@ -5,7 +5,7 @@ description: FlowBrowser AI 리드 6단계 워크플로우. Phase 1 진입 시 �
 
 # Lead Workflow — FlowBrowser AI
 
-> **상태: 휴면 (Phase 0). Phase 1 진입 시 활성화.**
+> **상태: 활성 (Phase 1 진입 — 2026-05-11). sprint-001부터 6단계 워크플로우 적용.**
 
 ## 역할
 
@@ -18,11 +18,16 @@ Sprint 단위 작업의 6단계 오케스트레이션:
 5. **PR 통합** — 통과 산출물을 PR로 묶어 main 머지 후보 생성
 6. **정리 / 회고** — Sprint 종료 시 핸드오프 / 가드레일 / 온톨로지 갱신
 
-## Phase 0에서
+## Phase 0에서 (history)
 
-- **호출하지 않음** — Phase 0은 Spike 단위 운영, 6단계 워크플로우 불필요
-- 정의만 보존
-- Phase 1 진입 결정 시 본 파일 활성화
+- 호출하지 않음 — Phase 0은 Spike 단위 운영
+- 2026-05-11: 5개 Spike 1차 조사 완료 후 Phase 1 진입 시 활성화
+
+## Phase 1 활성 (현재)
+
+- sprint-001부터 6단계 워크플로우 적용
+- 입력: `.flowset/contracts/sprint-NNN.md` + `.flowset/ownership.json`
+- 출력: 분해된 작업 → 팀 할당 → 구현 → evaluator → PR → 회고
 
 ## Phase 1+에서 활성 시 입력
 
@@ -38,15 +43,13 @@ Sprint 단위 작업의 6단계 오케스트레이션:
 - PR: GitHub PR (제목 `WI-NNN-[type] 한글 작업명`)
 - Sprint 회고: `.flowset/handoffs/sprint-NNN-retrospective.md`
 
-## Phase 1 활성화 조건
+## Phase 1 활성화 조건 (충족됨 2026-05-11)
 
-다음 4개 조건 모두 충족 시 활성화:
-
-- [ ] Phase 0 Spike 5종 모두 evaluator 통과 (Pass 또는 Partial)
-- [ ] PRD v0.3 발행 (Spike 결과 반영)
-- [ ] `.flowset/contracts/sprint-001.md` 작성
-- [ ] `.flowset/ownership.json` 작성
-- [ ] 사용자 승인
+- [x] Phase 0 Spike 5종 모두 evaluator 통과 (Pass 또는 Pass w/ conditions)
+- [x] PRD v0.3 발행
+- [x] `.flowset/contracts/sprint-001.md` 작성
+- [x] `.flowset/ownership.json` 작성
+- [ ] 사용자 승인 (PR B 머지 후)
 
 ## 6단계 상세 (Phase 1+ 운영용 명세)
 
