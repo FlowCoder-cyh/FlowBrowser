@@ -6,17 +6,18 @@
 ## 메타
 
 - **Phase**: **1 (웹 번역 MVP)** — Sprint 001 M1 진행 중
-- **Sprint**: 001 / M1 (Electron 셸 + URL Bar) — evaluator Pass (4/1/0)
+- **Sprint**: 001 / M2 (Privacy + Provider + 동의 + Keychain) — evaluator Pass (8/1/0)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영)
-- **최근 갱신**: 2026-05-11 (Sprint 001 M1 코드 작성 + 자동 검증 통과)
+- **최근 갱신**: 2026-05-11 (Sprint 001 M2 코드 작성 + 자동 검증 통과)
 
 ## 현재 작업
 
-- Sprint 001 M1 코드 완료: Electron 셸 + WebContentsView + URL Bar
-- 자동 검증: `npm install` (258 packages) → `typecheck` (PASS) → `build` (PASS)
-- evaluator: **Pass** (4/1/0) — 실 GUI 시나리오는 M4 수동 QA 이관
-- 다음: M1 PR auto-merge → M2 (Privacy Layer + Provider Adapter + 동의 화면) 착수
+- Sprint 001 M1 머지 완료, M2 코드 완료
+- M2 산출물: Privacy Layer 4 모듈 + ConsentGate + DomainFilter + TransmissionLogger + CredentialsStore + UsageLog + ProviderAdapter + OpenAIApiKeyProvider + Consent.tsx + SettingsPage.tsx + main services.ts (16 IPC)
+- 자동 검증: typecheck (PASS) → build (PASS, main 31.68kB / preload 2.20kB / renderer 241kB + css 6.33kB)
+- evaluator: **Pass** (8/1/0). Partial 1: AC-6 사용량 UI 미구현 (데이터 계층 완성, UI는 추후)
+- 다음: M2 PR auto-merge → M3 (선택 영역 번역 흐름) 착수
 
 ## 활성 Spike (5종)
 

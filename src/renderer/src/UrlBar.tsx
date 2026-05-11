@@ -1,5 +1,9 @@
 import { useState, useEffect, type FormEvent, type KeyboardEvent } from 'react'
 
+interface Props {
+  onOpenSettings?: () => void
+}
+
 const DEFAULT_URL = 'https://www.google.com'
 
 function normalizeUrl(input: string): string {
@@ -10,7 +14,7 @@ function normalizeUrl(input: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`
 }
 
-export default function UrlBar(): JSX.Element {
+export default function UrlBar({ onOpenSettings }: Props = {}): JSX.Element {
   const [currentUrl, setCurrentUrl] = useState(DEFAULT_URL)
   const [displayUrl, setDisplayUrl] = useState(DEFAULT_URL)
   const [busy, setBusy] = useState(false)
@@ -105,6 +109,17 @@ export default function UrlBar(): JSX.Element {
           {busy ? '...' : '이동'}
         </button>
       </form>
+      {onOpenSettings && (
+        <button
+          type="button"
+          className="nav-btn"
+          onClick={onOpenSettings}
+          title="설정"
+          aria-label="설정"
+        >
+          ⚙
+        </button>
+      )}
     </header>
   )
 }

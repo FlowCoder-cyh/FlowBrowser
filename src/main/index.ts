@@ -1,5 +1,6 @@
 import { app, BrowserWindow, WebContentsView, ipcMain } from 'electron'
 import { join } from 'node:path'
+import { initServices, rebuildAllProviders, WebContentsRegistry } from './services'
 
 let mainWindow: BrowserWindow | null = null
 let browserView: WebContentsView | null = null
@@ -39,6 +40,8 @@ function createMainWindow(): void {
       sandbox: true
     }
   })
+
+  WebContentsRegistry.register(browserView.webContents)
 
   mainWindow.contentView.addChildView(browserView)
   updateBrowserViewBounds()
@@ -101,7 +104,13 @@ ipcMain.handle('get-current-url', (): string => {
   return browserView?.webContents.getURL() ?? ''
 })
 
-app.whenReady().then(() => {
+ipcMain.handle('browser:get-view-id', (): number | null => {
+  return browserView?.webContents.id ?? null
+})
+
+app.whenReady().then(async () => {
+  await initServices()
+  rebuildAllProviders()
   createMainWindow()
 
   app.on('activate', () => {
