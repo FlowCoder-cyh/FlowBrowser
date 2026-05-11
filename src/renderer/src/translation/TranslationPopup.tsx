@@ -13,6 +13,7 @@ type Status =
       outputTokens: number
       estimatedCostUsd: number
       durationMs: number
+      fromCache: boolean
     }
   | {
       kind: 'blocked'
@@ -51,7 +52,8 @@ export default function TranslationPopup(): JSX.Element | null {
             inputTokens: payload.output.inputTokens,
             outputTokens: payload.output.outputTokens,
             estimatedCostUsd: payload.output.estimatedCostUsd,
-            durationMs: payload.output.durationMs
+            durationMs: payload.output.durationMs,
+            fromCache: !!payload.fromCache
           }
         }
         if (payload.decision === 'blocked') {
@@ -114,6 +116,9 @@ export default function TranslationPopup(): JSX.Element | null {
         <>
           <div className="popup-translated">{state.translatedText}</div>
           <div className="popup-meta">
+            {state.fromCache ? (
+              <span className="popup-cache-badge">✓ 캐시</span>
+            ) : null}
             {state.modelUsed} · {state.inputTokens}+{state.outputTokens} tok · $
             {state.estimatedCostUsd.toFixed(6)} · {state.durationMs}ms
           </div>

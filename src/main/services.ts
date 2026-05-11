@@ -23,8 +23,10 @@ import {
 import {
   CredentialsStore,
   UsageLog,
+  TranslationCache,
   defaultCredentialsPath,
   defaultUsageLogPath,
+  defaultTranslationCachePath,
   type CredentialRecord,
   type CredentialProviderType
 } from '../storage'
@@ -50,6 +52,7 @@ let domainFilter!: DomainFilter
 let transmissionLogger!: TransmissionLogger
 let credentialsStore!: CredentialsStore
 let usageLog!: UsageLog
+let translationCache!: TranslationCache
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 
 let consentStatePath!: string
@@ -71,11 +74,27 @@ export async function initServices(): Promise<void> {
 
   usageLog = new UsageLog(defaultUsageLogPath(userDataDir))
 
+  translationCache = new TranslationCache(defaultTranslationCachePath(userDataDir))
+  await translationCache.load()
+
   registerConsentIpc()
   registerCredentialIpc()
   registerPrivacyIpc()
   registerUsageIpc()
   registerTranslateIpc()
+  registerCacheIpc()
+}
+
+function registerCacheIpc(): void {
+  ipcMain.handle('cache:stats', () => translationCache.stats())
+  ipcMain.handle('cache:clear-all', async (): Promise<void> => {
+    await translationCache.clearAll()
+  })
+  ipcMain.handle(
+    'cache:invalidate-glossary',
+    async (_event, version: string): Promise<number> =>
+      translationCache.invalidateByGlossaryVersion(version)
+  )
 }
 
 async function loadConsentState(): Promise<ConsentState> {
@@ -244,6 +263,7 @@ export interface TranslateResult {
   output?: TranslationOutput
   decision: PrivacyDecision | 'no_provider' | 'provider_error'
   reason?: string
+  fromCache?: boolean
 }
 
 export async function executeTranslateRequest(args: TranslateArgs): Promise<TranslateResult> {
@@ -274,6 +294,30 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
     return { ok: false, decision: 'blocked', reason: evaluation.reason }
   }
 
+  // Cache lookup (Privacy Filter 통과 후, Provider 호출 전)
+  const cached = await translationCache.lookup({
+    sourceText: args.input.sourceText,
+    sourceLanguage: args.input.sourceLanguage,
+    targetLanguage: args.input.targetLanguage,
+    providerType: args.providerType,
+    glossaryVersion: undefined
+  })
+  if (cached) {
+    return {
+      ok: true,
+      decision: evaluation.decision,
+      fromCache: true,
+      output: {
+        translatedText: cached.translatedText,
+        modelUsed: `${args.providerType}/cache`,
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostUsd: 0,
+        durationMs: 0
+      }
+    }
+  }
+
   const provider = providers.get(args.providerType)
   if (!provider) {
     return {
@@ -285,6 +329,15 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
 
   try {
     const output = await provider.translate(args.input)
+    await translationCache.store({
+      sourceText: args.input.sourceText,
+      sourceLanguage: args.input.sourceLanguage,
+      targetLanguage: args.input.targetLanguage,
+      providerType: args.providerType,
+      translatedText: output.translatedText,
+      domain,
+      isSubtitle: args.input.requestType === 'subtitle'
+    })
     await usageLog.append({
       providerId: provider.info.providerType,
       feature: 'translation',
