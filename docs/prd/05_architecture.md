@@ -22,9 +22,9 @@ Electron / Chromium App
 ├─ AI Perception Layer
 │  ├─ DOM Extractor
 │  ├─ Selection Extractor
-│  ├─ Subtitle Extractor
-│  ├─ Video Detector (direct + iframe)
-│  ├─ Audio Capture
+│  ├─ Subtitle Extractor (postMessage IFrame API + caption track URL fetch — v0.3 Spike 2)
+│  ├─ Video Detector (direct + iframe — postMessage)
+│  ├─ Audio Capture (desktopCapturer + getDisplayMedia / electron-audio-loopback — v0.3 Spike 3)
 │  └─ OCR Adapter (future)
 │
 ├─ AI Processing Layer
@@ -67,23 +67,28 @@ Electron / Chromium App
 
 ```text
 ProviderAdapter
-├─ CodexLoginProvider (Experimental — Phase 0 Spike 1 통과 시)
-├─ OpenAIApiKeyProvider
+├─ CodexLoginProvider (Experimental — Spike 1 1차 통과, 공식 등록 부재, 공개 클라이언트 재사용)
+├─ OpenAIApiKeyProvider (MVP 기본 — Codex 폴백 포함)
 ├─ AnthropicApiKeyProvider
 ├─ GeminiApiKeyProvider
 ├─ DeepLProvider
-├─ ElevenLabsProvider
-└─ LocalModelProvider
+├─ ElevenLabsProvider (TTS 특화 — Flash v2.5 / Multilingual v2)
+└─ LocalModelProvider (Kokoro-82M 등 Apache 2.0 라이선스만 — Coqui XTTS-v2는 비상용 라이선스로 영구 제외)
 ```
 
-## 11.3 Provider 전략 (v0.2 수정)
+## 11.3 Provider 전략 (v0.3 갱신)
 
 ### 메인 (조건부)
 
-**Codex Login Provider는 Phase 0 Spike 1 검증을 통과한 경우에만 메인 Provider로 활성화한다.**
-공식 인증 경로(OpenAI 공식 OAuth 또는 정책 허용 흐름)가 확인되지 않을 경우, MVP 기본 Provider는 OpenAI API Key 방식으로 한다.
+**Codex Login Provider는 Phase 0 Spike 1 1차 조사를 통과하여 Experimental 라벨로 활성화된다.** 단, 다음 조건:
 
-ChatGPT 웹 세션 쿠키 재사용 / 비공식 토큰 추출 / 사용량 우회는 어떤 경우에도 금지한다 (15.3 참조).
+- 공식 OAuth 등록 / 파트너 프로그램 부재 — 공개 Codex 클라이언트(`app_EMoamEEZ73f0CkXaXp7hrann`) + PKCE device-code flow 재사용 (OpenClaw·Roo Code 패턴)
+- OpenAI 측 명시 차단 없음 (회색지대) — G-011 적용
+- UI에 "OpenAI 공식 등록 파트너십이 아닌 비공식 호환 모드, OpenAI가 차단할 가능성 있음" 고지
+- 정책 변경 / 클라이언트 ID 무효화 감지 시 OpenAI API Key 모드로 즉시 자동 폴백 (§18.1)
+- Phase 1 PoC에서 실제 비용 / 한도 / 차단 시그널 / 모델 가용성 / refresh token 만료 측정 후 v0.3.1 갱신
+
+ChatGPT 웹 세션 쿠키 재사용 / 비공식 토큰 추출 / 사용량 우회 / 계정 프록시화는 어떤 경우에도 금지 (§15.3 / G-003).
 
 ### 보조
 

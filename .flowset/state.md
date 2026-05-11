@@ -8,14 +8,14 @@
 - **Phase**: 0 (치명 가설 검증 Spike)
 - **Sprint**: — (Phase 1 진입 시 sprint-001 시작)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: v0.2 (2026-05-11)
-- **최근 갱신**: 2026-05-11 (G-011 추가 + Spike 1 evaluator 사후 호출 완료)
+- **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영)
+- **최근 갱신**: 2026-05-11 (PRD v0.3 발행)
 
 ## 현재 작업
 
-- Phase 0 finalize 단계 — 사용자 결정 4.1~4.3 (a)/(a)/(a) 처리 중
-- 자율 진행: G-011 추가 + Spike 1 evaluator (PR A1 — 현재) → PRD v0.3 발행 (PR A2) → Phase 1 활성화 (PR B)
-- 다음: PR A1 머지 → PRD v0.3 발행 작업
+- Phase 0 finalize PR A2 (PRD v0.3 발행) 진행 중
+- 자율 진행: PR A1 머지 완료 → PR A2 (현재) → PR B (Phase 1 활성화)
+- 다음: PR A2 머지 → PR B (sprint-001 / ownership / lead-workflow / CI lint+test)
 
 ## 활성 Spike (5종)
 

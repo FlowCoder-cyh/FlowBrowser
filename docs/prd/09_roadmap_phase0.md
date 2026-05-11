@@ -1,8 +1,22 @@
 > [← PRD 목차](./README.md)
 
-# 16. 우선순위 로드맵 (v0.2 전면 개편)
+# 16. 우선순위 로드맵 (v0.3 — Phase 0 1차 조사 완료)
 
-## Phase 0: 치명 가설 검증 Spike
+## Phase 0: 치명 가설 검증 Spike — **1차 조사 종료 (2026-05-11)**
+
+5개 Spike 모두 1차 조사 + evaluator 검증 완료. **차단 사유 없음 = Phase 0 게이트 통과 가능**. 상세는 `.flowset/specs/phase0-summary.md`.
+
+| # | Spike | 판정 | evaluator P/P/F |
+|---|---|---|---|
+| 1 | Codex 인증 | Pass w/ conditions | 8 / 1 / 0 |
+| 2 | YouTube 자막·제어 | Pass w/ conditions | 5 / 2 / 0 |
+| 3 | 시스템 오디오 캡처 | Pass w/ conditions | 6 / 1 / 0 |
+| 4 | TTS 3축 | Pass w/ conditions | 4 / 3 / 0 |
+| 5 | 사용자 인터뷰 가이드 | Pass | 7 / 0 / 0 |
+
+Phase 1 PoC 이관 항목 = 22개 + 사용자 직접 7단계 (인터뷰).
+
+아래는 1차 조사 기록 보존용. Phase 1 진입 후 본 섹션은 history로 보존.
 
 기존 v0.1의 Phase 0(Electron 셸·URL 로드·DOM 추출 코드 작성)은 다음 5종 Spike로 전면 교체한다.
 모든 Spike는 1~2주 내 결과 도출을 목표로 하며, Spike 결과에 따라 MVP 1~3 범위와 일정을 조정한다.
@@ -157,7 +171,7 @@
 
 ## Phase 5: 확장
 
-- STT 기반 자막 없는 영상 대응 (Spike 3 통과 시)
+- **STT 기반 자막 없는 영상 대응 — Spike 3 통과로 진행 가능**. STT API 선정 (OpenAI Whisper / Google STT / Deepgram / 로컬) 별도 작업.
 - 일반 HTML5 video 지원
 - 국가별 언어팩
 - 용어집

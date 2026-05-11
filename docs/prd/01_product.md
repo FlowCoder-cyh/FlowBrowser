@@ -37,9 +37,11 @@ FlowBrowser AI는 Electron/Chromium 기반 브라우저 위에 AI 기능을 기�
 
 | 구분 | 포함 | 제외 |
 |---|---|---|
-| OS | Windows / macOS | Linux (개발자 타깃 확장 단계에서 별도 검토) |
+| OS | Windows 10+ / macOS 13+ (Ventura) | Linux / macOS 12 이하 (개발자 확장 단계 별도 검토) |
 | 디바이스 | 데스크톱 | 모바일 브라우저 / 모바일 앱 |
 | 폼팩터 | Electron 데스크톱 앱 | 크롬 확장 / 웹 SaaS |
+
+> **v0.3 갱신 (Spike 3)**: macOS 12 이하는 시스템 오디오 캡처를 위해 BlackHole 등 가상 드라이버 설치 필요 → 사용자 마찰 큼 → MVP 비범위. macOS 13+ (Ventura) ScreenCaptureKit + CoreAudio Tap API 추가 설치 불필요.
 
 ### 모바일 장기 옵션
 

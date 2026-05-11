@@ -1,7 +1,7 @@
-# FlowBrowser AI PRD v0.2 — 목차
+# FlowBrowser AI PRD v0.3 — 목차
 
-본 문서는 FlowBrowser AI 제품 요구사항 명세(PRD)의 v0.2 버전이며, 13개 섹션 파일로 분할되어 있다.
-원본 통합본은 [archive/flowbrowser_ai_prd_crud_v0.2.md](../../archive/flowbrowser_ai_prd_crud_v0.2.md)에 보관된다.
+본 문서는 FlowBrowser AI 제품 요구사항 명세(PRD)의 **v0.3** 버전이며, 13개 섹션 파일로 분할되어 있다.
+v0.2 통합본은 [archive/flowbrowser_ai_prd_crud_v0.2.md](../../archive/flowbrowser_ai_prd_crud_v0.2.md)에 보관되며, v0.3 통합본은 작성하지 않고 분할 SSOT로 운영한다.
 
 ## 섹션 구성
 
@@ -23,13 +23,16 @@
 
 ## 현재 상태
 
-**Phase 0 — 치명 가설 검증 Spike 단계**
+**Phase 0 1차 조사 완료 — Phase 1 진입 준비 중**
 
-Phase 0이 끝나기 전까지 본격 코드 착수는 보류한다. Spike 결과는 v0.3 PRD에 반영된다.
+5개 Spike(Codex 인증 / YouTube / 오디오 캡처 / TTS / 인터뷰) 1차 조사 + evaluator 검증 모두 통과. 본 v0.3에 반영됨.
+Phase 1 진입은 sprint-001 / ownership / lead-workflow 활성화 후 시작한다.
+Spike 5 (사용자 인터뷰) 실제 진행은 사용자 직접 작업으로 Phase 1 코드 작업과 병렬 진행 가능.
 
 ## 버전 이력
 
 | 버전 | 일자 | 비고 |
 |---|---|---|
 | v0.1 | 초안 | [archive/flowbrowser_ai_prd_crud_v0.1.md](../../archive/flowbrowser_ai_prd_crud_v0.1.md) |
-| v0.2 | 2026-05-11 | GPT/Claude 교차 검토 반영, 현재 |
+| v0.2 | 2026-05-11 | GPT/Claude 교차 검토 반영 |
+| **v0.3** | **2026-05-11** | **Phase 0 1차 조사 (5개 Spike) 반영, 현재** |

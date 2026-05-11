@@ -31,11 +31,14 @@
 
 ## 7.2 MVP 2: YouTube 자막 번역 브라우저
 
-### 범위 제한 (v0.2)
+### 범위 제한 (v0.3 보강)
 
-**MVP 2는 자막 접근 가능한 YouTube 영상에 한정한다.**
-자막 없는 영상은 Phase 5의 STT 기반 기능으로 분리하며, STT 가용성은 Phase 0 Spike 3에서 선검증한다.
-또한 임베디드 YouTube(iframe) 환경에서의 동작은 Phase 0 Spike 2에서 별도 검증한다.
+**MVP 2는 자막 접근 가능한 YouTube 영상에 한정한다** = **공개 + 자막 있는 (수동/자동) + 임베드 허용 + 비-DRM** 영상.
+
+- 자막 없는 영상은 Phase 5의 STT 기반 기능으로 분리 (Spike 3 가용성 검증 완료)
+- 임베디드 YouTube(iframe) 환경 동작 = postMessage IFrame API 기반 작동 (Spike 2 통과)
+- 광고 / 연령 제한 / Premium / DRM 콘텐츠 = 영구 제외 또는 자막 모드 fallback
+- 자막 추출 방식 = caption track URL 직접 fetch + 비공식 transcript 라이브러리 (회색지대 인지, G-011)
 
 ### 포함 기능
 

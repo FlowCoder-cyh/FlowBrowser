@@ -28,4 +28,4 @@ TTS용 번역은 자막용 번역과 다르게 처리한다.
 | 요약형 TTS | 긴 문장을 짧게 압축 |
 | 강의형 TTS | 설명을 조금 더 자연스럽게 보완 |
 
-> 실제 적용 가능한 정책 매개변수(0.9배·0.75배·4초 임계)는 Phase 0 Spike 4의 TTS 지연 측정 결과로 캘리브레이션한다.
+> v0.3 갱신 (Spike 4): 임계값(0.9배 / 0.75~0.85배 / 4초)은 Provider 후보 4종(OpenAI gpt-4o-mini-tts ~250ms / ElevenLabs Flash v2.5 ~75ms / ElevenLabs Multilingual v2 ~200-500ms / Kokoro-82M GPU <200ms)과 양립 가능. 단, **한국어 음성 길이 vs 원본 영어 음성 길이 비율, 동시 다중 요청 한계, 한국어 5명 블라인드 평가는 Phase 1 PoC에서 실측 후 캘리브레이션**.

@@ -19,7 +19,7 @@
 - Selection Extractor 구현
 - Video Detector (직접 + iframe) 구현
 - YouTube Detector 구현
-- Subtitle Extractor 구현 (sourceType 구분)
+- Subtitle Extractor 구현 (v0.3 Spike 2): postMessage IFrame API + caption track URL 직접 fetch (`timedtext.googlevideo.com`), 또는 youtube-transcript-api 같은 비공식 라이브러리. sourceType 구분 (human / asr).
 - Playback Controller 구현
 
 ## 19.3 Privacy Layer (v0.2 신규)
@@ -37,8 +37,8 @@
 - Codex Login Provider 실험 구현 (Spike 1 통과 시)
 - Translation Engine 구현
 - Summary Engine 구현
-- TTS Engine 구현 (Spike 4 선정 Provider)
-- STT Engine 추후 구현 (Spike 3 통과 시)
+- TTS Engine 구현 (v0.3 Spike 4): OpenAI gpt-4o-mini-tts (MVP 기본) + ElevenLabs Flash v2.5 (고급) + Kokoro-82M (프라이버시). ~~Coqui XTTS-v2~~ 영구 제외 (비상용 라이선스 + 회사 폐업).
+- STT Engine — **Phase 5 별도 작업** (Spike 3 가용성 통과: Win10+ / macOS 13+ 추가 설치 불필요). STT API 선정 (Whisper / Google STT / Deepgram / 로컬) 별도.
 
 ## 19.5 Storage Layer
 
@@ -56,11 +56,12 @@
 - 코드 사이닝: Windows Authenticode / macOS Developer ID
 - 패키징: Windows MSI / macOS DMG
 - 크래시 리포트: Sentry 또는 자체 수집
-- 원격 feature flag: Provider 활성/비활성 원격 토글
+- 원격 feature flag: Provider 활성/비활성 원격 토글 (특히 Codex Login 차단 시 즉시 OFF)
 - 앱 버전 관리: semver, 채널(stable/beta/canary)
 - Provider 장애 공지 채널 (앱 내 알림)
 - 로그 수집 동의 흐름
 - 텔레메트리 옵트인
+- **Electron 버전 정책 (v0.3 Spike 3)**: `>= 39.0.0` (CoreAudio Tap 기본) 권장. `40.1.0` 회귀 회피 (Issue #49607: silence audio 캡처 버그). 패치 확인 후 상위 버전 채택
 
 ## 19.7 Sync Layer
 
