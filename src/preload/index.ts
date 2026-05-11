@@ -80,6 +80,14 @@ const usageApi = {
     ipcRenderer.invoke('usage:purge-older-than', beforeMs)
 }
 
+const cacheApi = {
+  stats: (): Promise<{ count: number; hitTotal: number }> =>
+    ipcRenderer.invoke('cache:stats'),
+  clearAll: (): Promise<void> => ipcRenderer.invoke('cache:clear-all'),
+  invalidateGlossary: (version: string): Promise<number> =>
+    ipcRenderer.invoke('cache:invalidate-glossary', version)
+}
+
 interface TranslateRequest {
   providerType: string
   input: {
@@ -114,6 +122,7 @@ interface PopupResultPayload {
   ok: boolean
   decision: string
   reason?: string
+  fromCache?: boolean
   output?: {
     translatedText: string
     modelUsed: string
@@ -142,6 +151,7 @@ contextBridge.exposeInMainWorld('consentApi', consentApi)
 contextBridge.exposeInMainWorld('credentialApi', credentialApi)
 contextBridge.exposeInMainWorld('privacyApi', privacyApi)
 contextBridge.exposeInMainWorld('usageApi', usageApi)
+contextBridge.exposeInMainWorld('cacheApi', cacheApi)
 contextBridge.exposeInMainWorld('translateApi', translateApi)
 contextBridge.exposeInMainWorld('popupApi', popupApi)
 
@@ -150,5 +160,6 @@ export type ConsentApi = typeof consentApi
 export type CredentialApi = typeof credentialApi
 export type PrivacyApi = typeof privacyApi
 export type UsageApi = typeof usageApi
+export type CacheApi = typeof cacheApi
 export type TranslateApi = typeof translateApi
 export type PopupApi = typeof popupApi

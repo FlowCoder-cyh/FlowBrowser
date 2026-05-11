@@ -3,3 +3,6 @@ export type { CredentialRecord, ProviderType as CredentialProviderType } from '.
 
 export { UsageLog, defaultUsageLogPath } from './UsageLog'
 export type { UsageLogEntry, Feature, UsageStatus } from './UsageLog'
+
+export { TranslationCache, defaultTranslationCachePath } from './TranslationCache'
+export type { CacheEntry, CacheKeyInput, CacheOptions } from './TranslationCache'
