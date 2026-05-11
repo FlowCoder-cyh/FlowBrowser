@@ -233,96 +233,120 @@ interface TranslateArgs {
   }
 }
 
-interface TranslateResult {
+export interface TranslateResult {
   ok: boolean
   output?: TranslationOutput
   decision: PrivacyDecision | 'no_provider' | 'provider_error'
   reason?: string
 }
 
-function registerTranslateIpc(): void {
-  ipcMain.handle('translate:request', async (
-    _event,
-    args: TranslateArgs
-  ): Promise<TranslateResult> => {
-    const domain = extractDomain(args.context.url)
+export async function executeTranslateRequest(args: TranslateArgs): Promise<TranslateResult> {
+  const domain = extractDomain(args.context.url)
 
-    const evaluation = evaluatePrivacy({
-      context: {
-        url: args.context.url,
-        domain,
-        hasPasswordField: args.context.hasPasswordField ?? false,
-        hasCardField: args.context.hasCardField ?? false,
-        manualApprovalToken: args.context.manualApprovalToken
-      },
-      text: args.input.sourceText,
-      consent: consentGate,
-      domains: domainFilter
+  const evaluation = evaluatePrivacy({
+    context: {
+      url: args.context.url,
+      domain,
+      hasPasswordField: args.context.hasPasswordField ?? false,
+      hasCardField: args.context.hasCardField ?? false,
+      manualApprovalToken: args.context.manualApprovalToken
+    },
+    text: args.input.sourceText,
+    consent: consentGate,
+    domains: domainFilter
+  })
+
+  if (evaluation.decision === 'blocked') {
+    transmissionLogger.recordBlock({
+      timestamp: Date.now(),
+      url: args.context.url,
+      domain,
+      decision: 'blocked',
+      feature: 'translation',
+      reason: evaluation.reason
     })
+    return { ok: false, decision: 'blocked', reason: evaluation.reason }
+  }
 
-    if (evaluation.decision === 'blocked') {
-      transmissionLogger.recordBlock({
-        timestamp: Date.now(),
-        url: args.context.url,
-        domain,
-        decision: 'blocked',
-        feature: 'translation',
-        reason: evaluation.reason
-      })
-      return { ok: false, decision: 'blocked', reason: evaluation.reason }
+  const provider = providers.get(args.providerType)
+  if (!provider) {
+    return {
+      ok: false,
+      decision: 'no_provider',
+      reason: `Provider 미초기화: ${args.providerType}. 설정에서 등록해 주세요.`
     }
+  }
 
-    const provider = providers.get(args.providerType)
-    if (!provider) {
-      return {
-        ok: false,
-        decision: 'no_provider',
-        reason: `Provider 미초기화: ${args.providerType}. 설정에서 등록해 주세요.`
-      }
+  try {
+    const output = await provider.translate(args.input)
+    await usageLog.append({
+      providerId: provider.info.providerType,
+      feature: 'translation',
+      inputTokens: output.inputTokens,
+      outputTokens: output.outputTokens,
+      audioSeconds: 0,
+      estimatedCostUsd: output.estimatedCostUsd,
+      domain,
+      privacyDecision: evaluation.decision,
+      status: 'success'
+    })
+    await transmissionLogger.append({
+      timestamp: Date.now(),
+      url: args.context.url,
+      domain,
+      decision: evaluation.decision,
+      feature: 'translation',
+      providerId: provider.info.providerType
+    })
+    return { ok: true, output, decision: evaluation.decision }
+  } catch (err) {
+    const errorCode = err instanceof ProviderError ? err.code : 'unknown'
+    await usageLog.append({
+      providerId: provider.info.providerType,
+      feature: 'translation',
+      inputTokens: 0,
+      outputTokens: 0,
+      audioSeconds: 0,
+      estimatedCostUsd: 0,
+      domain,
+      privacyDecision: evaluation.decision,
+      status: 'failed',
+      errorCode
+    })
+    return {
+      ok: false,
+      decision: 'provider_error',
+      reason: err instanceof Error ? err.message : String(err)
     }
+  }
+}
 
-    try {
-      const output = await provider.translate(args.input)
-      await usageLog.append({
-        providerId: provider.info.providerType,
-        feature: 'translation',
-        inputTokens: output.inputTokens,
-        outputTokens: output.outputTokens,
-        audioSeconds: 0,
-        estimatedCostUsd: output.estimatedCostUsd,
-        domain,
-        privacyDecision: evaluation.decision,
-        status: 'success'
-      })
-      await transmissionLogger.append({
-        timestamp: Date.now(),
-        url: args.context.url,
-        domain,
-        decision: evaluation.decision,
-        feature: 'translation',
-        providerId: provider.info.providerType
-      })
-      return { ok: true, output, decision: evaluation.decision }
-    } catch (err) {
-      const errorCode = err instanceof ProviderError ? err.code : 'unknown'
-      await usageLog.append({
-        providerId: provider.info.providerType,
-        feature: 'translation',
-        inputTokens: 0,
-        outputTokens: 0,
-        audioSeconds: 0,
-        estimatedCostUsd: 0,
-        domain,
-        privacyDecision: evaluation.decision,
-        status: 'failed',
-        errorCode
-      })
-      return {
-        ok: false,
-        decision: 'provider_error',
-        reason: err instanceof Error ? err.message : String(err)
-      }
+/**
+ * 외부 페이지(WebContentsView)에서 민감 필드를 스캔한다.
+ * 본문 카드 패턴은 sourceText에 대해 evaluatePrivacy 안에서 별도로 평가됨.
+ */
+export async function scanWebContentsFields(
+  webContentsId: number
+): Promise<{ hasPasswordField: boolean; hasCardField: boolean }> {
+  const wc = WebContentsRegistry.get(webContentsId)
+  if (!wc) return { hasPasswordField: false, hasCardField: false }
+  try {
+    const scan = (await wc.executeJavaScript(detectSensitiveFieldsScript())) as {
+      hasPasswordField: boolean
+      hasCardField: boolean
     }
+    return {
+      hasPasswordField: !!scan?.hasPasswordField,
+      hasCardField: !!scan?.hasCardField
+    }
+  } catch {
+    return { hasPasswordField: false, hasCardField: false }
+  }
+}
+
+function registerTranslateIpc(): void {
+  ipcMain.handle('translate:request', async (_event, args: TranslateArgs): Promise<TranslateResult> => {
+    return executeTranslateRequest(args)
   })
 }
 

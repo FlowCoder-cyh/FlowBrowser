@@ -1,6 +1,12 @@
-import { app, BrowserWindow, WebContentsView, ipcMain } from 'electron'
+import { app, BrowserWindow, Menu, WebContentsView, ipcMain } from 'electron'
 import { join } from 'node:path'
-import { initServices, rebuildAllProviders, WebContentsRegistry } from './services'
+import {
+  initServices,
+  rebuildAllProviders,
+  WebContentsRegistry,
+  executeTranslateRequest,
+  scanWebContentsFields
+} from './services'
 
 let mainWindow: BrowserWindow | null = null
 let browserView: WebContentsView | null = null
@@ -42,6 +48,22 @@ function createMainWindow(): void {
   })
 
   WebContentsRegistry.register(browserView.webContents)
+
+  browserView.webContents.on('context-menu', (_event, params) => {
+    if (!mainWindow || !browserView) return
+    const selectionText = (params.selectionText ?? '').trim()
+    if (!selectionText) return
+    const preview = selectionText.length > 30 ? `${selectionText.slice(0, 30)}…` : selectionText
+    const menu = Menu.buildFromTemplate([
+      {
+        label: `한국어로 번역: "${preview}"`,
+        click: () => {
+          void handleContextMenuTranslate(selectionText, params.x, params.y)
+        }
+      }
+    ])
+    menu.popup({ window: mainWindow })
+  })
 
   mainWindow.contentView.addChildView(browserView)
   updateBrowserViewBounds()
@@ -107,6 +129,45 @@ ipcMain.handle('get-current-url', (): string => {
 ipcMain.handle('browser:get-view-id', (): number | null => {
   return browserView?.webContents.id ?? null
 })
+
+async function handleContextMenuTranslate(
+  selectionText: string,
+  webViewX: number,
+  webViewY: number
+): Promise<void> {
+  if (!mainWindow || !browserView) return
+  const url = browserView.webContents.getURL()
+  const webContentsId = browserView.webContents.id
+
+  // 미리 popup 표시 (로딩 상태)
+  mainWindow.webContents.send('translation:popup-show', {
+    sourceText: selectionText,
+    url,
+    anchorX: webViewX,
+    anchorY: webViewY + URL_BAR_HEIGHT,
+    status: 'loading'
+  })
+
+  const fieldScan = await scanWebContentsFields(webContentsId)
+
+  const result = await executeTranslateRequest({
+    providerType: 'openai',
+    input: {
+      sourceText: selectionText,
+      sourceLanguage: 'auto',
+      targetLanguage: 'ko',
+      requestType: 'selection',
+      context: { url }
+    },
+    context: {
+      url,
+      hasPasswordField: fieldScan.hasPasswordField,
+      hasCardField: fieldScan.hasCardField
+    }
+  })
+
+  mainWindow.webContents.send('translation:popup-result', result)
+}
 
 app.whenReady().then(async () => {
   await initServices()
