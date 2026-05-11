@@ -5,20 +5,26 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001 M1 진행 중
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001 / 002 종료, Sprint 003 대기
 - **Sprint**: 002 종료 (Sprint 종합 evaluator Pass — 누적 37 Pass)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영)
-- **최근 갱신**: 2026-05-11 (Sprint 002 정의 작성, 통과 기준 Pass ≥ 8 적용)
+- **최근 갱신**: 2026-05-11 (Sprint 002 종료, 본 세션 누적 18 commits / 70 tests, 신규 세션 대기)
 
 ## 현재 작업
 
-- Sprint 001 M1·M2·M3 머지 완료
-- M4 산출물: vitest.config.ts + tests/unit/ (6 파일 47 테스트) + CI ci.yml 활성화 + ontology 수동 승인 토큰 정책 명시
-- 자동 검증: typecheck PASS / test 47/47 PASS / build PASS
-- Sprint 종합 evaluator: **Pass (조건부 — 수동 QA 잔여)**
-- AC: AC-2 Pass / AC-1,3,4,5,6,7 Partial (수동 QA / UI / ESLint CI 게이트 잔여)
-- 다음: M4 PR auto-merge → Sprint 002 정의 또는 사용자 수동 QA 결과 대기
+- Sprint 002 완전 종료 — main 18 commits / 18 PR 모두 머지
+- 본 세션 누적: 18 PR / 70 unit tests / 14 evaluator 호출 / 가드레일 위반 0
+- 통과 기준 Pass ≥ 8 적용 (S002부터): 모든 evaluator 충족
+- Sprint 001/002 합쳐 Phase 1 MVP 핵심 기능 완성:
+  - Electron 셸 + WebContentsView + URL Bar
+  - Privacy Layer 5단계 게이트 (G-004)
+  - Provider Adapter + OpenAI API Key + OS Keychain (G-005)
+  - 선택 영역 + 문단 단위 번역 + 미니 팝업 + 우측 패널
+  - TranslationCache (복합 키 + TTL 90/365일 + LRU)
+  - UsageLog UI / 차단 통계
+  - ESLint + CI lint+typecheck+test+build
+- 다음 작업: 신규 세션에서 Sprint 003 정의 + 진행 (사용자 협의)
 
 ## 활성 Spike (5종)
 
