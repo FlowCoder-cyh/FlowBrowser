@@ -45,14 +45,15 @@
 ## 18.1 Codex 토큰 정책 리스크
 
 ### 리스크
-Codex/ChatGPT 로그인 기반 사용이 제한될 수 있다.
+Codex/ChatGPT 로그인 기반 사용이 제한될 수 있다. v0.3 Spike 1: 공식 등록 부재 → **OpenAI 측 단순 차단(클라이언트 ID 무효화)으로 즉시 정지 가능**.
 
 ### 대응
-- Phase 0 Spike 1로 사전 검증
+- Phase 0 Spike 1로 사전 검증 (완료)
 - Provider Adapter 구조 필수
 - OpenAI API Key 모드 병행
 - BYOK 지원
 - 자체 크레딧 모델 준비
+- **Codex Login 실패 / 차단 감지 시 즉시 자동 폴백** (OpenAI API Key 모드 전환 + 사용자 알림). 폴백 동작이 즉시여야 함 (수동 재로그인 불필요)
 
 ## 18.2 영상 싱크 품질 리스크
 
@@ -88,6 +89,7 @@ STT/TTS/긴 영상 처리 비용이 높다.
 - 긴 영상은 Pro 기능화
 - TTS는 옵션화
 - UsageLog로 사용자 비용 가시성 제공
+- **v0.3 시뮬레이션 (Spike 4)**: OpenAI gpt-4o-mini-tts 기준 1시간 영상 ≈ 60분 × $0.015 = **$0.90**. 캐시 재방문 시 0. ElevenLabs Flash v2.5는 1시간 = $3.00 (5배), Multilingual v2는 $6.00 (10배). 따라서 MVP 기본은 OpenAI, Pro 옵션으로 ElevenLabs.
 
 ## 18.5 사이트 호환성 리스크
 
@@ -95,10 +97,11 @@ STT/TTS/긴 영상 처리 비용이 높다.
 YouTube 외 사이트, DRM 사이트, 커스텀 플레이어에서 제어가 어려울 수 있다.
 
 ### 대응
-- 1차 YouTube 집중 (직접 + 임베디드)
+- 1차 YouTube 집중 (직접 + 임베디드 — Spike 2 통과)
 - 2차 HTML5 video 지원
 - 3차 사이트별 어댑터 추가
 - 제어 실패 시 자막/패널 모드로 fallback
+- **v0.3 (Spike 2)**: 광고 구간 playbackRate 무력화 = 자막 모드 자동 fallback. DRM / Premium 전용 영상은 영구 제외 (IFrame 임베드 자체 거부). 연령 제한 영상은 사용자 본인 로그인 시 가능.
 
 ## 18.6 Privacy 리스크 (v0.2 신규)
 
