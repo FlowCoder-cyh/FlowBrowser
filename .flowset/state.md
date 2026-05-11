@@ -6,18 +6,19 @@
 ## 메타
 
 - **Phase**: **1 (웹 번역 MVP)** — Sprint 001 M1 진행 중
-- **Sprint**: 001 / M3 (선택 영역 번역 흐름) — evaluator Pass (9/4/0)
+- **Sprint**: 001 — **M4 (테스트 + Sprint 종료)** — Sprint 종합 evaluator Pass (조건부)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영)
-- **최근 갱신**: 2026-05-11 (Sprint 001 M2 코드 작성 + 자동 검증 통과)
+- **최근 갱신**: 2026-05-11 (Sprint 001 종료 evaluator + 단위 테스트 47/47)
 
 ## 현재 작업
 
-- Sprint 001 M1 머지 완료, M2 코드 완료
-- M2 산출물: Privacy Layer 4 모듈 + ConsentGate + DomainFilter + TransmissionLogger + CredentialsStore + UsageLog + ProviderAdapter + OpenAIApiKeyProvider + Consent.tsx + SettingsPage.tsx + main services.ts (16 IPC)
-- 자동 검증: typecheck (PASS) → build (PASS, main 31.68kB / preload 2.20kB / renderer 241kB + css 6.33kB)
-- evaluator: **Pass** (8/1/0). Partial 1: AC-6 사용량 UI 미구현 (데이터 계층 완성, UI는 추후)
-- 다음: M3 PR auto-merge → M4 (단위 테스트 + 수동 QA + Sprint 종료 evaluator) 착수
+- Sprint 001 M1·M2·M3 머지 완료
+- M4 산출물: vitest.config.ts + tests/unit/ (6 파일 47 테스트) + CI ci.yml 활성화 + ontology 수동 승인 토큰 정책 명시
+- 자동 검증: typecheck PASS / test 47/47 PASS / build PASS
+- Sprint 종합 evaluator: **Pass (조건부 — 수동 QA 잔여)**
+- AC: AC-2 Pass / AC-1,3,4,5,6,7 Partial (수동 QA / UI / ESLint CI 게이트 잔여)
+- 다음: M4 PR auto-merge → Sprint 002 정의 또는 사용자 수동 QA 결과 대기
 
 ## 활성 Spike (5종)
 
