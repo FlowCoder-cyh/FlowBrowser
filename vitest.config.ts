@@ -9,7 +9,8 @@ export default defineConfig({
       enabled: false
     },
     globals: false,
-    pool: 'forks'
+    pool: 'forks',
+    environmentMatchGlobs: [['tests/unit/perception/**', 'happy-dom']]
   },
   resolve: {
     alias: {
