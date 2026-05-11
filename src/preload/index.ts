@@ -12,7 +12,8 @@ const browserApi = {
   goForward: (): Promise<boolean> => ipcRenderer.invoke('go-forward'),
   reload: (): Promise<boolean> => ipcRenderer.invoke('reload'),
   getCurrentUrl: (): Promise<string> => ipcRenderer.invoke('get-current-url'),
-  getViewId: (): Promise<number | null> => ipcRenderer.invoke('browser:get-view-id')
+  getViewId: (): Promise<number | null> => ipcRenderer.invoke('browser:get-view-id'),
+  setPanelOpen: (open: boolean): Promise<void> => ipcRenderer.invoke('panel:set-open', open)
 }
 
 interface ConsentState {
@@ -106,8 +107,56 @@ interface TranslateRequest {
   }
 }
 
+interface ParagraphsRequest {
+  providerType: string
+  sourceLanguage: string
+  targetLanguage: string
+}
+
+interface ParagraphsStartPayload {
+  url: string
+  total: number
+  paragraphs: Array<{ id: string; text: string; tag: string }>
+}
+
+interface ParagraphProgressPayload {
+  id: string
+  completed: number
+  blocked: number
+  failed: number
+  total: number
+  translatedText?: string
+  fromCache?: boolean
+  reason?: string
+  decision: string
+}
+
+interface ParagraphsDonePayload {
+  total: number
+  completed: number
+  blocked: number
+  failed: number
+}
+
 const translateApi = {
-  request: (args: TranslateRequest) => ipcRenderer.invoke('translate:request', args)
+  request: (args: TranslateRequest) => ipcRenderer.invoke('translate:request', args),
+  paragraphs: (args: ParagraphsRequest): Promise<{ ok: boolean; total: number; reason?: string }> =>
+    ipcRenderer.invoke('translate:paragraphs', args),
+  onParagraphsStart: (handler: (p: ParagraphsStartPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: ParagraphsStartPayload): void => handler(p)
+    ipcRenderer.on('translate:paragraphs-start', listener)
+    return () => ipcRenderer.removeListener('translate:paragraphs-start', listener)
+  },
+  onParagraphProgress: (handler: (p: ParagraphProgressPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: ParagraphProgressPayload): void => handler(p)
+    ipcRenderer.on('translate:paragraph-progress', listener)
+    return () => ipcRenderer.removeListener('translate:paragraph-progress', listener)
+  },
+  onParagraphsDone: (handler: (p: ParagraphsDonePayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: ParagraphsDonePayload): void => handler(p)
+    ipcRenderer.on('translate:paragraphs-done', listener)
+    return () => ipcRenderer.removeListener('translate:paragraphs-done', listener)
+  }
 }
 
 interface PopupShowPayload {

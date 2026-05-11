@@ -3,11 +3,21 @@ import UrlBar from './UrlBar'
 import Consent from './onboarding/Consent'
 import SettingsPage from './settings/SettingsPage'
 import TranslationPopup from './translation/TranslationPopup'
+import TranslationPanel from './translation/TranslationPanel'
 
 type Stage = 'loading' | 'consent' | 'browser' | 'settings'
 
 export default function App(): JSX.Element {
   const [stage, setStage] = useState<Stage>('loading')
+  const [panelOpen, setPanelOpenState] = useState(false)
+
+  function setPanelOpen(next: boolean | ((p: boolean) => boolean)): void {
+    setPanelOpenState((prev) => {
+      const value = typeof next === 'function' ? next(prev) : next
+      void window.browserApi.setPanelOpen(value)
+      return value
+    })
+  }
 
   useEffect(() => {
     void boot()
@@ -32,8 +42,13 @@ export default function App(): JSX.Element {
 
   return (
     <div className="app">
-      <UrlBar onOpenSettings={() => setStage('settings')} />
+      <UrlBar
+        onOpenSettings={() => setStage('settings')}
+        onTogglePanel={() => setPanelOpen((x) => !x)}
+        panelOpen={panelOpen}
+      />
       <TranslationPopup />
+      <TranslationPanel open={panelOpen} onClose={() => setPanelOpen(false)} />
     </div>
   )
 }

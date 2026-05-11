@@ -2,6 +2,8 @@ import { useState, useEffect, type FormEvent, type KeyboardEvent } from 'react'
 
 interface Props {
   onOpenSettings?: () => void
+  onTogglePanel?: () => void
+  panelOpen?: boolean
 }
 
 const DEFAULT_URL = 'https://www.google.com'
@@ -14,7 +16,11 @@ function normalizeUrl(input: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`
 }
 
-export default function UrlBar({ onOpenSettings }: Props = {}): JSX.Element {
+export default function UrlBar({
+  onOpenSettings,
+  onTogglePanel,
+  panelOpen
+}: Props = {}): JSX.Element {
   const [currentUrl, setCurrentUrl] = useState(DEFAULT_URL)
   const [displayUrl, setDisplayUrl] = useState(DEFAULT_URL)
   const [busy, setBusy] = useState(false)
@@ -109,6 +115,17 @@ export default function UrlBar({ onOpenSettings }: Props = {}): JSX.Element {
           {busy ? '...' : '이동'}
         </button>
       </form>
+      {onTogglePanel && (
+        <button
+          type="button"
+          className={`nav-btn ${panelOpen ? 'active' : ''}`}
+          onClick={onTogglePanel}
+          title="페이지 번역 패널"
+          aria-label="페이지 번역 패널"
+        >
+          ☰
+        </button>
+      )}
       {onOpenSettings && (
         <button
           type="button"
