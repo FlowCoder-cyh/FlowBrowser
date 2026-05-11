@@ -1,0 +1,96 @@
+{
+  "_comment": "FlowBrowser AI 디렉토리 소유 매핑. PROJECT_CLASS=hybrid. 단일 사용자 + Claude 협업 환경이라 팀 분리는 가벼움.",
+  "version": "1.0.0",
+  "project_class": "hybrid",
+  "phase": 1,
+  "teams": [
+    {
+      "name": "core",
+      "class": "code",
+      "description": "Electron 셸 / 브라우저 엔진 / Privacy Layer / Provider Adapter / 번역 엔진 / 데이터 모델 — 본 프로젝트 핵심 코드",
+      "directories": [
+        "src/main/",
+        "src/renderer/",
+        "src/privacy/",
+        "src/perception/",
+        "src/ai/",
+        "src/sync/",
+        "src/storage/",
+        "lib/runtime/",
+        "package.json",
+        "tsconfig.json",
+        "electron-builder.json",
+        "electron-vite.config.ts"
+      ]
+    },
+    {
+      "name": "docs",
+      "class": "content",
+      "description": "PRD / 사양 / 핸드오프 / 온톨로지 / 가드레일 — 문서 자산. PROJECT_CLASS=hybrid 핵심.",
+      "directories": [
+        "docs/prd/",
+        "docs/architecture/",
+        ".flowset/requirements.md",
+        ".flowset/state.md",
+        ".flowset/guardrails.md",
+        ".flowset/ontology.md",
+        ".flowset/handoffs/",
+        ".flowset/specs/",
+        ".flowset/contracts/"
+      ]
+    },
+    {
+      "name": "ops",
+      "class": "code",
+      "description": "CI/CD / 빌드 / 패키징 / 코드 사이닝 / 자동 업데이트 / 텔레메트리",
+      "directories": [
+        ".github/",
+        "scripts/",
+        ".flowset/logs/"
+      ]
+    },
+    {
+      "name": "test",
+      "class": "code",
+      "description": "테스트 코드 (단위 / 통합 / e2e)",
+      "directories": [
+        "tests/"
+      ]
+    },
+    {
+      "name": "evaluator",
+      "class": "code",
+      "description": "evaluator / lead-workflow 등 Claude Code agent 정의 + 평가 결과 보존",
+      "directories": [
+        ".claude/agents/",
+        ".claude/rules/",
+        ".claude/settings.json",
+        ".flowset/eval-results/"
+      ]
+    }
+  ],
+  "shared": {
+    "_comment": "여러 팀이 함께 수정 가능한 영역. 충돌 시 PR 검토로 해소.",
+    "directories": [
+      "README.md",
+      "CLAUDE.md",
+      ".gitignore",
+      ".gitattributes",
+      ".editorconfig",
+      "archive/"
+    ]
+  },
+  "rules": {
+    "_comment": "디렉토리 소유 충돌 / 변경 정책",
+    "cross_team_pr": "다른 팀의 디렉토리를 수정하는 PR은 본문에 영향 명시 + 해당 팀 알림",
+    "shared_modification": "shared 디렉토리는 누구나 수정 가능, 단 PR 본문에 의도 명시",
+    "addition_policy": "새 디렉토리 추가 시 본 파일에 매핑 추가 (다음 PR에 포함)"
+  },
+  "history": [
+    {
+      "version": "1.0.0",
+      "date": "2026-05-11",
+      "note": "Phase 1 활성화 시 초기 소유 매핑. PROJECT_CLASS=hybrid 기반."
+    }
+  ]
+}
