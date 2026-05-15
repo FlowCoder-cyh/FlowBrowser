@@ -7,6 +7,20 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.7 v0.3.4 변경 이력 (2026-05-15) — Sprint 006 실측 반영
+
+Phase 1 Sprint 006 산출물을 PRD에 반영한 패치.
+
+v0.3.3 대비 주요 변경:
+
+1. **§9.1 Navigation 동기화**: did-navigate / did-navigate-in-page / did-finish-load 이벤트 broadcast → `browser:navigated` IPC → UrlBar canGoBack / canGoForward 버튼 disabled 동기화. PRD §9.1 P1 해소.
+2. **§9.2 / §12.1 표시 모드 3종 통합 + UserSetting 적용**: panel(기본) / replace(DOM 치환) / overlay(인접 박스). PRD §12.1 `translationMode` 필드 영속. Settings DisplayModePanel UI. paragraphs/page 흐름이 mode 따라 자동 render IPC 호출. 페이지 이동 시 자동 renderRestore.
+3. **§9.2 / §11.1 TranslationRenderer 외부 페이지 IIFE**: paragraph/page selector preset + 길이/중복 필터로 id 매칭. replace 모드는 `data-fbai-orig` 속성에 원문 백업 + textContent 교체. overlay 모드는 sibling `.fbai-overlay` div 부착 + 재호출 시 갱신. restore는 두 모드 모두 복원.
+4. **§12.4 / §12.10 PageResultStore (페이지 캐시)**: 페이지 URL 정규화(origin+pathname) + nodesSignatureFromTexts(sha256 32자) + TTL 30일 + LRU 500MB. translate:page 정상 완료 시 자동 영속. 재방문 시 onNavigated → 자동 lookup → restoreHint 표시. 복원 클릭 시 signature 검증 후 render. 페이지 변경 감지 (signature mismatch) 시 복원 차단.
+5. **§19.1 / §19.5 모듈 등록**: TranslationRenderer / UserSettingStore / PageResultStore / DisplayModePanel 신규 등록.
+
+본 패치는 Sprint 006 M1~M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.6 v0.3.3 변경 이력 (2026-05-15) — Sprint 005 실측 반영
 
 Phase 1 Sprint 005 산출물을 PRD에 반영한 패치.

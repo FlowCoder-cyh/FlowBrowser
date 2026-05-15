@@ -7,8 +7,9 @@
 - Electron 프로젝트 생성
 - BrowserWindow / BrowserView 구성 (WebContentsView 우선 검토)
 - URL Bar 구현
-- 기본 Navigation 구현
-- Translation Panel 구현 (v0.3.3 Sprint 005 M3: chunkSummaries 펼치기 토글 + PATH_LABELS 한국어)
+- 기본 Navigation 구현 (v0.3.4 Sprint 006 M1: canGoBack/canGoForward broadcast + UrlBar 버튼 disabled 동기화)
+- Translation Panel 구현 (v0.3.3 Sprint 005 M3: chunkSummaries 펼치기 토글 + PATH_LABELS 한국어 / v0.3.4 Sprint 006 M2/M3: mode 분기 + 자동 render + 페이지 캐시 restoreHint 배너)
+- DisplayModePanel UI (v0.3.4 Sprint 006 M2): translationMode 3종 (panel/replace/overlay) 라디오
 - Subtitle Overlay 구현
 - Settings Page 구현 (v0.3.3 Sprint 005 M2: GlossaryPanel 추가)
 - GlossaryPanel UI (v0.3.3 Sprint 005 M2): 4 필드 폼 + 검증 + 활성 토글 + 도메인 필터 + JSON import/export
@@ -20,6 +21,7 @@
 - Selection Extractor 구현
 - ParagraphExtractor 구현 (v0.3.1 Sprint 002 M3): 9종 블록 선택자 (p/h1~h6/blockquote/li/dd), 길이 [8,5000], 중복 제거
 - PageNodeExtractor 구현 (v0.3.1 Sprint 003 M2): 16종 블록 선택자 (Paragraph + dt/figcaption/caption/summary/td/th), 4000자 청크 그루핑, validatePageNodes
+- TranslationRenderer 구현 (v0.3.4 Sprint 006 M1): paragraph/page preset IIFE로 외부 페이지에서 DOM 적용. replace = data-fbai-orig 백업 + textContent 교체, overlay = sibling .fbai-overlay 부착. restore는 두 모드 모두 복원
 - Video Detector (직접 + iframe) 구현
 - YouTube Detector 구현
 - Subtitle Extractor 구현 (v0.3 Spike 2): postMessage IFrame API + caption track URL 직접 fetch (`timedtext.googlevideo.com`), 또는 youtube-transcript-api 같은 비공식 라이브러리. sourceType 구분 (human / asr).
@@ -61,9 +63,10 @@
 - ProviderCredential OS Keychain 위임 구현 (Electron safeStorage)
 - TranslationCache 저장 (복합 키 6요소: sourceHash | lang × 2 | provider | **requestType** | glossaryVersion, TTL, LRU. v0.3.3 Sprint 005 M1 requestType 추가)
 - SubtitleSegment 저장 (sourceType 포함)
-- UserSetting 저장
+- UserSettingStore 구현 (v0.3.4 Sprint 006 M2): PRD §12.1 translationMode 우선 영속 (panel/replace/overlay)
 - UsageLog 저장
 - GlossaryStore 구현 (v0.3.3 Sprint 005 M2): PRD §12.7 1:1, JSON 영속, version 자동 갱신, getActiveForDomain 최대 50개, formatGlossaryContext, validateTerm 5종, GLOSSARY_POLICY_VERSION import/export
+- PageResultStore 구현 (v0.3.4 Sprint 006 M3): PRD §12.10 1:1, 페이지 URL 정규화 + nodesSignature(sha256) + TTL 30일 + LRU 500MB, translate:page 정상 완료 시 자동 영속, restoreCurrent IPC + signature mismatch 검증
 - SummarizationPlanner combineCharLimit 보호 (v0.3.3 Sprint 005 M3): 4 경로 (single/direct/resplit/truncated), 재분할 1회 후 truncate 폴백, 기본 limit 8000자
 
 ## 19.6 운영 인프라 (v0.2 신규)
