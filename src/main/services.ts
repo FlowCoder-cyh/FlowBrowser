@@ -28,15 +28,18 @@ import {
   UsageLog,
   TranslationCache,
   GlossaryStore,
+  UserSettingStore,
   defaultCredentialsPath,
   defaultUsageLogPath,
   defaultTranslationCachePath,
   defaultGlossaryPath,
+  defaultUserSettingPath,
   formatGlossaryContext,
   type CredentialRecord,
   type CredentialProviderType,
   type GlossaryTerm,
-  type GlossaryExport
+  type GlossaryExport,
+  type UserSettingState
 } from '../storage'
 
 import {
@@ -63,6 +66,7 @@ let credentialsStore!: CredentialsStore
 let usageLog!: UsageLog
 let translationCache!: TranslationCache
 let glossaryStore!: GlossaryStore
+let userSettingStore!: UserSettingStore
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 
 let consentStatePath!: string
@@ -92,6 +96,9 @@ export async function initServices(): Promise<void> {
   glossaryStore = new GlossaryStore(defaultGlossaryPath(userDataDir))
   await glossaryStore.load()
 
+  userSettingStore = new UserSettingStore(defaultUserSettingPath(userDataDir))
+  await userSettingStore.load()
+
   registerConsentIpc()
   registerCredentialIpc()
   registerPrivacyIpc()
@@ -99,6 +106,16 @@ export async function initServices(): Promise<void> {
   registerTranslateIpc()
   registerCacheIpc()
   registerGlossaryIpc()
+  registerUserSettingIpc()
+}
+
+function registerUserSettingIpc(): void {
+  ipcMain.handle('userSetting:get', (): UserSettingState => userSettingStore.getState())
+  ipcMain.handle(
+    'userSetting:update',
+    async (_event, patch: Partial<UserSettingState>): Promise<UserSettingState> =>
+      userSettingStore.update(patch)
+  )
 }
 
 function registerCacheIpc(): void {

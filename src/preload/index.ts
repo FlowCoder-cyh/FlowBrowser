@@ -138,6 +138,16 @@ interface GlossaryExportPayload {
   terms: GlossaryTermPayload[]
 }
 
+interface UserSettingPayload {
+  translationMode: 'panel' | 'replace' | 'overlay'
+}
+
+const userSettingApi = {
+  get: (): Promise<UserSettingPayload> => ipcRenderer.invoke('userSetting:get'),
+  update: (patch: Partial<UserSettingPayload>): Promise<UserSettingPayload> =>
+    ipcRenderer.invoke('userSetting:update', patch)
+}
+
 const glossaryApi = {
   list: (): Promise<GlossaryTermPayload[]> => ipcRenderer.invoke('glossary:list'),
   version: (): Promise<string> => ipcRenderer.invoke('glossary:version'),
@@ -445,6 +455,7 @@ contextBridge.exposeInMainWorld('privacyApi', privacyApi)
 contextBridge.exposeInMainWorld('usageApi', usageApi)
 contextBridge.exposeInMainWorld('cacheApi', cacheApi)
 contextBridge.exposeInMainWorld('glossaryApi', glossaryApi)
+contextBridge.exposeInMainWorld('userSettingApi', userSettingApi)
 contextBridge.exposeInMainWorld('translateApi', translateApi)
 contextBridge.exposeInMainWorld('popupApi', popupApi)
 
@@ -455,5 +466,6 @@ export type PrivacyApi = typeof privacyApi
 export type UsageApi = typeof usageApi
 export type CacheApi = typeof cacheApi
 export type GlossaryApi = typeof glossaryApi
+export type UserSettingApi = typeof userSettingApi
 export type TranslateApi = typeof translateApi
 export type PopupApi = typeof popupApi
