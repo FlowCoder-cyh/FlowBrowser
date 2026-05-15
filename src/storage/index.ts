@@ -25,3 +25,6 @@ export type {
   GlossaryValidationError,
   GlossaryValidationResult
 } from './GlossaryStore'
+
+export { UserSettingStore, defaultUserSettingPath } from './UserSettingStore'
+export type { UserSettingState, TranslationMode } from './UserSettingStore'

@@ -12,6 +12,7 @@ interface NodeRow {
 }
 
 type Mode = 'paragraph' | 'page' | 'summary'
+type DisplayMode = 'panel' | 'replace' | 'overlay'
 
 interface SummaryState {
   status: 'idle' | 'loading' | 'done' | 'error'
@@ -59,9 +60,18 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     reason: null
   })
   const [chunksExpanded, setChunksExpanded] = useState(false)
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('panel')
+  // 진행 중 누적 instruction (paragraph/page mode일 때 replace/overlay로 자동 렌더)
+  const renderQueueRef = useRef<Array<{ id: string; translatedText: string }>>([])
   const rowsRef = useRef<Map<string, NodeRow>>(new Map())
 
   useEffect(() => {
+    void window.userSettingApi.get().then((s) => setDisplayMode(s.translationMode))
+    // Navigation 시 자동 restore
+    const offNav = window.browserApi.onNavigated(() => {
+      void window.translateApi.renderRestore()
+    })
+
     const offStart = window.translateApi.onParagraphsStart((p) => {
       const initial: NodeRow[] = p.paragraphs.map((para) => ({
         id: para.id,
@@ -77,6 +87,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       setError(null)
       setPageWideMessage(null)
       setStoppedReason(null)
+      renderQueueRef.current = []
     })
 
     const offProgress = window.translateApi.onParagraphProgress((p) => {
@@ -87,6 +98,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
           row.translatedText = p.translatedText
           row.status = 'done'
           row.fromCache = !!p.fromCache
+          renderQueueRef.current.push({ id: p.id, translatedText: p.translatedText })
         } else if (p.decision === 'blocked') {
           row.status = 'blocked'
           row.reason = p.reason
@@ -109,6 +121,14 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       setBusy(false)
       if (p.stoppedReason) {
         setStoppedReason(p.stoppedReason)
+      }
+      // 자동 render (replace / overlay 모드)
+      if (displayMode !== 'panel' && renderQueueRef.current.length > 0) {
+        void window.translateApi.render({
+          mode: displayMode,
+          selectorPreset: 'paragraph',
+          instructions: renderQueueRef.current
+        })
       }
     })
 
@@ -136,6 +156,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       setError(null)
       setPageWideMessage(null)
       setStoppedReason(null)
+      renderQueueRef.current = []
     })
 
     const offPageProgress = window.translateApi.onPageProgress((p) => {
@@ -146,6 +167,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
           row.translatedText = p.translatedText
           row.status = 'done'
           row.fromCache = !!p.fromCache
+          renderQueueRef.current.push({ id: p.id, translatedText: p.translatedText })
         } else if (p.decision === 'blocked') {
           row.status = 'blocked'
           row.reason = p.reason
@@ -171,6 +193,13 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     const offPageDone = window.translateApi.onPageDone((p) => {
       setBusy(false)
       setStoppedReason(p.stoppedReason)
+      if (displayMode !== 'panel' && renderQueueRef.current.length > 0) {
+        void window.translateApi.render({
+          mode: displayMode,
+          selectorPreset: 'page',
+          instructions: renderQueueRef.current
+        })
+      }
     })
 
     const offPageAborted = window.translateApi.onPageAborted(() => {
@@ -216,6 +245,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
 
     return () => {
+      offNav()
       offStart()
       offProgress()
       offDone()
@@ -230,7 +260,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       offSummaryDone()
       offSummaryError()
     }
-  }, [])
+  }, [displayMode])
 
   async function handleStartParagraph(): Promise<void> {
     setBusy(true)
@@ -272,6 +302,10 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     } else if (mode === 'paragraph') {
       await window.translateApi.abortParagraphs()
     }
+  }
+
+  async function handleRestoreOriginals(): Promise<void> {
+    await window.translateApi.renderRestore()
   }
 
   async function handleStartSummary(): Promise<void> {
@@ -336,6 +370,17 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         {busy && (mode === 'page' || mode === 'paragraph') && (
           <button type="button" className="panel-btn danger" onClick={() => void handleAbort()}>
             취소
+          </button>
+        )}
+        {displayMode !== 'panel' && (
+          <button
+            type="button"
+            className="panel-btn"
+            onClick={() => void handleRestoreOriginals()}
+            disabled={busy}
+            title={`현재 모드: ${displayMode}`}
+          >
+            원문으로
           </button>
         )}
       </div>
