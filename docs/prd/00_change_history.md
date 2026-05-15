@@ -7,6 +7,20 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.13 v0.3.10 변경 이력 (2026-05-15) — Sprint 012 실측 반영
+
+Phase 1 Sprint 012 산출물을 PRD에 반영한 패치 (탭 미리보기 + 키보드 단축키).
+
+v0.3.9 대비 주요 변경:
+
+1. **§9.1 탭 미리보기 (hover thumbnail)**: `ThumbnailStore` 신규 (메모리 LRU 50, set/get/remove/clear, true LRU). main에서 활성 탭 변경 직전 (`setActiveTabView` 진입 시점 `browserView` 변수 활용) 이전 view를 `webContents.capturePage()` → `resize({width: 300})` → `dataURL`로 `ThumbnailStore`에 저장. `tab:get-thumbnail` IPC. 비활성 view paint 정지 문제는 "활성일 때만 캡처" 패턴으로 우회 (Sprint 011 evaluator 권고 capture API spike 우려 해소). TabBar `onMouseEnter` 600ms 지연 → 미리보기 div (절대 위치, fade-in 150ms, placeholder 또는 img + URL/title meta). 드래그 중 hover 무시. `destroyTabView` 시 자동 remove + `mainWindow.closed` 시 clear.
+2. **§9.1 키보드 단축키**: `Application Menu` accelerator 등록 — Ctrl+T 새 탭 / Ctrl+W 활성 탭 닫기 (마지막 탭이면 새 빈 탭 자동 생성 패턴 유지) / Ctrl+Tab 다음 탭 (wrap) / Ctrl+Shift+Tab 이전 탭. `mainWindow` focus 시점부터 작동, 전역 단축키 아님.
+3. **§11 TabManager.cycleActiveTabId**: `cycleActiveTabId(direction: 'next' | 'prev'): string | null` 순수 함수 추가 — order 기준 순환, 단일 탭은 같은 id, 빈 상태/null active는 null. M3 키보드 단축키 + 사용자 확장 사용 케이스 대응.
+4. **§11 capture hook 핫픽스 (WI-S012M1-1)**: M1 evaluator §A3 Fail (dead code) 직접 해소. `captureActiveTabThumbnail` → `captureTabThumbnail(prevTabId)` 인자화 + `setActiveTabView` 진입 시점 `browserView` 변수 활용 (syncBrowserViewRef는 함수 마지막에 호출되어 새 view로 갱신).
+5. **§19 모듈 등록**: ThumbnailStore + captureTabThumbnail + installApplicationMenu + Menu 탭 서브메뉴 4 항목 + TabBar hover state/timer/preview div + tab:get-thumbnail IPC + TabManager.cycleActiveTabId 신규 등록.
+
+본 패치는 Sprint 012 M1~M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.12 v0.3.9 변경 이력 (2026-05-15) — Sprint 011 실측 반영
 
 Phase 1 Sprint 011 산출물을 PRD에 반영한 패치 (summary abort + 탭 UX 추가 보강).
