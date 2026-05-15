@@ -21,6 +21,7 @@ function buildEntryArgs(idx: number) {
     sourceLanguage: 'en',
     targetLanguage: 'ko',
     providerType: 'openai',
+    requestType: 'selection' as const,
     domain: 'example.com',
     isSubtitle: false
   } as const
@@ -84,7 +85,8 @@ describe('TranslationCache — LRU trim (Sprint 003 M1 / AC-1)', () => {
       sourceText: buildEntryArgs(0).sourceText,
       sourceLanguage: 'en',
       targetLanguage: 'ko',
-      providerType: 'openai'
+      providerType: 'openai',
+      requestType: 'selection' as const
     }
     await new Promise((r) => setTimeout(r, 5))
     const refreshed = await cache.lookup(oldestKey)
