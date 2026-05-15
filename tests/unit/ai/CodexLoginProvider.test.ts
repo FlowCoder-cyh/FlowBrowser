@@ -116,7 +116,7 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     expect(opts.headers['OAI-Product-Sku']).toBe('codex')
     const body = JSON.parse(opts.body)
     expect(body.model).toBe('gpt-5.5')
-    // Sprint 014 M3-8/9: instructions(system prompt) + input(list, Responses API 표준)
+    // Sprint 014 M3-8/9/10: instructions + input list + store/tools 메타 (Hermes 패턴)
     expect(typeof body.instructions).toBe('string')
     expect(body.instructions.length).toBeGreaterThan(0)
     expect(Array.isArray(body.input)).toBe(true)
@@ -124,6 +124,10 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     expect(body.input[0].role).toBe('user')
     expect(body.input[0].content[0].type).toBe('input_text')
     expect(typeof body.input[0].content[0].text).toBe('string')
+    expect(body.store).toBe(false) // ChatGPT 백엔드 필수
+    expect(Array.isArray(body.tools)).toBe(true)
+    expect(body.tool_choice).toBe('auto')
+    expect(body.parallel_tool_calls).toBe(true)
     expect(body.stream).toBe(false)
   })
 
