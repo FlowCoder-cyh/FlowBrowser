@@ -138,4 +138,59 @@ describe('TabManager', () => {
     expect(snap.tabs[0].id).toBe(a.id)
     expect(snap.tabs[1].id).toBe(b.id)
   })
+
+  // Sprint 008 M3 — 격리 / 통합 시나리오
+  describe('integration (Sprint 008 M3)', () => {
+    it('open → switch → close 전환 chain', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      const c = tm.open('c.com')
+      tm.switch(a.id)
+      expect(tm.getActiveId()).toBe(a.id)
+      tm.close(a.id)
+      // a가 활성이었으므로 직전 위치(인덱스 0)에서 가까운 탭 = 이제 b가 0번. 활성 b.
+      expect(tm.getActiveId()).toBe(b.id)
+      tm.switch(c.id)
+      tm.close(b.id) // 비활성 close → 활성 유지
+      expect(tm.getActiveId()).toBe(c.id)
+      expect(tm.size()).toBe(1)
+    })
+
+    it('subscribe — open/close/switch 모두 emit', () => {
+      const tm = new TabManager()
+      const handler = vi.fn()
+      tm.subscribe(handler)
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      tm.switch(a.id)
+      tm.close(b.id)
+      // open 2 + switch 1 + close 1 = 4
+      expect(handler).toHaveBeenCalledTimes(4)
+      const last = handler.mock.calls[3][0]
+      expect(last.activeId).toBe(a.id)
+      expect(last.tabs.length).toBe(1)
+    })
+
+    it('updateUrl/updateTitle도 emit', () => {
+      const tm = new TabManager()
+      const handler = vi.fn()
+      const a = tm.open('a.com')
+      tm.subscribe(handler)
+      handler.mockClear()
+      tm.updateUrl(a.id, 'a2.com')
+      tm.updateTitle(a.id, 'New')
+      expect(handler).toHaveBeenCalledTimes(2)
+    })
+
+    it('order 보존: 중간 close 후 새 탭 추가 — 마지막에 위치', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      const c = tm.open('c.com')
+      tm.close(b.id)
+      const d = tm.open('d.com')
+      expect(tm.list().map((t) => t.id)).toEqual([a.id, c.id, d.id])
+    })
+  })
 })
