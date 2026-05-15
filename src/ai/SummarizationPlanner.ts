@@ -46,6 +46,18 @@ export interface SummarizeOptions {
    * 기본 8000.
    */
   combineCharLimit?: number
+  /**
+   * Sprint 011 M1 — abort 검사 콜백. true 반환 시 즉시 SUMMARIZATION_ABORTED 에러 throw.
+   * 각 summarize 호출 직전에 검사 (청크 / 통합 / 부분 / 최종 모두).
+   */
+  abortCheck?: () => boolean
+}
+
+export class SummarizationAbortedError extends Error {
+  constructor() {
+    super('summarization-aborted')
+    this.name = 'SummarizationAbortedError'
+  }
 }
 
 const DEFAULT_COMBINE_CHAR_LIMIT = 8000
@@ -84,6 +96,11 @@ export async function summarizeChunks(
   options: SummarizeOptions = {}
 ): Promise<SummarizeResult> {
   const combineCharLimit = options.combineCharLimit ?? DEFAULT_COMBINE_CHAR_LIMIT
+  const checkAbort = (): void => {
+    if (options.abortCheck && options.abortCheck()) {
+      throw new SummarizationAbortedError()
+    }
+  }
   if (chunkTexts.length === 0) {
     return {
       summary: '',
@@ -96,6 +113,7 @@ export async function summarizeChunks(
   }
   const chunkSummaries: string[] = []
   for (const text of chunkTexts) {
+    checkAbort()
     chunkSummaries.push(await summarize(text))
   }
   if (chunkSummaries.length === 1) {
@@ -111,6 +129,7 @@ export async function summarizeChunks(
 
   const combinedInput = chunkSummaries.join('\n\n')
   if (combinedInput.length <= combineCharLimit) {
+    checkAbort()
     const combined = await summarize(combinedInput)
     return {
       summary: combined,
@@ -126,10 +145,12 @@ export async function summarizeChunks(
   const groups = groupByCharLimit(chunkSummaries, combineCharLimit)
   const partialSummaries: string[] = []
   for (const group of groups) {
+    checkAbort()
     partialSummaries.push(await summarize(group.join('\n\n')))
   }
   const finalInput = partialSummaries.join('\n\n')
   if (finalInput.length <= combineCharLimit) {
+    checkAbort()
     const final = await summarize(finalInput)
     return {
       summary: final,
@@ -141,6 +162,7 @@ export async function summarizeChunks(
     }
   }
   // 재분할 후에도 초과 → truncate 폴백 (한 번만 재분할 한다는 규약)
+  checkAbort()
   const truncated = finalInput.slice(0, combineCharLimit)
   const final = await summarize(truncated)
   return {

@@ -20,7 +20,11 @@ import {
   type RenderPayload
 } from '../perception/TranslationRenderer'
 import { nodesSignatureFromTexts } from '../storage/PageResultStore'
-import { planChunks, summarizeChunks } from '../ai/SummarizationPlanner'
+import {
+  planChunks,
+  summarizeChunks,
+  SummarizationAbortedError
+} from '../ai/SummarizationPlanner'
 import { TabManager, type TabSession } from './TabManager'
 
 let mainWindow: BrowserWindow | null = null
@@ -48,6 +52,8 @@ function syncBrowserViewRef(): void {
 let paragraphsAborted = false
 // Sprint 003 M2 — page translation abort 플래그 (Sprint 010 M3에서 상단 이동)
 let pageTranslateAborted = false
+// Sprint 011 M1 — summary abort 플래그
+let summarizeAborted = false
 
 // Sprint 009 M3 — 탭 상태 영속 (debounced 200ms)
 let saveTimer: NodeJS.Timeout | null = null
@@ -185,6 +191,7 @@ ipcMain.handle('tab:switch', (_event, id: string): boolean => {
       if (setting.cancelOnTabSwitch) {
         paragraphsAborted = true
         pageTranslateAborted = true
+        summarizeAborted = true
       }
     } catch {
       // UserSettingStore가 아직 로드 안 됐을 수도 — 무시
@@ -845,8 +852,17 @@ ipcMain.handle(
 )
 
 /**
+ * Sprint 011 M1 — summary abort. PRD §9.2 abort 일관성.
+ */
+ipcMain.handle('translate:summarize-abort', (): { ok: true } => {
+  summarizeAborted = true
+  return { ok: true }
+})
+
+/**
  * Sprint 004 M3 — 페이지 요약. PRD §9.2 P1.
  * 청크 단위 요약 → N개 합본을 통합 요약.
+ * Sprint 011 M1 — abort 지원 (summarizeAborted 플래그 + abortCheck 콜백).
  */
 ipcMain.handle(
   'translate:summarize-page',
@@ -868,6 +884,7 @@ ipcMain.handle(
     if (!mainWindow || !browserView) {
       return { ok: false, reason: 'browser-not-ready' }
     }
+    summarizeAborted = false
     const sourceTabId = tabManager.getActiveId()
     const url = browserView.webContents.getURL()
     const webContentsId = browserView.webContents.id
@@ -921,7 +938,8 @@ ipcMain.handle(
             throw new Error(r.reason ?? '요약 실패')
           }
           return r.output.translatedText
-        }
+        },
+        { abortCheck: () => summarizeAborted }
       )
 
       mainWindow.webContents.send('translate:summary-done', {
@@ -945,6 +963,14 @@ ipcMain.handle(
         chunks: planned.length
       }
     } catch (err) {
+      // Sprint 011 M1 — abort 시 aborted 이벤트 발송 후 done 없이 종료
+      if (err instanceof SummarizationAbortedError) {
+        mainWindow.webContents.send('translate:summary-aborted', {
+          chunks: planned.length,
+          sourceTabId
+        })
+        return { ok: false, reason: 'aborted' }
+      }
       const reason =
         summaryReason ?? (err instanceof Error ? err.message : String(err))
       mainWindow.webContents.send('translate:summary-error', { reason, blockReason, sourceTabId })

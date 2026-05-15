@@ -465,6 +465,8 @@ const translateApi = {
     reason?: string
     blockReason?: string
   }> => ipcRenderer.invoke('translate:summarize-page', args),
+  abortSummarize: (): Promise<{ ok: true }> =>
+    ipcRenderer.invoke('translate:summarize-abort'),
   render: (payload: {
     mode: 'replace' | 'overlay'
     selectorPreset: 'paragraph' | 'page'
@@ -491,6 +493,11 @@ const translateApi = {
     const listener = (_e: unknown, p: SummaryErrorPayload): void => handler(p)
     ipcRenderer.on('translate:summary-error', listener)
     return () => ipcRenderer.removeListener('translate:summary-error', listener)
+  },
+  onSummaryAborted: (handler: (p: SummaryAbortedPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: SummaryAbortedPayload): void => handler(p)
+    ipcRenderer.on('translate:summary-aborted', listener)
+    return () => ipcRenderer.removeListener('translate:summary-aborted', listener)
   }
 }
 
@@ -542,6 +549,11 @@ interface SummaryDonePayload {
 interface SummaryErrorPayload {
   reason: string
   blockReason?: string
+  sourceTabId?: string | null
+}
+
+interface SummaryAbortedPayload {
+  chunks: number
   sourceTabId?: string | null
 }
 
