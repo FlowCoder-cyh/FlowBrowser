@@ -333,6 +333,7 @@ const translateApi = {
     summary?: string
     chunkSummaries?: string[]
     combined?: boolean
+    combinedPath?: 'single' | 'direct' | 'resplit' | 'truncated'
     chunks?: number
     reason?: string
     blockReason?: string
@@ -391,6 +392,7 @@ interface SummaryDonePayload {
   summary: string
   chunkSummaries: string[]
   combined: boolean
+  combinedPath?: 'single' | 'direct' | 'resplit' | 'truncated'
   chunks: number
 }
 

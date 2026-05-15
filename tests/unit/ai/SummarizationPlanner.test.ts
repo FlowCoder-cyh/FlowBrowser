@@ -107,6 +107,50 @@ describe('summarizeChunks', () => {
     await expect(summarizeChunks(['원문'], summarize)).rejects.toThrow('rate-limit')
   })
 
+  it('combinedPath: single (청크 1개)', async () => {
+    const result = await summarizeChunks(['단일'], async (t) => `S(${t})`)
+    expect(result.combinedPath).toBe('single')
+    expect(result.combined).toBe(false)
+  })
+
+  it('combinedPath: direct (limit 이하)', async () => {
+    const result = await summarizeChunks(
+      ['a', 'b', 'c'],
+      async (t) => `S(${t})`,
+      { combineCharLimit: 100 }
+    )
+    expect(result.combinedPath).toBe('direct')
+    expect(result.combined).toBe(true)
+  })
+
+  it('combinedPath: resplit (limit 초과 → 부분 통합 → 최종 통합)', async () => {
+    const longChunk = 'X'.repeat(60)
+    const summarize = vi.fn(async (t: string) => t.slice(0, 30))
+    const result = await summarizeChunks(
+      [longChunk, longChunk, longChunk, longChunk],
+      summarize,
+      { combineCharLimit: 100 }
+    )
+    expect(result.combinedPath).toBe('resplit')
+    // 4 청크 요약 + 부분 통합 N개 + 최종 통합 1개
+    expect(summarize.mock.calls.length).toBeGreaterThan(4 + 1)
+  })
+
+  it('combinedPath: truncated (재분할 후에도 limit 초과 → truncate 폴백)', async () => {
+    // summarize가 입력 길이를 거의 유지 (truncate 안 됨) → 재분할 후에도 큰 입력 유지
+    const summarize = vi.fn(async (t: string) => `${t}|tail`)
+    const longChunk = 'X'.repeat(80)
+    const result = await summarizeChunks(
+      [longChunk, longChunk, longChunk, longChunk, longChunk, longChunk],
+      summarize,
+      { combineCharLimit: 100 }
+    )
+    expect(result.combinedPath).toBe('truncated')
+    // 마지막 호출의 입력 길이는 정확히 100
+    const lastInput = summarize.mock.calls[summarize.mock.calls.length - 1][0] as string
+    expect(lastInput.length).toBe(100)
+  })
+
   it('순차 호출 (병렬 아님) — 각 청크 결과 보존', async () => {
     const order: string[] = []
     const summarize = async (text: string): Promise<string> => {

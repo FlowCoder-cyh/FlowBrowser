@@ -18,8 +18,16 @@ interface SummaryState {
   summary: string | null
   chunkSummaries: string[]
   combined: boolean
+  combinedPath?: 'single' | 'direct' | 'resplit' | 'truncated'
   chunks: number
   reason: string | null
+}
+
+const PATH_LABELS: Record<NonNullable<SummaryState['combinedPath']>, string> = {
+  single: '단일 청크',
+  direct: '직접 통합',
+  resplit: '재분할 통합',
+  truncated: '재분할 + truncate'
 }
 
 interface Props {
@@ -50,6 +58,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     chunks: 0,
     reason: null
   })
+  const [chunksExpanded, setChunksExpanded] = useState(false)
   const rowsRef = useRef<Map<string, NodeRow>>(new Map())
 
   useEffect(() => {
@@ -190,6 +199,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         summary: p.summary,
         chunkSummaries: p.chunkSummaries,
         combined: p.combined,
+        combinedPath: p.combinedPath,
         chunks: p.chunks,
         reason: null
       })
@@ -373,8 +383,28 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
             <>
               <div className="panel-summary-text">{summary.summary}</div>
               <div className="panel-summary-meta">
-                {summary.chunks}개 청크 · {summary.combined ? '통합 요약' : '단일 요약'}
+                {summary.chunks}개 청크 ·{' '}
+                {summary.combinedPath ? PATH_LABELS[summary.combinedPath] : '단일 요약'}
+                {summary.chunkSummaries.length > 1 && (
+                  <button
+                    type="button"
+                    className="panel-chunk-toggle"
+                    onClick={() => setChunksExpanded((v) => !v)}
+                  >
+                    {chunksExpanded ? '청크 요약 접기' : '청크 요약 펼치기'}
+                  </button>
+                )}
               </div>
+              {chunksExpanded && summary.chunkSummaries.length > 1 && (
+                <ol className="panel-chunk-list">
+                  {summary.chunkSummaries.map((cs, i) => (
+                    <li key={i} className="panel-chunk-item">
+                      <span className="panel-chunk-idx">청크 {i + 1}</span>
+                      <p className="panel-chunk-text">{cs}</p>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </>
           )}
           {summary.status === 'error' && summary.reason && (
