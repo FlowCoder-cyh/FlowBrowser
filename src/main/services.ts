@@ -477,17 +477,30 @@ export interface TranslateResult {
 export async function executeTranslateRequest(args: TranslateArgs): Promise<TranslateResult> {
   const domain = extractDomain(args.context.url)
 
+  // Sprint 007 M1 — privacyFilterEnabled false 시 domain 차단 우회.
+  // 단, password/card 본문 패턴은 항상 적용 (G-004 안전 정책 무력화 금지).
+  const userSetting = userSettingStore.getState()
+  const evalDomains = userSetting.privacyFilterEnabled ? domainFilter : new DomainFilter()
+  const evalContext = userSetting.privacyFilterEnabled
+    ? {
+        url: args.context.url,
+        domain,
+        hasPasswordField: args.context.hasPasswordField ?? false,
+        hasCardField: args.context.hasCardField ?? false,
+        manualApprovalToken: args.context.manualApprovalToken
+      }
+    : {
+        url: args.context.url,
+        domain,
+        hasPasswordField: args.context.hasPasswordField ?? false,
+        hasCardField: args.context.hasCardField ?? false
+      }
+
   const evaluation = evaluatePrivacy({
-    context: {
-      url: args.context.url,
-      domain,
-      hasPasswordField: args.context.hasPasswordField ?? false,
-      hasCardField: args.context.hasCardField ?? false,
-      manualApprovalToken: args.context.manualApprovalToken
-    },
+    context: evalContext,
     text: args.input.sourceText,
     consent: consentGate,
-    domains: domainFilter
+    domains: evalDomains
   })
 
   if (evaluation.decision === 'blocked') {

@@ -61,6 +61,9 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   })
   const [chunksExpanded, setChunksExpanded] = useState(false)
   const [displayMode, setDisplayMode] = useState<DisplayMode>('panel')
+  const [defaultLanguage, setDefaultLanguage] = useState('ko')
+  const [sourceLanguage, setSourceLanguage] = useState('auto')
+  const [defaultProviderId, setDefaultProviderId] = useState('openai')
   const [restoreHint, setRestoreHint] = useState<{ url: string; count: number } | null>(null)
   const [restoreResult, setRestoreResult] = useState<string | null>(null)
   // 진행 중 누적 instruction (paragraph/page mode일 때 replace/overlay로 자동 렌더)
@@ -68,7 +71,18 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   const rowsRef = useRef<Map<string, NodeRow>>(new Map())
 
   useEffect(() => {
-    void window.userSettingApi.get().then((s) => setDisplayMode(s.translationMode))
+    void window.userSettingApi.get().then((s) => {
+      setDisplayMode(s.translationMode)
+      const ext = s as {
+        translationMode: DisplayMode
+        defaultLanguage?: string
+        sourceLanguage?: string
+        defaultProviderId?: string
+      }
+      if (ext.defaultLanguage) setDefaultLanguage(ext.defaultLanguage)
+      if (ext.sourceLanguage) setSourceLanguage(ext.sourceLanguage)
+      if (ext.defaultProviderId) setDefaultProviderId(ext.defaultProviderId)
+    })
     // Navigation 시 자동 restore + 페이지 캐시 hit 알림
     const offNav = window.browserApi.onNavigated((p) => {
       void window.translateApi.renderRestore()
@@ -77,8 +91,8 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         void window.pageResultApi
           .lookup({
             url: p.url,
-            targetLanguage: 'ko',
-            providerType: 'openai'
+            targetLanguage: defaultLanguage,
+            providerType: defaultProviderId
           })
           .then((entry) => {
             if (entry) setRestoreHint({ url: p.url, count: entry.instructions.length })
@@ -274,7 +288,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       offSummaryDone()
       offSummaryError()
     }
-  }, [displayMode])
+  }, [displayMode, defaultLanguage, sourceLanguage, defaultProviderId])
 
   async function handleStartParagraph(): Promise<void> {
     setBusy(true)
@@ -283,9 +297,9 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     setStoppedReason(null)
     setMode('paragraph')
     const result = await window.translateApi.paragraphs({
-      providerType: 'openai',
-      sourceLanguage: 'auto',
-      targetLanguage: 'ko'
+      providerType: defaultProviderId,
+      sourceLanguage,
+      targetLanguage: defaultLanguage
     })
     if (!result.ok) {
       setError(result.reason ?? '문단 번역 시작 실패')
@@ -300,9 +314,9 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     setStoppedReason(null)
     setMode('page')
     const result = await window.translateApi.page({
-      providerType: 'openai',
-      sourceLanguage: 'auto',
-      targetLanguage: 'ko'
+      providerType: defaultProviderId,
+      sourceLanguage,
+      targetLanguage: defaultLanguage
     })
     if (!result.ok) {
       setError(result.reason ?? '페이지 번역 시작 실패')
@@ -325,8 +339,8 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   async function handleRestoreFromCache(): Promise<void> {
     setRestoreResult('복원 중…')
     const result = await window.pageResultApi.restoreCurrent({
-      targetLanguage: 'ko',
-      providerType: 'openai',
+      targetLanguage: defaultLanguage,
+      providerType: defaultProviderId,
       mode: displayMode === 'panel' ? 'overlay' : displayMode
     })
     if (result.ok) {
@@ -354,9 +368,9 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       reason: null
     })
     const result = await window.translateApi.summarizePage({
-      providerType: 'openai',
-      sourceLanguage: 'auto',
-      targetLanguage: 'ko'
+      providerType: defaultProviderId,
+      sourceLanguage,
+      targetLanguage: defaultLanguage
     })
     if (!result.ok) {
       setError(result.reason ?? '페이지 요약 시작 실패')

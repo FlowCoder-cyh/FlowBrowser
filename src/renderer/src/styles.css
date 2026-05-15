@@ -628,6 +628,45 @@ body {
   font-size: 11px;
 }
 
+.general-panel .gp-row {
+  margin: 12px 0;
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.general-panel .gp-row label {
+  color: #ccc;
+  font-size: 13px;
+}
+
+.general-panel .gp-row select {
+  height: 30px;
+  padding: 0 8px;
+  background: #0e0e0e;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 12px;
+}
+
+.general-panel .gp-toggle {
+  grid-template-columns: 1fr;
+}
+
+.general-panel .gp-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.gp-toggle-note {
+  margin: 4px 0 0 24px;
+  font-size: 11px;
+}
+
 .settings-message {
   padding: 8px 12px;
   border-radius: 4px;
