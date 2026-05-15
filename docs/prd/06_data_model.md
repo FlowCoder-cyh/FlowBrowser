@@ -2,14 +2,14 @@
 
 # 12. 데이터 모델 초안
 
-## 12.1 UserSetting
+## 12.1 UserSetting (v0.3.4 Sprint 006 M2 부분 구현)
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | id | string | 설정 ID |
 | defaultLanguage | string | 기본 번역 대상 언어 |
 | sourceLanguage | string | 원문 언어 |
-| translationMode | enum | panel / overlay / replace |
+| translationMode | enum | panel / overlay / replace (Sprint 006 M2에서 UserSettingStore + DisplayModePanel UI 구현. 영속: user-setting.json) |
 | subtitleMode | enum | translated / bilingual / original |
 | ttsEnabled | boolean | TTS 사용 여부 |
 | syncMode | enum | off / soft / strict |
@@ -205,6 +205,32 @@ Sprint 004 M2/M3에서 도입한 explanation/summary 캐시 우회는 Sprint 005
 | `summary` | `summary` |
 
 UsagePanel은 byFeature를 동적 렌더링 (5종 enum 변동 시 UI 자동 반영).
+
+## 12.10 PageResultStore (v0.3.4 Sprint 006 M3 신규)
+
+페이지 단위 번역 결과 영속 + 재방문 복원. TranslationCache(노드 단위)와 별개의 layer.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| id | string | 항목 ID (pr_xxx) |
+| key | string | 복합 키 sha256 32자 (정규화 URL + targetLanguage + providerType + glossaryVersion) |
+| url | string | 정규화된 URL (origin + pathname, 쿼리/프래그먼트 제외) |
+| targetLanguage | string | 대상 언어 |
+| providerType | string | 사용 Provider |
+| glossaryVersion | string | 적용 용어집 버전 |
+| nodesSignature | string | 노드 ID + 원문 텍스트 sha256 32자 (페이지 변경 감지용) |
+| selectorPreset | enum | paragraph / page |
+| instructions | object[] | `{ id, translatedText }[]` |
+| createdAt / updatedAt / lastAccessedAt / expiresAt | datetime | TTL/LRU 메타 |
+
+### 정책
+
+- TTL: 30일 (DEFAULT_TTL_MS)
+- 디스크 한도: 500MB (DEFAULT_MAX_BYTES) — 초과 시 lastAccessedAt 내림차순 절반 보존
+- 영속: JSON `page-results.json`
+- lookup 시 nodesSignature 인자 있으면 비교 — 페이지 변경 시 null 반환
+- translate:page 흐름이 정상 완료(미차단/미취소) 시에만 자동 영속 (G-004 정합)
+- 재방문 시 onNavigated → 자동 lookup → restoreHint UI → 사용자 클릭 시 signature 검증 후 render
 
 ---
 

@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~005 종료, **Sprint 006 정의 완료 / M1 대기**
-- **Sprint**: **006 정의 완료** (Sprint 005 종합 Pass 9/0/0)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~006 종료
+- **Sprint**: **006 종료** (M4 종합 evaluator 진행 중)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: v0.3.3 (2026-05-15) — Sprint 006 M4에서 v0.3.4 패치 예정
-- **최근 갱신**: 2026-05-15 (Sprint 006 정의 작성, contracts/sprint-006.md)
+- **PRD 버전**: **v0.3.4** (2026-05-15, Sprint 006 실측 반영)
+- **최근 갱신**: 2026-05-15 (Sprint 006 M4 PRD 패치 + Sprint 종료)
 
 ## 현재 작업
 
@@ -37,14 +37,20 @@
 - Sprint 종합 evaluator: Pass 9 / Partial 1 / Fail 0
 - PRD v0.3.2 발행
 
-### Sprint 005 진행 (2026-05-15)
+### Sprint 005 결과 (PR #30~#34 머지)
 
-- 산출물: `.flowset/contracts/sprint-005.md`
-- M1 (PR #31): 캐시 키 확장 (requestType 포함) + cache 우회 제거 + 2 tests. evaluator Pass 7/1/0.
-- M2 (PR #32): GlossaryStore (PRD §12.7 1:1) + applyGlossary + glossaryVersion invalidation + GlossaryPanel UI + 17 tests. evaluator Pass 6/0/0 AC 단위.
-- M3 (PR #33): summarizeChunks 폭주 보호 (combineCharLimit 8000) + chunkSummaries 펼치기 UX + 4 tests. evaluator Pass 9/0/0.
-- M4: PRD v0.3.3 패치 + Sprint 종합 evaluator 진행 중
-- 누적 단위 테스트: 135 → 158 (+23 신규)
+- 누적 단위 테스트: 135 → 158 (+23)
+- Sprint 종합 evaluator: Pass 9 / 0 / 0
+- PRD v0.3.3 발행
+
+### Sprint 006 진행 (2026-05-15)
+
+- 산출물: `.flowset/contracts/sprint-006.md`
+- M1 (PR #36): Navigation 동기화 + TranslationRenderer (replace/overlay IIFE) + 12 tests. evaluator Pass 8/1/0.
+- M2 (PR #37): UserSettingStore + DisplayModePanel + TranslationPanel mode 분기 + 자동 render + 자동 restore + 6 tests. evaluator Pass 9/0/0 (M1 Partial Pass 전환).
+- M3 (PR #38): PageResultStore + persistPageResult + restoreCurrent IPC + restoreHint UI + 16 tests. evaluator Pass 7/0/0 (G-009 commit으로 8).
+- M4: PRD v0.3.4 패치 + Sprint 종합 evaluator 진행 중
+- 누적 단위 테스트: 158 → 192 (+34 신규)
 - 모든 자동 검증 (lint/typecheck/test/build) PASS
 
 ## 활성 Spike (5종)

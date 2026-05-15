@@ -8,8 +8,8 @@
 |---|---|---|
 | URL 입력 | 사용자가 웹사이트 주소 입력 | P0 |
 | 페이지 로드 | Chromium WebView/BrowserView로 웹페이지 표시 | P0 |
-| 뒤로가기/앞으로가기 | 기본 탐색 기능 | P1 |
-| 새로고침 | 현재 페이지 새로고침 | P1 |
+| 뒤로가기/앞으로가기 | 기본 탐색 기능 — Sprint 006 M1: did-navigate broadcast + canGoBack/canGoForward 동기화로 UrlBar 버튼 disabled 자동 반영 | P1 |
+| 새로고침 | 현재 페이지 새로고침 — Sprint 006 M1 동일 흐름 | P1 |
 | 탭 관리 | 복수 탭 열기/닫기 | P2 |
 | 히스토리 | 방문 기록 저장 | P2 |
 | 북마크 | 자주 쓰는 사이트 저장 | P3 |
@@ -22,7 +22,7 @@
 | 선택 영역 번역 | 드래그한 텍스트 번역 | P0 |
 | 문단 번역 | 페이지 문단 단위 번역 (9개 블록 선택자 ParagraphExtractor) | P0 |
 | 페이지 전체 번역 | 전체 페이지 번역 — Sprint 003 M2: 16종 블록 선택자 PageNodeExtractor + 4000자 청크 + abort 지원 + pageWideBlock=true 시 즉시 중단 | P1 |
-| 원문/번역 토글 | 원문과 번역 표시 방식 변경 | P1 |
+| 원문/번역 토글 | 원문과 번역 표시 방식 변경 — Sprint 006 M1/M2: TranslationRenderer (replace = DOM 치환 + data-fbai-orig 백업, overlay = sibling 박스). UserSetting translationMode = panel/replace/overlay 3종 + Settings DisplayModePanel. paragraphs/page 흐름이 mode 따라 자동 render. 페이지 이동 시 자동 restore | P1 |
 | 쉬운 설명 | 어려운 문장을 쉽게 설명 — Sprint 004 M2: 컨텍스트 메뉴 "쉽게 설명" + system prompt 분기 (tutor / unpack jargon) + popup mode 표시. 캐시 우회 | P1 |
 | 요약 | 선택 영역/페이지 요약 — Sprint 004 M3: 선택 영역은 컨텍스트 메뉴 통합 흐름, 페이지는 `translate:summarize-page` 전용 IPC + SummarizationPlanner (청크 분할 → 통합 요약) | P1 |
 | 용어집 적용 | 사용자 정의 용어 반영 — Sprint 005 M2: GlossaryStore (PRD §12.7 1:1) + GlossaryPanel UI + glossaryVersion 자동 invalidation. 활성 용어 + 도메인 일치 최대 50개를 prompt 컨텍스트로 주입. explanation/summary는 의역이라 적용 제외 | P2 |
