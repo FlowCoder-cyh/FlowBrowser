@@ -11,7 +11,16 @@ interface NodeRow {
   fromCache: boolean
 }
 
-type Mode = 'paragraph' | 'page'
+type Mode = 'paragraph' | 'page' | 'summary'
+
+interface SummaryState {
+  status: 'idle' | 'loading' | 'done' | 'error'
+  summary: string | null
+  chunkSummaries: string[]
+  combined: boolean
+  chunks: number
+  reason: string | null
+}
 
 interface Props {
   open: boolean
@@ -33,6 +42,14 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   const [stoppedReason, setStoppedReason] = useState<
     'aborted' | 'page_wide_block' | null
   >(null)
+  const [summary, setSummary] = useState<SummaryState>({
+    status: 'idle',
+    summary: null,
+    chunkSummaries: [],
+    combined: false,
+    chunks: 0,
+    reason: null
+  })
   const rowsRef = useRef<Map<string, NodeRow>>(new Map())
 
   useEffect(() => {
@@ -156,6 +173,38 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       setBusy(false)
     })
 
+    const offSummaryStart = window.translateApi.onSummaryStart((p) => {
+      setSummary({
+        status: 'loading',
+        summary: null,
+        chunkSummaries: [],
+        combined: false,
+        chunks: p.chunks,
+        reason: null
+      })
+    })
+
+    const offSummaryDone = window.translateApi.onSummaryDone((p) => {
+      setSummary({
+        status: 'done',
+        summary: p.summary,
+        chunkSummaries: p.chunkSummaries,
+        combined: p.combined,
+        chunks: p.chunks,
+        reason: null
+      })
+      setBusy(false)
+    })
+
+    const offSummaryError = window.translateApi.onSummaryError((p) => {
+      setSummary((prev) => ({
+        ...prev,
+        status: 'error',
+        reason: p.reason
+      }))
+      setBusy(false)
+    })
+
     return () => {
       offStart()
       offProgress()
@@ -167,6 +216,9 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       offPageDone()
       offPageAborted()
       offPageError()
+      offSummaryStart()
+      offSummaryDone()
+      offSummaryError()
     }
   }, [])
 
@@ -207,8 +259,31 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   async function handleAbort(): Promise<void> {
     if (mode === 'page') {
       await window.translateApi.abortPage()
-    } else {
+    } else if (mode === 'paragraph') {
       await window.translateApi.abortParagraphs()
+    }
+  }
+
+  async function handleStartSummary(): Promise<void> {
+    setBusy(true)
+    setError(null)
+    setMode('summary')
+    setSummary({
+      status: 'loading',
+      summary: null,
+      chunkSummaries: [],
+      combined: false,
+      chunks: 0,
+      reason: null
+    })
+    const result = await window.translateApi.summarizePage({
+      providerType: 'openai',
+      sourceLanguage: 'auto',
+      targetLanguage: 'ko'
+    })
+    if (!result.ok) {
+      setError(result.reason ?? '페이지 요약 시작 실패')
+      setBusy(false)
     }
   }
 
@@ -240,7 +315,15 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         >
           {busy && mode === 'page' ? '진행 중…' : '페이지 전체 번역'}
         </button>
-        {busy && (
+        <button
+          type="button"
+          className="panel-btn"
+          onClick={() => void handleStartSummary()}
+          disabled={busy}
+        >
+          {busy && mode === 'summary' ? '요약 중…' : '페이지 요약'}
+        </button>
+        {busy && (mode === 'page' || mode === 'paragraph') && (
           <button type="button" className="panel-btn danger" onClick={() => void handleAbort()}>
             취소
           </button>
@@ -276,6 +359,27 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
             {progress.completed + progress.blocked + progress.failed} / {progress.total} (완료{' '}
             {progress.completed} · 차단 {progress.blocked} · 실패 {progress.failed})
           </div>
+        </div>
+      )}
+
+      {mode === 'summary' && summary.status !== 'idle' && (
+        <div className="panel-summary">
+          {summary.status === 'loading' && (
+            <div className="panel-summary-loading">
+              요약 중… ({summary.chunks}개 청크)
+            </div>
+          )}
+          {summary.status === 'done' && summary.summary && (
+            <>
+              <div className="panel-summary-text">{summary.summary}</div>
+              <div className="panel-summary-meta">
+                {summary.chunks}개 청크 · {summary.combined ? '통합 요약' : '단일 요약'}
+              </div>
+            </>
+          )}
+          {summary.status === 'error' && summary.reason && (
+            <div className="panel-summary-error">요약 실패: {summary.reason}</div>
+          )}
         </div>
       )}
 

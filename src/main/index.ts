@@ -68,6 +68,12 @@ function createMainWindow(): void {
         click: () => {
           void handleContextMenuExplain(selectionText, params.x, params.y)
         }
+      },
+      {
+        label: `이 부분 요약: "${preview}"`,
+        click: () => {
+          void handleContextMenuSummarize(selectionText, params.x, params.y)
+        }
       }
     ])
     menu.popup({ window: mainWindow })
@@ -381,6 +387,104 @@ ipcMain.handle(
   }
 )
 
+/**
+ * Sprint 004 M3 — 페이지 요약. PRD §9.2 P1.
+ * 청크 단위 요약 → N개 합본을 통합 요약.
+ */
+ipcMain.handle(
+  'translate:summarize-page',
+  async (
+    _event,
+    args: { providerType: string; sourceLanguage: string; targetLanguage: string }
+  ): Promise<{
+    ok: boolean
+    summary?: string
+    chunkSummaries?: string[]
+    combined?: boolean
+    chunks?: number
+    reason?: string
+    blockReason?: string
+  }> => {
+    if (!mainWindow || !browserView) {
+      return { ok: false, reason: 'browser-not-ready' }
+    }
+    const url = browserView.webContents.getURL()
+    const webContentsId = browserView.webContents.id
+    const bundle = await extractWebContentsPageNodes(webContentsId)
+    if (bundle.nodes.length === 0) {
+      return { ok: false, reason: '페이지 노드를 찾지 못했습니다.' }
+    }
+
+    const fieldScan = await scanWebContentsFields(webContentsId)
+    const { planChunks, summarizeChunks } = await import('../ai/SummarizationPlanner')
+    const planned = planChunks(bundle)
+    if (planned.length === 0) {
+      return { ok: false, reason: '요약 가능한 청크가 없습니다.' }
+    }
+
+    mainWindow.webContents.send('translate:summary-start', {
+      url,
+      chunks: planned.length,
+      totalChars: planned.reduce((sum, c) => sum + c.text.length, 0)
+    })
+
+    let blockReason: string | undefined
+    let summaryReason: string | undefined
+
+    try {
+      const result = await summarizeChunks(
+        planned.map((p) => p.text),
+        async (text: string) => {
+          if (!mainWindow) throw new Error('window-closed')
+          const r = await executeTranslateRequest({
+            providerType: args.providerType as 'openai',
+            input: {
+              sourceText: text,
+              sourceLanguage: args.sourceLanguage,
+              targetLanguage: args.targetLanguage,
+              requestType: 'summary',
+              context: { url }
+            },
+            context: {
+              url,
+              hasPasswordField: fieldScan.hasPasswordField,
+              hasCardField: fieldScan.hasCardField
+            }
+          })
+          if (r.decision === 'blocked') {
+            blockReason = r.blockReason
+            throw new Error(r.reason ?? '차단됨')
+          }
+          if (!r.ok || !r.output) {
+            summaryReason = r.reason
+            throw new Error(r.reason ?? '요약 실패')
+          }
+          return r.output.translatedText
+        }
+      )
+
+      mainWindow.webContents.send('translate:summary-done', {
+        summary: result.summary,
+        chunkSummaries: result.chunkSummaries,
+        combined: result.combined,
+        chunks: planned.length
+      })
+      return {
+        ok: true,
+        summary: result.summary,
+        chunkSummaries: result.chunkSummaries,
+        combined: result.combined,
+        chunks: planned.length
+      }
+    } catch (err) {
+      const reason =
+        summaryReason ?? (err instanceof Error ? err.message : String(err))
+      mainWindow.webContents.send('translate:summary-error', { reason, blockReason })
+      return { ok: false, reason, blockReason }
+    }
+  }
+)
+
 async function handleContextMenuTranslate(
   selectionText: string,
   webViewX: number,
@@ -397,15 +501,30 @@ async function handleContextMenuExplain(
   await handleContextMenuAi(selectionText, webViewX, webViewY, 'explanation')
 }
 
+async function handleContextMenuSummarize(
+  selectionText: string,
+  webViewX: number,
+  webViewY: number
+): Promise<void> {
+  await handleContextMenuAi(selectionText, webViewX, webViewY, 'summary')
+}
+
 async function handleContextMenuAi(
   selectionText: string,
   webViewX: number,
   webViewY: number,
-  requestType: 'selection' | 'explanation'
+  requestType: 'selection' | 'explanation' | 'summary'
 ): Promise<void> {
   if (!mainWindow || !browserView) return
   const url = browserView.webContents.getURL()
   const webContentsId = browserView.webContents.id
+
+  const mode =
+    requestType === 'explanation'
+      ? 'explanation'
+      : requestType === 'summary'
+        ? 'summary'
+        : 'translation'
 
   // 미리 popup 표시 (로딩 상태)
   mainWindow.webContents.send('translation:popup-show', {
@@ -414,7 +533,7 @@ async function handleContextMenuAi(
     anchorX: webViewX,
     anchorY: webViewY + URL_BAR_HEIGHT,
     status: 'loading',
-    mode: requestType === 'explanation' ? 'explanation' : 'translation'
+    mode
   })
 
   const fieldScan = await scanWebContentsFields(webContentsId)
@@ -437,7 +556,7 @@ async function handleContextMenuAi(
 
   mainWindow.webContents.send('translation:popup-result', {
     ...result,
-    mode: requestType === 'explanation' ? 'explanation' : 'translation'
+    mode
   })
 }
 

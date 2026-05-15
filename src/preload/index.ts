@@ -276,8 +276,36 @@ const translateApi = {
     const listener = (_e: unknown, p: PageErrorPayload): void => handler(p)
     ipcRenderer.on('translate:page-error', listener)
     return () => ipcRenderer.removeListener('translate:page-error', listener)
+  },
+  summarizePage: (
+    args: ParagraphsRequest
+  ): Promise<{
+    ok: boolean
+    summary?: string
+    chunkSummaries?: string[]
+    combined?: boolean
+    chunks?: number
+    reason?: string
+    blockReason?: string
+  }> => ipcRenderer.invoke('translate:summarize-page', args),
+  onSummaryStart: (handler: (p: SummaryStartPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: SummaryStartPayload): void => handler(p)
+    ipcRenderer.on('translate:summary-start', listener)
+    return () => ipcRenderer.removeListener('translate:summary-start', listener)
+  },
+  onSummaryDone: (handler: (p: SummaryDonePayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: SummaryDonePayload): void => handler(p)
+    ipcRenderer.on('translate:summary-done', listener)
+    return () => ipcRenderer.removeListener('translate:summary-done', listener)
+  },
+  onSummaryError: (handler: (p: SummaryErrorPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: SummaryErrorPayload): void => handler(p)
+    ipcRenderer.on('translate:summary-error', listener)
+    return () => ipcRenderer.removeListener('translate:summary-error', listener)
   }
 }
+
+type PopupMode = 'translation' | 'explanation' | 'summary'
 
 interface PopupShowPayload {
   sourceText: string
@@ -285,7 +313,7 @@ interface PopupShowPayload {
   anchorX: number
   anchorY: number
   status: 'loading'
-  mode?: 'translation' | 'explanation'
+  mode?: PopupMode
 }
 
 interface PopupResultPayload {
@@ -293,7 +321,7 @@ interface PopupResultPayload {
   decision: string
   reason?: string
   fromCache?: boolean
-  mode?: 'translation' | 'explanation'
+  mode?: PopupMode
   output?: {
     translatedText: string
     modelUsed: string
@@ -302,6 +330,24 @@ interface PopupResultPayload {
     estimatedCostUsd: number
     durationMs: number
   }
+}
+
+interface SummaryStartPayload {
+  url: string
+  chunks: number
+  totalChars: number
+}
+
+interface SummaryDonePayload {
+  summary: string
+  chunkSummaries: string[]
+  combined: boolean
+  chunks: number
+}
+
+interface SummaryErrorPayload {
+  reason: string
+  blockReason?: string
 }
 
 const popupApi = {

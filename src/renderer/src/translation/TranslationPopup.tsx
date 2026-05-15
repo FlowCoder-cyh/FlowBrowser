@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-type Mode = 'translation' | 'explanation'
+type Mode = 'translation' | 'explanation' | 'summary'
 
 type Status =
   | { kind: 'idle' }
@@ -35,12 +35,14 @@ type Status =
 
 const TITLE_BY_MODE: Record<Mode, string> = {
   translation: '번역',
-  explanation: '쉽게 설명'
+  explanation: '쉽게 설명',
+  summary: '요약'
 }
 
 const LOADING_BY_MODE: Record<Mode, string> = {
   translation: '번역 중…',
-  explanation: '설명 작성 중…'
+  explanation: '설명 작성 중…',
+  summary: '요약 중…'
 }
 
 export default function TranslationPopup(): JSX.Element | null {
