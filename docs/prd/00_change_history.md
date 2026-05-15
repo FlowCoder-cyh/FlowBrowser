@@ -7,6 +7,20 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.4 v0.3.1 변경 이력 (2026-05-15) — Sprint 002·003 실측 반영
+
+Phase 1 Sprint 002·003 산출물을 PRD에 반영한 패치. 본격 변경 없이 실측·정책 명문화.
+
+v0.3 대비 주요 변경:
+
+1. **§9.2**: 페이지 전체 번역 P1 — Sprint 003 M2에서 16종 블록 노드 선택자 + 4000자 청크 그루핑 + abort 지원으로 구현. 청크 단위 진행 / cache hit 즉시 표시 / pageWideBlock=true 시 즉시 중단 명문화.
+2. **§9.6**: 사용자 도메인 화이트/블랙리스트 P1 — Sprint 003 M3 DomainPolicyPanel UI + DomainPolicyStore JSON 영속 + import/export (policyVersion=1) 구현 명시. 패턴은 `*.example.com` 선두 와일드카드만 허용. 사용자 화이트리스트 > 사용자 블랙리스트 > 기본 블랙리스트 우선순위 명문화.
+3. **§9.6 BlockReason 도입**: Sprint 003 M1에서 차단 사유를 enum (`consent / password / card_field / card_pattern / domain / none`)으로 구조화. `pageWideBlock: boolean` 추가 — 차단 시 페이지 전체 차단 여부. 모든 차단 사유는 pageWideBlock=true (사용자 명시 차단 의도 통일).
+4. **§12.4**: TranslationCache 실측 — Sprint 002 M2에서 5요소 복합 키 (sha256 + 4필드) + TTL 90/365일 + LRU trim (maxBytes 1GB 초과 시 절반 제거, lastAccessedAt 기준) 구현. Sprint 003 M1에서 LRU trim 직접 측정 단위 테스트 3종 추가.
+5. **§19**: 신규 모듈 등록 — `PageNodeExtractor` / `DomainPolicyStore` / `BlockReason / pageWideBlock` 타입 / `TranslationPanel 페이지 모드`. dev_tasks_and_ops에 반영.
+
+본 패치는 Sprint 002 종합 + Sprint 003 M1/M2/M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.3 v0.3 변경 이력 (2026-05-11) — Phase 0 1차 조사 반영
 
 Phase 0 치명 가설 5종 (Codex 인증 / YouTube 자막·제어 / 시스템 오디오 캡처 / TTS 3축 / 사용자 인터뷰) 1차 조사 결과를 PRD에 반영. **5개 모두 차단 사유 없음 = Phase 0 게이트 통과 가능**.

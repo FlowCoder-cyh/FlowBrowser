@@ -20,8 +20,8 @@
 |---|---|---|
 | DOM 텍스트 추출 | 현재 페이지 텍스트 노드 추출 | P0 |
 | 선택 영역 번역 | 드래그한 텍스트 번역 | P0 |
-| 문단 번역 | 페이지 문단 단위 번역 | P0 |
-| 페이지 전체 번역 | 전체 페이지 번역 | P1 |
+| 문단 번역 | 페이지 문단 단위 번역 (9개 블록 선택자 ParagraphExtractor) | P0 |
+| 페이지 전체 번역 | 전체 페이지 번역 — Sprint 003 M2: 16종 블록 선택자 PageNodeExtractor + 4000자 청크 + abort 지원 + pageWideBlock=true 시 즉시 중단 | P1 |
 | 원문/번역 토글 | 원문과 번역 표시 방식 변경 | P1 |
 | 쉬운 설명 | 어려운 문장을 쉽게 설명 | P1 |
 | 요약 | 선택 영역/페이지 요약 | P1 |
@@ -67,7 +67,7 @@
 | DeepL Provider | 번역 특화 Provider | P2 |
 | Local Model Provider | 로컬 모델 사용 | P3 |
 
-## 9.6 Privacy Filter (v0.2 신규)
+## 9.6 Privacy Filter (v0.2 신규, v0.3.1 BlockReason / 도메인 정책 UI 실측)
 
 AI 브라우저는 사용자가 보는 페이지를 외부 Provider로 전송할 수 있어, 민감 페이지 차단을 **정책이 아닌 기능 모듈**로 구현한다.
 
@@ -76,16 +76,50 @@ AI 브라우저는 사용자가 보는 페이지를 외부 Provider로 전송할
 | password input 감지 | `<input type="password">` 존재 시 페이지 자동 번역 비활성 | P0 |
 | 카드 입력 필드 감지 | Payment Request API, 카드 패턴(번호/CVC/만료일) 감지 | P0 |
 | 도메인 블랙리스트 (기본) | 메일/은행/결제/계정 도메인 키워드 기반 차단 | P0 |
-| 사용자 도메인 블랙리스트 | 사용자가 추가한 도메인 차단 | P1 |
-| 사용자 도메인 화이트리스트 | 사용자가 명시 허용한 도메인 (블랙리스트 우회) | P1 |
+| 사용자 도메인 블랙리스트 | 사용자가 추가한 도메인 차단 (Sprint 003 M3 UI 구현) | P1 |
+| 사용자 도메인 화이트리스트 | 사용자가 명시 허용한 도메인 (블랙리스트 우회, Sprint 003 M3) | P1 |
 | 수동 승인 요구 | 민감 페이지에서 번역 시도 시 명시적 사용자 승인 다이얼로그 | P0 |
 | 전송 로그 | 어떤 도메인의 어떤 콘텐츠가 어느 Provider로 전송됐는지 기록 (UsageLog 연결) | P1 |
 
 ### 기본 도메인 블랙리스트 키워드
 
-`mail.*`, `accounts.*`, `account.*`, `*.bank`, `banking.*`, `pay.*`, `checkout.*`, `payment.*`, `login.*`, `signin.*`, `oauth.*`, `id.*`
+`mail.*`, `accounts.*`, `account.*`, `*.bank`, `banking.*`, `pay.*`, `checkout.*`, `payment.*`, `login.*`, `signin.*`, `oauth.*`, `id.*`, `gmail.com`, `paypal.com`
 
 (정규 운영 시 사용자 피드백 기반 갱신)
+
+### BlockReason enum + pageWideBlock (v0.3.1 / Sprint 003 M1)
+
+evaluatePrivacy 반환 구조에 차단 사유를 enum으로 도입.
+
+```
+BlockReason: 'none' | 'consent' | 'password' | 'card_field' | 'card_pattern' | 'domain'
+pageWideBlock: boolean  // 차단 시 페이지 전체 차단 여부
+```
+
+- 평가 우선순위: consent → password → card_field → card_pattern → domain
+- 모든 차단 사유는 `pageWideBlock=true` (사용자 명시 차단 의도 통일)
+- `allowed | user_approved` 시 `blockReason='none'`, `pageWideBlock=false`
+- 호출자(paragraph / page 번역 반복문)는 `pageWideBlock=true` 감지 시 즉시 중단
+- v0.3까지의 reason 문자열 매칭은 v0.3.1에서 deprecate (호환 `blockedBy` 유지)
+
+### 사용자 도메인 정책 영속 (v0.3.1 / Sprint 003 M3)
+
+`domain-policy.json` 파일에 JSON 영속.
+
+```json
+{
+  "policyVersion": 1,
+  "userRules": [
+    { "pattern": "*.example.com", "type": "whitelist" },
+    { "pattern": "mail.example.com", "type": "blacklist" }
+  ]
+}
+```
+
+- 패턴: 도메인 문자(`a-z`, `0-9`, `-`, `.`)만 허용, 선두 와일드카드 `*.` 만 허용
+- 정책 우선순위: **사용자 화이트리스트 > 사용자 블랙리스트 > 기본 블랙리스트**
+- Settings UI에서 import/export 가능 (DomainPolicyPanel)
+- secret 아님 → 평문 JSON 영속 (G-005 적용 외)
 
 ---
 
