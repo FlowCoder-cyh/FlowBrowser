@@ -20,6 +20,8 @@ export interface UserSettingState {
   sourceLanguage: string
   defaultProviderId: string
   privacyFilterEnabled: boolean
+  /** Sprint 010 M3 — 탭 전환 시 진행 중 paragraphs/page 작업 자동 abort. 기본 false (호환). */
+  cancelOnTabSwitch: boolean
 }
 
 const DEFAULTS: UserSettingState = {
@@ -27,7 +29,8 @@ const DEFAULTS: UserSettingState = {
   defaultLanguage: 'ko',
   sourceLanguage: 'auto',
   defaultProviderId: 'openai',
-  privacyFilterEnabled: true
+  privacyFilterEnabled: true,
+  cancelOnTabSwitch: false
 }
 
 function isNonEmptyString(v: unknown): v is string {
@@ -60,7 +63,11 @@ export class UserSettingStore {
         privacyFilterEnabled:
           typeof parsed.privacyFilterEnabled === 'boolean'
             ? parsed.privacyFilterEnabled
-            : DEFAULTS.privacyFilterEnabled
+            : DEFAULTS.privacyFilterEnabled,
+        cancelOnTabSwitch:
+          typeof parsed.cancelOnTabSwitch === 'boolean'
+            ? parsed.cancelOnTabSwitch
+            : DEFAULTS.cancelOnTabSwitch
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -109,6 +116,12 @@ export class UserSettingStore {
         throw new Error('invalid privacyFilterEnabled')
       }
       this.state.privacyFilterEnabled = patch.privacyFilterEnabled
+    }
+    if (patch.cancelOnTabSwitch !== undefined) {
+      if (typeof patch.cancelOnTabSwitch !== 'boolean') {
+        throw new Error('invalid cancelOnTabSwitch')
+      }
+      this.state.cancelOnTabSwitch = patch.cancelOnTabSwitch
     }
     await this.persist()
     return this.getState()

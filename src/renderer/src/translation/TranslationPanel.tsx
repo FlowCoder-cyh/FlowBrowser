@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { isCurrentTab as isCurrentTabPure } from './tabGuard'
 
 interface NodeRow {
   id: string
@@ -110,11 +111,9 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       }
     })
 
-    // Sprint 009 M2 — sourceTabId 가드 헬퍼
-    const isCurrentTab = (p: { sourceTabId?: string | null }): boolean => {
-      if (p.sourceTabId == null) return true
-      return p.sourceTabId === activeTabIdRef.current
-    }
+    // Sprint 009 M2 — sourceTabId 가드 헬퍼 (Sprint 010 M3에서 순수 함수 tabGuard.ts로 추출)
+    const isCurrentTab = (p: { sourceTabId?: string | null }): boolean =>
+      isCurrentTabPure(activeTabIdRef.current, p.sourceTabId)
 
     const offStart = window.translateApi.onParagraphsStart((p) => {
       if (!isCurrentTab(p)) return

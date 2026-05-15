@@ -6,6 +6,7 @@ interface UserSettingPayload {
   sourceLanguage: string
   defaultProviderId: string
   privacyFilterEnabled: boolean
+  cancelOnTabSwitch: boolean
 }
 
 const LANGUAGES: Array<{ value: string; label: string }> = [
@@ -119,6 +120,21 @@ export default function GeneralPanel(): JSX.Element {
         </label>
         <p className="settings-muted gp-toggle-note">
           비활성화해도 비밀번호/카드 패턴 본문 차단은 항상 적용됩니다 (안전 정책 무력화 불가).
+        </p>
+      </div>
+
+      <div className="gp-row gp-toggle">
+        <label>
+          <input
+            type="checkbox"
+            checked={state.cancelOnTabSwitch}
+            onChange={(e) => void update({ cancelOnTabSwitch: e.target.checked })}
+            disabled={busy}
+          />
+          탭 전환 시 진행 작업 자동 취소
+        </label>
+        <p className="settings-muted gp-toggle-note">
+          끄면(기본) 백그라운드 작업은 계속 진행되며 UI에만 반영되지 않습니다.
         </p>
       </div>
     </section>

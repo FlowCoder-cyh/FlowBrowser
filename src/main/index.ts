@@ -11,7 +11,8 @@ import {
   persistPageResult,
   pageResultLookup,
   loadTabState,
-  saveTabState
+  saveTabState,
+  getUserSetting
 } from './services'
 import {
   renderTranslationsScript,
@@ -42,6 +43,11 @@ function getActiveTabView(): WebContentsView | null {
 function syncBrowserViewRef(): void {
   browserView = getActiveTabView()
 }
+
+// Sprint 004 M1 — paragraph abort 플래그 (Sprint 010 M3에서 cancelOnTabSwitch 지원 위해 상단 이동)
+let paragraphsAborted = false
+// Sprint 003 M2 — page translation abort 플래그 (Sprint 010 M3에서 상단 이동)
+let pageTranslateAborted = false
 
 // Sprint 009 M3 — 탭 상태 영속 (debounced 200ms)
 let saveTimer: NodeJS.Timeout | null = null
@@ -170,6 +176,20 @@ ipcMain.handle('tab:close', (_event, id: string): boolean => {
 })
 
 ipcMain.handle('tab:switch', (_event, id: string): boolean => {
+  // Sprint 010 M3 — cancelOnTabSwitch=true이면 진행 중 paragraphs/page 작업 자동 abort.
+  // 실제 탭 전환이 일어나는 경우에만 abort (같은 탭으로 switch는 noop).
+  const prevId = tabManager.getActiveId()
+  if (prevId !== null && prevId !== id) {
+    try {
+      const setting = getUserSetting()
+      if (setting.cancelOnTabSwitch) {
+        paragraphsAborted = true
+        pageTranslateAborted = true
+      }
+    } catch {
+      // UserSettingStore가 아직 로드 안 됐을 수도 — 무시
+    }
+  }
   const ok = tabManager.switch(id)
   if (ok) setActiveTabView(id)
   return ok
@@ -570,9 +590,8 @@ ipcMain.handle(
 
 /**
  * Sprint 004 M1 / S004-T02 — paragraph abort 일관성.
+ * Sprint 010 M3 — paragraphsAborted 플래그는 파일 상단에서 선언 (cancelOnTabSwitch 분기에서 set).
  */
-let paragraphsAborted = false
-
 ipcMain.handle('translate:paragraphs-abort', (): { ok: true } => {
   paragraphsAborted = true
   return { ok: true }
@@ -689,9 +708,8 @@ ipcMain.handle(
 /**
  * Sprint 003 M2 — 페이지 전체 번역. PRD §9.2 P1.
  * paragraph보다 광범위한 블록 노드 집합. abort 지원.
+ * Sprint 010 M3 — pageTranslateAborted 플래그는 파일 상단에서 선언 (cancelOnTabSwitch 분기에서 set).
  */
-let pageTranslateAborted = false
-
 ipcMain.handle('translate:page-abort', (): { ok: true } => {
   pageTranslateAborted = true
   return { ok: true }
