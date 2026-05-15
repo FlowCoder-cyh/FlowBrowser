@@ -18,11 +18,26 @@ import {
 } from '../perception/TranslationRenderer'
 import { nodesSignatureFromTexts } from '../storage/PageResultStore'
 import { planChunks, summarizeChunks } from '../ai/SummarizationPlanner'
+import { TabManager, type TabSession } from './TabManager'
 
 let mainWindow: BrowserWindow | null = null
+const tabManager = new TabManager()
+const tabViews = new Map<string, WebContentsView>()
+// Sprint 008 M1 — 활성 탭 view 캐시. setActiveTabView/close에서 자동 갱신.
+// 기존 단일 browserView 변수 호환 유지 (대부분의 IPC handler는 활성 탭 사용).
 let browserView: WebContentsView | null = null
 
 const URL_BAR_HEIGHT = 60
+
+function getActiveTabView(): WebContentsView | null {
+  const id = tabManager.getActiveId()
+  if (!id) return null
+  return tabViews.get(id) ?? null
+}
+
+function syncBrowserViewRef(): void {
+  browserView = getActiveTabView()
+}
 
 interface NavigateResult {
   ok: boolean
@@ -50,32 +65,101 @@ function createMainWindow(): void {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  browserView = new WebContentsView({
+  // Sprint 008 M1 — 첫 탭 자동 생성. 다중 탭 운영 시작.
+  const firstTab = tabManager.open('about:blank')
+  createTabView(firstTab.id, firstTab.url)
+  setActiveTabView(firstTab.id)
+
+  // TabManager 변동 broadcast (TabBar / UrlBar 구독)
+  tabManager.subscribe((snapshot) => {
+    if (!mainWindow) return
+    mainWindow.webContents.send('tab:list-update', snapshot)
+  })
+
+  mainWindow.on('resize', updateBrowserViewBounds)
+  mainWindow.on('closed', () => {
+    mainWindow = null
+    // 탭 view 정리
+    for (const view of tabViews.values()) {
+      try {
+        view.webContents.close()
+      } catch {
+        // ignore
+      }
+    }
+    tabViews.clear()
+    browserView = null
+  })
+}
+
+// Sprint 008 M1 — 탭 IPC 5종
+ipcMain.handle('tab:list', () => tabManager.snapshot())
+
+ipcMain.handle('tab:open', (_event, url?: string): TabSession => {
+  const session = tabManager.open(url ?? 'about:blank')
+  createTabView(session.id, session.url)
+  setActiveTabView(session.id)
+  return session
+})
+
+ipcMain.handle('tab:close', (_event, id: string): boolean => {
+  const removed = tabManager.close(id)
+  if (removed) destroyTabView(id)
+  // 활성 탭 자동 전환 처리
+  const active = tabManager.getActiveId()
+  if (active) {
+    setActiveTabView(active)
+  } else {
+    browserView = null
+  }
+  return removed
+})
+
+ipcMain.handle('tab:switch', (_event, id: string): boolean => {
+  const ok = tabManager.switch(id)
+  if (ok) setActiveTabView(id)
+  return ok
+})
+
+ipcMain.handle('tab:active', (): TabSession | null => tabManager.getActive())
+
+/**
+ * Sprint 008 M1 — 신규 탭의 WebContentsView를 생성하고 listener를 등록.
+ * 활성화는 별도 함수에서.
+ */
+function createTabView(tabId: string, url: string): WebContentsView {
+  const view = new WebContentsView({
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
     }
   })
+  tabViews.set(tabId, view)
+  WebContentsRegistry.register(view.webContents)
 
-  WebContentsRegistry.register(browserView.webContents)
-
-  // Sprint 006 M1 — Navigation history 동기화 broadcast
+  // Navigation history broadcast — 활성 탭일 때만 송신
   const broadcastNav = (): void => {
-    if (!mainWindow || !browserView) return
-    const wc = browserView.webContents
+    if (!mainWindow) return
+    if (tabManager.getActiveId() !== tabId) return
+    const wc = view.webContents
     mainWindow.webContents.send('browser:navigated', {
       url: wc.getURL(),
       canGoBack: wc.navigationHistory.canGoBack(),
       canGoForward: wc.navigationHistory.canGoForward()
     })
+    // TabManager url/title 동기화
+    tabManager.updateUrl(tabId, wc.getURL())
   }
-  browserView.webContents.on('did-navigate', broadcastNav)
-  browserView.webContents.on('did-navigate-in-page', broadcastNav)
-  browserView.webContents.on('did-finish-load', broadcastNav)
+  view.webContents.on('did-navigate', broadcastNav)
+  view.webContents.on('did-navigate-in-page', broadcastNav)
+  view.webContents.on('did-finish-load', broadcastNav)
+  view.webContents.on('page-title-updated', (_event, title) => {
+    tabManager.updateTitle(tabId, title)
+  })
 
-  browserView.webContents.on('context-menu', (_event, params) => {
-    if (!mainWindow || !browserView) return
+  view.webContents.on('context-menu', (_event, params) => {
+    if (!mainWindow) return
     const selectionText = (params.selectionText ?? '').trim()
     if (!selectionText) return
     const preview = selectionText.length > 30 ? `${selectionText.slice(0, 30)}…` : selectionText
@@ -102,13 +186,67 @@ function createMainWindow(): void {
     menu.popup({ window: mainWindow })
   })
 
-  mainWindow.contentView.addChildView(browserView)
-  updateBrowserViewBounds()
+  if (url && url !== 'about:blank') {
+    void view.webContents.loadURL(url).catch(() => {
+      // 로드 실패는 무시 (사용자가 URL Bar에서 재입력 가능)
+    })
+  }
 
-  mainWindow.on('resize', updateBrowserViewBounds)
-  mainWindow.on('closed', () => {
-    mainWindow = null
-    browserView = null
+  return view
+}
+
+/**
+ * Sprint 008 M1 — 탭 view 정리. 메모리 누수 방지.
+ */
+function destroyTabView(tabId: string): void {
+  const view = tabViews.get(tabId)
+  if (!view) return
+  tabViews.delete(tabId)
+  if (mainWindow) {
+    try {
+      mainWindow.contentView.removeChildView(view)
+    } catch {
+      // 이미 분리됨
+    }
+  }
+  try {
+    view.webContents.close()
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Sprint 008 M1 — 활성 탭의 view만 mainWindow.contentView에 add.
+ * 비활성 view는 분리해 화면에서 숨김.
+ */
+function setActiveTabView(tabId: string): void {
+  if (!mainWindow) return
+  const next = tabViews.get(tabId)
+  if (!next) return
+  // 기존 활성 view 분리
+  for (const [otherId, view] of tabViews.entries()) {
+    if (otherId === tabId) continue
+    try {
+      mainWindow.contentView.removeChildView(view)
+    } catch {
+      // 이미 분리됨
+    }
+  }
+  // 새 활성 view add (이미 add됐어도 idempotent에 가깝게 동작)
+  try {
+    mainWindow.contentView.addChildView(next)
+  } catch {
+    // ignore
+  }
+  syncBrowserViewRef()
+  updateBrowserViewBounds()
+  // 활성 view의 navigation 상태 즉시 broadcast (탭 전환 시 UrlBar 업데이트)
+  const wc = next.webContents
+  mainWindow.webContents.send('browser:navigated', {
+    url: wc.getURL(),
+    canGoBack: wc.navigationHistory.canGoBack(),
+    canGoForward: wc.navigationHistory.canGoForward()
   })
 }
 

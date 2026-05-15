@@ -1,5 +1,6 @@
 import type {
   BrowserApi,
+  TabApi,
   ConsentApi,
   CredentialApi,
   PrivacyApi,
@@ -15,6 +16,7 @@ import type {
 declare global {
   interface Window {
     browserApi: BrowserApi
+    tabApi: TabApi
     consentApi: ConsentApi
     credentialApi: CredentialApi
     privacyApi: PrivacyApi

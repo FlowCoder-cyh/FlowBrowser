@@ -12,6 +12,32 @@ interface NavStatePayload {
   canGoForward: boolean
 }
 
+interface TabSessionPayload {
+  id: string
+  url: string
+  title: string
+  createdAt: number
+  lastActiveAt: number
+}
+
+interface TabListSnapshot {
+  tabs: TabSessionPayload[]
+  activeId: string | null
+}
+
+const tabApi = {
+  list: (): Promise<TabListSnapshot> => ipcRenderer.invoke('tab:list'),
+  open: (url?: string): Promise<TabSessionPayload> => ipcRenderer.invoke('tab:open', url),
+  close: (id: string): Promise<boolean> => ipcRenderer.invoke('tab:close', id),
+  switch: (id: string): Promise<boolean> => ipcRenderer.invoke('tab:switch', id),
+  active: (): Promise<TabSessionPayload | null> => ipcRenderer.invoke('tab:active'),
+  onListUpdate: (handler: (snapshot: TabListSnapshot) => void): (() => void) => {
+    const listener = (_e: unknown, snap: TabListSnapshot): void => handler(snap)
+    ipcRenderer.on('tab:list-update', listener)
+    return () => ipcRenderer.removeListener('tab:list-update', listener)
+  }
+}
+
 const browserApi = {
   navigate: (url: string): Promise<NavigateResult> => ipcRenderer.invoke('navigate', url),
   goBack: (): Promise<boolean> => ipcRenderer.invoke('go-back'),
@@ -503,6 +529,7 @@ const popupApi = {
 }
 
 contextBridge.exposeInMainWorld('browserApi', browserApi)
+contextBridge.exposeInMainWorld('tabApi', tabApi)
 contextBridge.exposeInMainWorld('consentApi', consentApi)
 contextBridge.exposeInMainWorld('credentialApi', credentialApi)
 contextBridge.exposeInMainWorld('privacyApi', privacyApi)
@@ -515,6 +542,7 @@ contextBridge.exposeInMainWorld('translateApi', translateApi)
 contextBridge.exposeInMainWorld('popupApi', popupApi)
 
 export type BrowserApi = typeof browserApi
+export type TabApi = typeof tabApi
 export type ConsentApi = typeof consentApi
 export type CredentialApi = typeof credentialApi
 export type PrivacyApi = typeof privacyApi
