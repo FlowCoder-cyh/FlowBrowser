@@ -126,6 +126,24 @@ export class TabManager {
   }
 
   /**
+   * Sprint 010 M1 — 탭 순서 변경.
+   * newIndex는 음수면 0, length 초과면 length-1로 clamp.
+   * 같은 위치면 no-op (emit skip).
+   * 활성 탭 및 메타데이터는 보존.
+   */
+  reorder(tabId: string, newIndex: number): boolean {
+    const fromIdx = this.order.indexOf(tabId)
+    if (fromIdx < 0) return false
+    const len = this.order.length
+    const clamped = Math.max(0, Math.min(newIndex, len - 1))
+    if (clamped === fromIdx) return true
+    this.order.splice(fromIdx, 1)
+    this.order.splice(clamped, 0, tabId)
+    this.emit()
+    return true
+  }
+
+  /**
    * Sprint 009 M3 — 외부 상태(TabStateStore) 복원.
    * 기존 상태는 모두 제거. emit 1회.
    */

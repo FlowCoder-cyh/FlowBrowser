@@ -177,6 +177,11 @@ ipcMain.handle('tab:switch', (_event, id: string): boolean => {
 
 ipcMain.handle('tab:active', (): TabSession | null => tabManager.getActive())
 
+// Sprint 010 M1 — 탭 순서 변경.
+ipcMain.handle('tab:reorder', (_event, id: string, newIndex: number): boolean => {
+  return tabManager.reorder(id, newIndex)
+})
+
 /**
  * Sprint 008 M1 — 신규 탭의 WebContentsView를 생성하고 listener를 등록.
  * 활성화는 별도 함수에서.

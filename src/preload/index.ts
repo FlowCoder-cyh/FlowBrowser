@@ -31,6 +31,8 @@ const tabApi = {
   close: (id: string): Promise<boolean> => ipcRenderer.invoke('tab:close', id),
   switch: (id: string): Promise<boolean> => ipcRenderer.invoke('tab:switch', id),
   active: (): Promise<TabSessionPayload | null> => ipcRenderer.invoke('tab:active'),
+  reorder: (id: string, newIndex: number): Promise<boolean> =>
+    ipcRenderer.invoke('tab:reorder', id, newIndex),
   onListUpdate: (handler: (snapshot: TabListSnapshot) => void): (() => void) => {
     const listener = (_e: unknown, snap: TabListSnapshot): void => handler(snap)
     ipcRenderer.on('tab:list-update', listener)
