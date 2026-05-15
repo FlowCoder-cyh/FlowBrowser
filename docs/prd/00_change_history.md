@@ -7,6 +7,20 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.11 v0.3.8 변경 이력 (2026-05-15) — Sprint 010 실측 반영
+
+Phase 1 Sprint 010 산출물을 PRD에 반영한 패치 (탭 UX 보강 + S009 잔여 P2).
+
+v0.3.7 대비 주요 변경:
+
+1. **§9.1 탭 드래그/순서 변경**: TabBar HTML5 DnD (`draggable` + `onDragStart/Over/Drop/End`) + `tab:reorder` IPC. `TabManager.reorder(tabId, newIndex)`는 newIndex를 `[0, length-1]`로 clamp, 같은 위치는 no-op (emit skip), 활성 탭/메타데이터 보존. 닫기 버튼은 `draggable=false` + `onDragStart preventDefault`로 드래그 영향 차단.
+2. **§9.1 탭 컨텍스트 메뉴**: 우클릭 시 main process OS 네이티브 popup menu (4 항목: 탭 닫기 / 다른 탭 닫기 / 오른쪽 탭 모두 닫기 / 탭 복제). 단일 탭일 때 "다른 탭 닫기" disabled, 가장 오른쪽일 때 "오른쪽 탭 모두 닫기" disabled. `TabManager.closeOthers / closeRight / duplicate` 3 신규 API + 4종 IPC (`tab:close-others / close-right / duplicate / show-context-menu`).
+3. **§12.1 cancelOnTabSwitch 필드 추가**: `UserSettingState.cancelOnTabSwitch: boolean` (기본 `false`, 호환). 활성화 시 실제 탭 전환에서 진행 중 paragraphs/page 작업 자동 abort (paragraphsAborted/pageTranslateAborted 플래그 set). 비활성화 시(기본) 백그라운드 계속 + sourceTabId 가드(Sprint 009 M2)가 UI만 차단. **한계: summary 흐름은 abort API 부재로 결과 무시만 (Sprint 011+ 후보).**
+4. **§9.6 / §11 isCurrentTab 순수 함수 추출**: `src/renderer/src/translation/tabGuard.ts` 신규. `isCurrentTab(activeTabId, sourceTabId)` — sourceTabId null/undefined → true (레거시), activeTabId null → true (초기화), 그 외 일치 시 true. TranslationPanel이 inline 함수 대신 import 사용. Sprint 009 M2 G-006 Partial 후속 권고 직접 해소.
+5. **§19 모듈 등록**: TabManager.reorder/closeOthers/closeRight/duplicate + tab:reorder/close-others/close-right/duplicate/show-context-menu 5 IPC + tabGuard.ts + GeneralPanel cancelOnTabSwitch 토글 신규 등록.
+
+본 패치는 Sprint 010 M1~M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.10 v0.3.7 변경 이력 (2026-05-15) — Sprint 009 실측 반영
 
 Phase 1 Sprint 009 산출물을 PRD에 반영한 패치 (안정화 묶음).

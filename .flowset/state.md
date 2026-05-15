@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~009 종료, Sprint 010 정의
-- **Sprint**: **010 정의 완료** (M1부터 자율 착수)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~010 종료
+- **Sprint**: **010 종료** (M4 종합 evaluator 진행 중)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: **v0.3.7** (2026-05-15, Sprint 009 실측 반영)
-- **최근 갱신**: 2026-05-15 (Sprint 010 정의 작성)
+- **PRD 버전**: **v0.3.8** (2026-05-15, Sprint 010 실측 반영)
+- **최근 갱신**: 2026-05-15 (Sprint 010 M4 PRD 패치 + Sprint 종료)
 
 ## 현재 작업
 
@@ -69,12 +69,15 @@
 - PRD v0.3.7 발행
 - commit-check CI 4개 PR 모두 success
 
-### Sprint 010 정의 (2026-05-15)
+### Sprint 010 결과 (PR #56~#60 진행 / 머지 예정)
 
-- 산출물: `.flowset/contracts/sprint-010.md`
-- 범위: 탭 UX 보강 (드래그/순서 + 컨텍스트 메뉴) + S009 잔여 P2 보강 (cancel-on-switch + isCurrentTab 순수 함수 추출)
-- M1~M4 4 마일스톤, 1~2주
-- 외부 의존성 작업 (Codex Spike / 사용자 QA / Phase 2 Spike 정량화) 모두 Sprint 011+로 이연
+- M1 (PR #57): TabManager.reorder + HTML5 DnD. evaluator Pass 14/0/0
+- M2 (PR #58): closeOthers / closeRight / duplicate + OS 네이티브 컨텍스트 메뉴. evaluator Pass 13/0/0
+- M3 (PR #59): cancelOnTabSwitch UserSetting + tab:switch abort 분기 + tabGuard.ts (isCurrentTab 순수 함수). evaluator Pass 12/0/0
+- M4 (현재 브랜치): PRD v0.3.8 패치 + Sprint 종합
+- 누적 단위 테스트: 229 → 254 (+25)
+- PRD v0.3.8 발행
+- commit-check CI 모든 PR success
 
 ## 활성 Spike (5종)
 
