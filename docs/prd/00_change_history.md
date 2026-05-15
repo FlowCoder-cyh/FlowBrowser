@@ -7,6 +7,20 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.14 v0.3.11 변경 이력 (2026-05-15) — Sprint 013 실측 반영
+
+Phase 1 Sprint 013 산출물을 PRD에 반영한 패치 (닫은 탭 복원 + 디스크 영속 + 미리보기 보정).
+
+v0.3.10 대비 주요 변경:
+
+1. **§9.1 닫은 탭 복원 (Ctrl+Shift+T)**: `ClosedTabHistory` 신규 LIFO 스택 (최대 20, push/pop/peek/clear/size, closedAt 자동 + maxItems<1 throw). `tab:close` / `tab:close-others` / `tab:close-right` 닫는 탭마다 push (단 `about:blank` 빈 탭 + 핀 탭 보존 제외). `tab:reopen` IPC + Application Menu Ctrl+Shift+T accelerator. pop entry로 신규 탭 open + color/pinned 복원. 비어 있으면 null.
+2. **§9.1 / §12 ThumbnailStore 디스크 영속**: `ThumbnailDiskStore` 신규 (`thumbnails.json` policyVersion=1). load/save/clear + 손상/누락/policyVersion 불일치 빈 배열 fallback. 메모리 LRU 50 유지 + write-through debounced 500ms (`scheduleThumbnailSave`). 앱 시작 시 `initializeThumbnailStore` → `ThumbnailStore.bulkLoad` 자동 복원 (한계 50 자동 적용). `mainWindow.closed` 시 `flushThumbnailSave` 강제 flush → 재시작 후 미리보기 복원. `destroyTabView` 시 디스크 동기 제거. `ThumbnailStore.bulkLoad` / `entries` 보강.
+3. **§9.1 미리보기 viewport 우측 경계 보정**: TabBar `handleMouseEnter` `anchorLeft = max(8, min(rawLeft, innerWidth - 320 - 8))` clamp. PREVIEW_WIDTH 320 + PREVIEW_MARGIN 8 상수. SSR/test fallback `innerWidth=1280`. Sprint 012 M2 evaluator 후속 권고 직접 해소.
+4. **§9.1 formatTabLabel 순수 함수 추출**: `src/renderer/src/translation/tabLabel.ts` 신규 (Sprint 008 M2부터 inline이던 라벨 포맷). 우선순위: title > URL hostname > URL 원본 > '새 탭'. TabBar import 사용 전환.
+5. **§19 모듈 등록**: ClosedTabHistory + ThumbnailDiskStore + ThumbnailStore.bulkLoad/entries + tab:reopen/reopen-size IPC + Application Menu Ctrl+Shift+T + tabLabel.ts + PREVIEW_WIDTH/MARGIN 상수 + viewport 보정 신규 등록.
+
+본 패치는 Sprint 013 M1~M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.13 v0.3.10 변경 이력 (2026-05-15) — Sprint 012 실측 반영
 
 Phase 1 Sprint 012 산출물을 PRD에 반영한 패치 (탭 미리보기 + 키보드 단축키).

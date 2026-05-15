@@ -1,6 +1,6 @@
-# FlowBrowser AI PRD v0.3.10 — 목차
+# FlowBrowser AI PRD v0.3.11 — 목차
 
-본 문서는 FlowBrowser AI 제품 요구사항 명세(PRD)의 **v0.3.10** 버전이며, 13개 섹션 파일로 분할되어 있다.
+본 문서는 FlowBrowser AI 제품 요구사항 명세(PRD)의 **v0.3.11** 버전이며, 13개 섹션 파일로 분할되어 있다.
 v0.2 통합본은 [archive/flowbrowser_ai_prd_crud_v0.2.md](../../archive/flowbrowser_ai_prd_crud_v0.2.md)에 보관되며, v0.3.x 통합본은 작성하지 않고 분할 SSOT로 운영한다.
 
 ## 섹션 구성
@@ -23,9 +23,9 @@ v0.2 통합본은 [archive/flowbrowser_ai_prd_crud_v0.2.md](../../archive/flowbr
 
 ## 현재 상태
 
-**Phase 1 진행 중 — Sprint 001~012 완료**
+**Phase 1 진행 중 — Sprint 001~013 완료**
 
-Phase 0 5종 Spike + Phase 1 Sprint 001~012 완료. v0.3.10에서는 Sprint 012 (탭 미리보기 hover thumbnail + 키보드 단축키) 실측 반영.
+Phase 0 5종 Spike + Phase 1 Sprint 001~013 완료. v0.3.11에서는 Sprint 013 (닫은 탭 복원 + ThumbnailStore 디스크 영속 + 미리보기 viewport 보정) 실측 반영.
 Spike 5 (사용자 인터뷰) 실제 진행은 사용자 직접 작업으로 코드 작업과 병렬 진행 가능.
 
 ## 버전 이력
@@ -44,4 +44,5 @@ Spike 5 (사용자 인터뷰) 실제 진행은 사용자 직접 작업으로 코
 | v0.3.7 | 2026-05-15 | Sprint 009 실측 반영 (Glossary flaky 핫픽스 + sourceTabId 가드 + 탭 영속) |
 | v0.3.8 | 2026-05-15 | Sprint 010 실측 반영 (탭 드래그/순서 + 탭 컨텍스트 메뉴 + cancel-on-switch UX + isCurrentTab 순수 함수 추출) |
 | v0.3.9 | 2026-05-15 | Sprint 011 실측 반영 (summary abort API + 탭 컬러 라벨 + 탭 핀) |
-| **v0.3.10** | **2026-05-15** | **Sprint 012 실측 반영 (탭 미리보기 hover thumbnail + 키보드 단축키), 현재** |
+| v0.3.10 | 2026-05-15 | Sprint 012 실측 반영 (탭 미리보기 hover thumbnail + 키보드 단축키) |
+| **v0.3.11** | **2026-05-15** | **Sprint 013 실측 반영 (닫은 탭 복원 + ThumbnailStore 디스크 영속 + 미리보기 viewport 보정), 현재** |
