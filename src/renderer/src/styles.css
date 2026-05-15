@@ -1419,3 +1419,100 @@ body {
   border-left: 3px solid #ff8888;
   padding-left: 13px;
 }
+
+/* Sprint 014 M2 — Codex Login Panel */
+.codex-experimental-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #4a3a1a;
+  color: #ffd084;
+  font-size: 11px;
+  font-weight: 500;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.codex-experimental-warning {
+  background: #2a2010;
+  border-left: 3px solid #ffaa66;
+  padding: 10px 12px;
+  border-radius: 4px;
+  color: #ffd084;
+  font-size: 12px;
+  margin: 12px 0;
+}
+
+.codex-status {
+  padding: 12px 14px;
+  border-radius: 6px;
+  margin: 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.codex-status.active {
+  background: #1a3a2a;
+  color: #88ffaa;
+}
+
+.codex-status.expired {
+  background: #3a2a1a;
+  color: #ffaa66;
+}
+
+.codex-status.success {
+  background: #1a3a2a;
+  color: #88ffaa;
+}
+
+.codex-status.error {
+  background: #3a1a1a;
+  color: #ff8888;
+}
+
+.codex-usercode-card {
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.codex-step {
+  margin: 8px 0;
+  color: #e0e0e0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.codex-step-note {
+  font-size: 11px;
+  color: #ffaa66;
+  margin: 4px 0;
+}
+
+.codex-step a {
+  color: #4a9eff;
+}
+
+.codex-usercode-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #1a1a1a;
+  padding: 12px 16px;
+  border-radius: 4px;
+  margin: 12px 0;
+}
+
+.codex-usercode-text {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 24px;
+  font-weight: 600;
+  color: #4a9eff;
+  letter-spacing: 4px;
+  flex: 1;
+}
