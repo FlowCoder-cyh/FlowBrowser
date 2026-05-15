@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, WebContentsView, ipcMain } from 'electron'
+import { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain } from 'electron'
 import { join } from 'node:path'
 import {
   initServices,
@@ -456,28 +456,69 @@ function createTabView(tabId: string, url: string): WebContentsView {
   view.webContents.on('context-menu', (_event, params) => {
     if (!mainWindow) return
     const selectionText = (params.selectionText ?? '').trim()
-    if (!selectionText) return
-    const preview = selectionText.length > 30 ? `${selectionText.slice(0, 30)}…` : selectionText
-    const menu = Menu.buildFromTemplate([
+    // Sprint 014 M3-7 핫픽스: 선택 텍스트가 없어도 일반 메뉴(뒤로/앞으로/새로고침/링크 복사 등) 표시.
+    // 기존엔 selectionText 없으면 return으로 메뉴 자체 미표시 → 사용자 보고 "우클릭 안 됨".
+    const template: Electron.MenuItemConstructorOptions[] = []
+    if (selectionText) {
+      const preview =
+        selectionText.length > 30 ? `${selectionText.slice(0, 30)}…` : selectionText
+      template.push(
+        {
+          label: `한국어로 번역: "${preview}"`,
+          click: () => {
+            void handleContextMenuTranslate(selectionText, params.x, params.y)
+          }
+        },
+        {
+          label: `쉽게 설명: "${preview}"`,
+          click: () => {
+            void handleContextMenuExplain(selectionText, params.x, params.y)
+          }
+        },
+        {
+          label: `이 부분 요약: "${preview}"`,
+          click: () => {
+            void handleContextMenuSummarize(selectionText, params.x, params.y)
+          }
+        },
+        { type: 'separator' },
+        {
+          label: '선택 복사',
+          accelerator: 'CommandOrControl+C',
+          click: () => view.webContents.copy()
+        },
+        { type: 'separator' }
+      )
+    }
+    // 링크 우클릭 시 링크 관련 항목
+    if (params.linkURL) {
+      template.push(
+        {
+          label: '링크 주소 복사',
+          click: () => clipboard.writeText(params.linkURL)
+        },
+        { type: 'separator' }
+      )
+    }
+    const wc = view.webContents
+    template.push(
       {
-        label: `한국어로 번역: "${preview}"`,
-        click: () => {
-          void handleContextMenuTranslate(selectionText, params.x, params.y)
-        }
+        label: '뒤로',
+        enabled: wc.navigationHistory.canGoBack(),
+        click: () => wc.navigationHistory.goBack()
       },
       {
-        label: `쉽게 설명: "${preview}"`,
-        click: () => {
-          void handleContextMenuExplain(selectionText, params.x, params.y)
-        }
+        label: '앞으로',
+        enabled: wc.navigationHistory.canGoForward(),
+        click: () => wc.navigationHistory.goForward()
       },
       {
-        label: `이 부분 요약: "${preview}"`,
-        click: () => {
-          void handleContextMenuSummarize(selectionText, params.x, params.y)
-        }
+        label: '새로고침',
+        accelerator: 'CommandOrControl+R',
+        click: () => wc.reload()
       }
-    ])
+    )
+    const menu = Menu.buildFromTemplate(template)
     menu.popup({ window: mainWindow })
   })
 
