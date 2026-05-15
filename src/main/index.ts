@@ -28,6 +28,8 @@ const tabViews = new Map<string, WebContentsView>()
 let browserView: WebContentsView | null = null
 
 const URL_BAR_HEIGHT = 60
+const TAB_BAR_HEIGHT = 36
+const HEADER_HEIGHT = URL_BAR_HEIGHT + TAB_BAR_HEIGHT
 
 function getActiveTabView(): WebContentsView | null {
   const id = tabManager.getActiveId()
@@ -264,9 +266,9 @@ function updateBrowserViewBounds(): void {
   const rightInset = panelOpen ? PANEL_WIDTH : 0
   browserView.setBounds({
     x: 0,
-    y: URL_BAR_HEIGHT,
+    y: HEADER_HEIGHT,
     width: Math.max(0, bounds.width - rightInset),
-    height: Math.max(0, bounds.height - URL_BAR_HEIGHT)
+    height: Math.max(0, bounds.height - HEADER_HEIGHT)
   })
 }
 
@@ -818,7 +820,7 @@ async function handleContextMenuAi(
     sourceText: selectionText,
     url,
     anchorX: webViewX,
-    anchorY: webViewY + URL_BAR_HEIGHT,
+    anchorY: webViewY + HEADER_HEIGHT,
     status: 'loading',
     mode
   })

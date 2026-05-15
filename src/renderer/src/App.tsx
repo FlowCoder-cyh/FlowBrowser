@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import UrlBar from './UrlBar'
+import TabBar from './TabBar'
 import Consent from './onboarding/Consent'
 import SettingsPage from './settings/SettingsPage'
 import TranslationPopup from './translation/TranslationPopup'
@@ -42,6 +43,7 @@ export default function App(): JSX.Element {
 
   return (
     <div className="app">
+      <TabBar />
       <UrlBar
         onOpenSettings={() => setStage('settings')}
         onTogglePanel={() => setPanelOpen((x) => !x)}
