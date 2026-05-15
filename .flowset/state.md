@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~009 종료
-- **Sprint**: **009 종료** (M4 종합 evaluator 진행 중)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~009 종료, Sprint 010 정의
+- **Sprint**: **010 정의 완료** (M1부터 자율 착수)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.3.7** (2026-05-15, Sprint 009 실측 반영)
-- **최근 갱신**: 2026-05-15 (Sprint 009 M4 PRD 패치 + Sprint 종료)
+- **최근 갱신**: 2026-05-15 (Sprint 010 정의 작성)
 
 ## 현재 작업
 
@@ -62,15 +62,19 @@
 - Sprint 종합 evaluator: Pass 17 / 0 / 0
 - PRD v0.3.6 발행
 
-### Sprint 009 진행 (2026-05-15)
+### Sprint 009 결과 (PR #50~#55 머지)
 
-- 산출물: `.flowset/contracts/sprint-009.md`
-- M1 (PR #51): GlossaryStore bumpVersion counter 핫픽스 + 회귀 테스트 2. evaluator: 10/10 flaky 해소 (PR auto-merge로 직접 검증).
-- M2 (PR #52): sourceTabId 가드 (3 IPC × 13 이벤트) + TranslationPanel isCurrentTab. evaluator Pass 8/1/0.
-- M3 (PR #53): TabStateStore + TabManager.restore + initializeTabs + 자동 저장(debounce 200ms) + 10 tests. evaluator Pass 14/0/0.
-- M4: PRD v0.3.7 패치 + Sprint 종합 evaluator 진행 중
 - 누적 단위 테스트: 217 → 229 (+12 신규)
-- 모든 자동 검증 (lint/typecheck/test/build) PASS
+- Sprint 종합 evaluator: Pass 11 / 0 / 0
+- PRD v0.3.7 발행
+- commit-check CI 4개 PR 모두 success
+
+### Sprint 010 정의 (2026-05-15)
+
+- 산출물: `.flowset/contracts/sprint-010.md`
+- 범위: 탭 UX 보강 (드래그/순서 + 컨텍스트 메뉴) + S009 잔여 P2 보강 (cancel-on-switch + isCurrentTab 순수 함수 추출)
+- M1~M4 4 마일스톤, 1~2주
+- 외부 의존성 작업 (Codex Spike / 사용자 QA / Phase 2 Spike 정량화) 모두 Sprint 011+로 이연
 
 ## 활성 Spike (5종)
 
@@ -88,7 +92,7 @@
 
 ## 최근 핸드오프
 
-- [2026-05-15](./handoffs/2026-05-15.md) — Sprint 003 정의
+- [2026-05-15](./handoffs/2026-05-15.md) — Sprint 003~009 + 010 정의
 - [2026-05-11](./handoffs/2026-05-11.md) — Sprint 001/002 진행 종합
 
 ## 갱신 트리거
