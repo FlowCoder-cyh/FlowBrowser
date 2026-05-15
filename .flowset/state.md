@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~011 종료
-- **Sprint**: **011 종료** (M4 종합 evaluator 진행 중)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~011 종료, Sprint 012 정의
+- **Sprint**: **012 정의 완료** (M1부터 자율 착수)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.3.9** (2026-05-15, Sprint 011 실측 반영)
-- **최근 갱신**: 2026-05-15 (Sprint 011 M4 PRD 패치 + Sprint 종료)
+- **최근 갱신**: 2026-05-15 (Sprint 012 정의 작성)
 
 ## 현재 작업
 
