@@ -57,6 +57,10 @@ const tabApi = {
     ipcRenderer.invoke('tab:set-color', id, color),
   setPinned: (id: string, pinned: boolean): Promise<boolean> =>
     ipcRenderer.invoke('tab:set-pinned', id, pinned),
+  getThumbnail: (
+    id: string
+  ): Promise<{ dataUrl: string; capturedAt: number; width: number; height: number } | null> =>
+    ipcRenderer.invoke('tab:get-thumbnail', id),
   onListUpdate: (handler: (snapshot: TabListSnapshot) => void): (() => void) => {
     const listener = (_e: unknown, snap: TabListSnapshot): void => handler(snap)
     ipcRenderer.on('tab:list-update', listener)

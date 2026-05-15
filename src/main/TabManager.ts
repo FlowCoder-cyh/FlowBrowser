@@ -187,6 +187,21 @@ export class TabManager {
   }
 
   /**
+   * Sprint 012 M3 — 현재 활성 탭 기준 다음/이전 탭의 id 반환 (순환).
+   * 활성 탭 없거나 탭 0개면 null.
+   * 단일 탭이면 같은 id 반환 (caller가 noop 판단).
+   */
+  cycleActiveTabId(direction: 'next' | 'prev'): string | null {
+    if (this.order.length === 0) return null
+    if (this.activeId === null) return null
+    const idx = this.order.indexOf(this.activeId)
+    if (idx < 0) return null
+    const len = this.order.length
+    const nextIdx = direction === 'next' ? (idx + 1) % len : (idx - 1 + len) % len
+    return this.order[nextIdx]
+  }
+
+  /**
    * Sprint 010 M2 — keepId 외 모든 탭 close. keepId 활성 보장.
    * keepId가 존재하지 않으면 false 반환, 변동 없음.
    * 닫힌 탭 id 배열 반환 (main/index.ts가 destroyTabView에 사용).

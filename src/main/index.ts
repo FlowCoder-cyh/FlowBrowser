@@ -26,10 +26,14 @@ import {
   SummarizationAbortedError
 } from '../ai/SummarizationPlanner'
 import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
+import { ThumbnailStore, type ThumbnailEntry } from './ThumbnailStore'
 
 let mainWindow: BrowserWindow | null = null
 const tabManager = new TabManager()
 const tabViews = new Map<string, WebContentsView>()
+// Sprint 012 M1 — 탭 미리보기 (hover thumbnail) 메모리 LRU
+const thumbnailStore = new ThumbnailStore(50)
+const THUMBNAIL_RESIZE_WIDTH = 300
 // Sprint 008 M1 — 활성 탭 view 캐시. setActiveTabView/close에서 자동 갱신.
 // 기존 단일 browserView 변수 호환 유지 (대부분의 IPC handler는 활성 탭 사용).
 let browserView: WebContentsView | null = null
@@ -154,6 +158,8 @@ async function createMainWindow(): Promise<void> {
     }
     tabViews.clear()
     browserView = null
+    // Sprint 012 M1 — 미리보기 메모리 정리
+    thumbnailStore.clear()
   })
 }
 
@@ -243,6 +249,11 @@ ipcMain.handle('tab:set-color', (_event, id: string, color: TabColor): boolean =
 // Sprint 011 M3 — 탭 핀(고정).
 ipcMain.handle('tab:set-pinned', (_event, id: string, pinned: boolean): boolean => {
   return tabManager.setPinned(id, pinned)
+})
+
+// Sprint 012 M1 — 탭 미리보기 조회.
+ipcMain.handle('tab:get-thumbnail', (_event, id: string): ThumbnailEntry | null => {
+  return thumbnailStore.get(id)
 })
 
 // Sprint 010 M2 — TabBar 우클릭 시 OS 네이티브 컨텍스트 메뉴 popup.
@@ -425,6 +436,8 @@ function destroyTabView(tabId: string): void {
   const view = tabViews.get(tabId)
   if (!view) return
   tabViews.delete(tabId)
+  // Sprint 012 M1 — 탭 close 시 ThumbnailStore에서도 자동 제거
+  thumbnailStore.remove(tabId)
   if (mainWindow) {
     try {
       mainWindow.contentView.removeChildView(view)
@@ -443,10 +456,42 @@ function destroyTabView(tabId: string): void {
  * Sprint 008 M1 — 활성 탭의 view만 mainWindow.contentView에 add.
  * 비활성 view는 분리해 화면에서 숨김.
  */
+/**
+ * Sprint 012 M1 — 활성 탭 변경 직전 현재 active view 캡처.
+ * NativeImage → resize → dataURL → ThumbnailStore 저장.
+ * 실패는 silent (로그만).
+ */
+async function captureActiveTabThumbnail(): Promise<void> {
+  const prevId = tabManager.getActiveId()
+  if (!prevId) return
+  const view = tabViews.get(prevId)
+  if (!view) return
+  try {
+    const image = await view.webContents.capturePage()
+    if (image.isEmpty()) return
+    const resized = image.resize({ width: THUMBNAIL_RESIZE_WIDTH })
+    const size = resized.getSize()
+    const entry: ThumbnailEntry = {
+      dataUrl: resized.toDataURL(),
+      capturedAt: Date.now(),
+      width: size.width,
+      height: size.height
+    }
+    thumbnailStore.set(prevId, entry)
+  } catch {
+    // capturePage 실패는 silent — 로그 노이즈 회피
+  }
+}
+
 function setActiveTabView(tabId: string): void {
   if (!mainWindow) return
   const next = tabViews.get(tabId)
   if (!next) return
+  // Sprint 012 M1 — 실제 탭 전환일 때만 이전 view 캡처 (fire-and-forget)
+  const prevId = tabManager.getActiveId()
+  if (prevId !== null && prevId !== tabId && tabViews.has(prevId)) {
+    void captureActiveTabThumbnail()
+  }
   // 기존 활성 view 분리
   for (const [otherId, view] of tabViews.entries()) {
     if (otherId === tabId) continue
