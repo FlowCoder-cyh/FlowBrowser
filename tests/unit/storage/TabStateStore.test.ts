@@ -42,14 +42,16 @@ describe('TabStateStore', () => {
           url: 'https://a.com',
           title: 'A',
           createdAt: 1,
-          lastActiveAt: 2
+          lastActiveAt: 2,
+          color: null
         },
         {
           id: 'tab_b',
           url: 'https://b.com',
           title: 'B',
           createdAt: 3,
-          lastActiveAt: 4
+          lastActiveAt: 4,
+          color: null
         }
       ],
       activeId: 'tab_b'
@@ -116,10 +118,58 @@ describe('TabStateStore', () => {
     expect(state.activeId).toBe('tab_b')
   })
 
+  // Sprint 011 M2 — color 영속 + 호환 fallback
+  describe('color (Sprint 011 M2)', () => {
+    it('color round-trip', async () => {
+      const store = new TabStateStore(path)
+      await store.save({
+        tabs: [
+          {
+            id: 'tab_a',
+            url: 'a.com',
+            title: '',
+            createdAt: 1,
+            lastActiveAt: 2,
+            color: 'red'
+          },
+          {
+            id: 'tab_b',
+            url: 'b.com',
+            title: '',
+            createdAt: 3,
+            lastActiveAt: 4,
+            color: null
+          }
+        ],
+        activeId: 'tab_a'
+      })
+      const state = await store.load()
+      expect(state.tabs[0].color).toBe('red')
+      expect(state.tabs[1].color).toBeNull()
+    })
+
+    it('기존 파일에 color 누락 → null fallback', async () => {
+      // 기존 v0.3.7 이하 파일 시뮬레이션 (color 필드 없음)
+      await fs.writeFile(
+        path,
+        JSON.stringify({
+          policyVersion: TAB_STATE_POLICY_VERSION,
+          tabs: [
+            { id: 'tab_a', url: 'a.com', title: '', createdAt: 1, lastActiveAt: 2 }
+          ],
+          activeId: 'tab_a'
+        })
+      )
+      const store = new TabStateStore(path)
+      const state = await store.load()
+      expect(state.tabs[0].color).toBeNull()
+    })
+  })
+
   it('clear 후 load → 빈 상태', async () => {
     const store = new TabStateStore(path)
     await store.save({
-      tabs: [{ id: 'tab_a', url: 'a.com', title: '', createdAt: 1, lastActiveAt: 2 }],
+      tabs: [{ id: 'tab_a', url: 'a.com', title: '', createdAt: 1, lastActiveAt: 2, color: null }],
       activeId: 'tab_a'
     })
     await store.clear()

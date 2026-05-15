@@ -6,12 +6,27 @@
  * 본 클래스는 탭 메타데이터(id/url/title/timestamps) + 활성 탭 + 변동 콜백만 담당.
  */
 
+export type TabColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'gray' | null
+
+export const TAB_COLOR_PALETTE: TabColor[] = [
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'purple',
+  'gray',
+  null
+]
+
 export interface TabSession {
   id: string
   url: string
   title: string
   createdAt: number
   lastActiveAt: number
+  /** Sprint 011 M2 — 사용자 시각 분류용 컬러 라벨 (기본 null) */
+  color: TabColor
 }
 
 export type TabsChangeHandler = (snapshot: {
@@ -33,13 +48,28 @@ export class TabManager {
       url,
       title: '',
       createdAt: now,
-      lastActiveAt: now
+      lastActiveAt: now,
+      color: null
     }
     this.tabs.set(id, session)
     this.order.push(id)
     this.activeId = id
     this.emit()
     return { ...session }
+  }
+
+  /**
+   * Sprint 011 M2 — 탭 컬러 라벨 변경.
+   * palette 외 값 false, 같은 색 no-op (emit skip).
+   */
+  setColor(id: string, color: TabColor): boolean {
+    const s = this.tabs.get(id)
+    if (!s) return false
+    if (!TAB_COLOR_PALETTE.includes(color)) return false
+    if (s.color === color) return true
+    s.color = color
+    this.emit()
+    return true
   }
 
   close(id: string): boolean {
@@ -210,7 +240,8 @@ export class TabManager {
     this.tabs.clear()
     this.order = []
     for (const s of state.tabs) {
-      this.tabs.set(s.id, { ...s })
+      // 영속 파일에 color 누락 시 null fallback
+      this.tabs.set(s.id, { ...s, color: s.color ?? null })
       this.order.push(s.id)
     }
     if (state.activeId && this.tabs.has(state.activeId)) {

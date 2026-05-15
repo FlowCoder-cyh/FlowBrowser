@@ -349,6 +349,49 @@ describe('TabManager', () => {
     })
   })
 
+  // Sprint 011 M2 — setColor
+  describe('setColor (Sprint 011 M2)', () => {
+    it('palette 정상 색상 → true, color 변경', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      expect(tm.setColor(a.id, 'red')).toBe(true)
+      expect(tm.list().find((t) => t.id === a.id)?.color).toBe('red')
+    })
+
+    it('palette 외 값 거부 → false', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      // @ts-expect-error invalid color for test
+      expect(tm.setColor(a.id, 'magenta')).toBe(false)
+      expect(tm.list().find((t) => t.id === a.id)?.color).toBeNull()
+    })
+
+    it('null 허용 (색상 제거)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      tm.setColor(a.id, 'blue')
+      expect(tm.setColor(a.id, null)).toBe(true)
+      expect(tm.list().find((t) => t.id === a.id)?.color).toBeNull()
+    })
+
+    it('같은 색 → true, emit skip', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      tm.setColor(a.id, 'green')
+      const handler = vi.fn()
+      tm.subscribe(handler)
+      handler.mockClear()
+      expect(tm.setColor(a.id, 'green')).toBe(true)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('존재하지 않는 id → false', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      expect(tm.setColor('nope', 'red')).toBe(false)
+    })
+  })
+
   describe('duplicate (Sprint 010 M2)', () => {
     it('동일 url로 새 탭 생성 + 활성 전환', () => {
       const tm = new TabManager()
@@ -389,8 +432,8 @@ describe('TabManager', () => {
       handler.mockClear()
       tm.restore({
         tabs: [
-          { id: 'r1', url: 'r1.com', title: 'R1', createdAt: 1, lastActiveAt: 2 },
-          { id: 'r2', url: 'r2.com', title: 'R2', createdAt: 3, lastActiveAt: 4 }
+          { id: 'r1', url: 'r1.com', title: 'R1', createdAt: 1, lastActiveAt: 2, color: null },
+          { id: 'r2', url: 'r2.com', title: 'R2', createdAt: 3, lastActiveAt: 4, color: null }
         ],
         activeId: 'r2'
       })
@@ -404,8 +447,8 @@ describe('TabManager', () => {
       const tm = new TabManager()
       tm.restore({
         tabs: [
-          { id: 'r1', url: 'r1.com', title: '', createdAt: 1, lastActiveAt: 2 },
-          { id: 'r2', url: 'r2.com', title: '', createdAt: 3, lastActiveAt: 4 }
+          { id: 'r1', url: 'r1.com', title: '', createdAt: 1, lastActiveAt: 2, color: null },
+          { id: 'r2', url: 'r2.com', title: '', createdAt: 3, lastActiveAt: 4, color: null }
         ],
         activeId: 'missing'
       })
