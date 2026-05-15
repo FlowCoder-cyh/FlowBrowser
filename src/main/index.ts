@@ -442,12 +442,13 @@ ipcMain.handle(
       return { ok: false, total: 0, reason: 'browser-not-ready' }
     }
     paragraphsAborted = false
+    const sourceTabId = tabManager.getActiveId() // Sprint 009 M2 — 진입 시점 활성 탭 캡처
     const url = browserView.webContents.getURL()
     const webContentsId = browserView.webContents.id
     const paragraphs = await extractWebContentsParagraphs(webContentsId)
     if (paragraphs.length === 0) {
       const reason = '문단을 찾지 못했습니다.'
-      mainWindow.webContents.send('translate:paragraphs-error', { reason })
+      mainWindow.webContents.send('translate:paragraphs-error', { reason, sourceTabId })
       return { ok: false, total: 0, reason }
     }
 
@@ -456,7 +457,8 @@ ipcMain.handle(
     mainWindow.webContents.send('translate:paragraphs-start', {
       url,
       total: paragraphs.length,
-      paragraphs
+      paragraphs,
+      sourceTabId
     })
 
     let completed = 0
@@ -505,7 +507,8 @@ ipcMain.handle(
         reason: result.reason,
         decision: result.decision,
         blockReason: result.blockReason,
-        pageWideBlock: result.pageWideBlock
+        pageWideBlock: result.pageWideBlock,
+        sourceTabId
       })
 
       if (result.decision === 'blocked' && result.pageWideBlock) {
@@ -519,7 +522,8 @@ ipcMain.handle(
         total: paragraphs.length,
         completed,
         blocked,
-        failed
+        failed,
+        sourceTabId
       })
     }
 
@@ -528,7 +532,8 @@ ipcMain.handle(
       completed,
       blocked,
       failed,
-      stoppedReason
+      stoppedReason,
+      sourceTabId
     })
     return { ok: true, total: paragraphs.length }
   }
@@ -561,12 +566,13 @@ ipcMain.handle(
       return { ok: false, total: 0, reason: 'browser-not-ready' }
     }
     pageTranslateAborted = false
+    const sourceTabId = tabManager.getActiveId()
     const url = browserView.webContents.getURL()
     const webContentsId = browserView.webContents.id
     const bundle = await extractWebContentsPageNodes(webContentsId)
     if (bundle.nodes.length === 0) {
       const reason = '페이지 노드를 찾지 못했습니다.'
-      mainWindow.webContents.send('translate:page-error', { reason })
+      mainWindow.webContents.send('translate:page-error', { reason, sourceTabId })
       return { ok: false, total: 0, reason }
     }
 
@@ -576,7 +582,8 @@ ipcMain.handle(
       url,
       total: bundle.nodes.length,
       chunks: bundle.chunks.length,
-      nodes: bundle.nodes
+      nodes: bundle.nodes,
+      sourceTabId
     })
 
     let completed = 0
@@ -628,7 +635,8 @@ ipcMain.handle(
         reason: result.reason,
         decision: result.decision,
         blockReason: result.blockReason,
-        pageWideBlock: result.pageWideBlock
+        pageWideBlock: result.pageWideBlock,
+        sourceTabId
       })
 
       if (result.decision === 'blocked' && result.pageWideBlock) {
@@ -642,7 +650,8 @@ ipcMain.handle(
         total: bundle.nodes.length,
         completed,
         blocked,
-        failed
+        failed,
+        sourceTabId
       })
     }
 
@@ -651,7 +660,8 @@ ipcMain.handle(
       completed,
       blocked,
       failed,
-      stoppedReason
+      stoppedReason,
+      sourceTabId
     })
 
     // Sprint 006 M3 — 정상 완료(미차단/미취소)일 때만 페이지 결과 영속.
@@ -693,6 +703,7 @@ ipcMain.handle(
     if (!mainWindow || !browserView) {
       return { ok: false, reason: 'browser-not-ready' }
     }
+    const sourceTabId = tabManager.getActiveId()
     const url = browserView.webContents.getURL()
     const webContentsId = browserView.webContents.id
     const bundle = await extractWebContentsPageNodes(webContentsId)
@@ -709,7 +720,8 @@ ipcMain.handle(
     mainWindow.webContents.send('translate:summary-start', {
       url,
       chunks: planned.length,
-      totalChars: planned.reduce((sum, c) => sum + c.text.length, 0)
+      totalChars: planned.reduce((sum, c) => sum + c.text.length, 0),
+      sourceTabId
     })
 
     let blockReason: string | undefined
@@ -754,7 +766,8 @@ ipcMain.handle(
         combinedPath: result.combinedPath,
         combinedInputChars: result.combinedInputChars,
         combineCharLimit: result.combineCharLimit,
-        chunks: planned.length
+        chunks: planned.length,
+        sourceTabId
       })
       return {
         ok: true,
@@ -769,7 +782,7 @@ ipcMain.handle(
     } catch (err) {
       const reason =
         summaryReason ?? (err instanceof Error ? err.message : String(err))
-      mainWindow.webContents.send('translate:summary-error', { reason, blockReason })
+      mainWindow.webContents.send('translate:summary-error', { reason, blockReason, sourceTabId })
       return { ok: false, reason, blockReason }
     }
   }

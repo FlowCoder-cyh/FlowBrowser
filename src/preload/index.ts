@@ -290,6 +290,7 @@ interface ParagraphsStartPayload {
   url: string
   total: number
   paragraphs: Array<{ id: string; text: string; tag: string }>
+  sourceTabId?: string | null
 }
 
 interface ParagraphProgressPayload {
@@ -302,6 +303,9 @@ interface ParagraphProgressPayload {
   fromCache?: boolean
   reason?: string
   decision: string
+  blockReason?: string
+  pageWideBlock?: boolean
+  sourceTabId?: string | null
 }
 
 interface ParagraphsDonePayload {
@@ -310,6 +314,7 @@ interface ParagraphsDonePayload {
   blocked: number
   failed: number
   stoppedReason?: 'aborted' | 'page_wide_block' | null
+  sourceTabId?: string | null
 }
 
 interface ParagraphsAbortedPayload {
@@ -317,10 +322,12 @@ interface ParagraphsAbortedPayload {
   completed: number
   blocked: number
   failed: number
+  sourceTabId?: string | null
 }
 
 interface ParagraphsErrorPayload {
   reason: string
+  sourceTabId?: string | null
 }
 
 interface PageAbortedPayload {
@@ -328,10 +335,12 @@ interface PageAbortedPayload {
   completed: number
   blocked: number
   failed: number
+  sourceTabId?: string | null
 }
 
 interface PageErrorPayload {
   reason: string
+  sourceTabId?: string | null
 }
 
 interface PageStartPayload {
@@ -339,6 +348,7 @@ interface PageStartPayload {
   total: number
   chunks: number
   nodes: Array<{ id: string; text: string; tag: string }>
+  sourceTabId?: string | null
 }
 
 interface PageProgressPayload {
@@ -353,6 +363,7 @@ interface PageProgressPayload {
   decision: string
   blockReason?: string
   pageWideBlock?: boolean
+  sourceTabId?: string | null
 }
 
 interface PageDonePayload {
@@ -361,6 +372,7 @@ interface PageDonePayload {
   blocked: number
   failed: number
   stoppedReason: 'aborted' | 'page_wide_block' | null
+  sourceTabId?: string | null
 }
 
 const translateApi = {
@@ -498,6 +510,7 @@ interface SummaryStartPayload {
   url: string
   chunks: number
   totalChars: number
+  sourceTabId?: string | null
 }
 
 interface SummaryDonePayload {
@@ -508,11 +521,13 @@ interface SummaryDonePayload {
   combinedInputChars?: number
   combineCharLimit?: number
   chunks: number
+  sourceTabId?: string | null
 }
 
 interface SummaryErrorPayload {
   reason: string
   blockReason?: string
+  sourceTabId?: string | null
 }
 
 const popupApi = {
