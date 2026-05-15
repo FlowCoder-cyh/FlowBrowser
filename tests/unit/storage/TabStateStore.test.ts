@@ -43,7 +43,8 @@ describe('TabStateStore', () => {
           title: 'A',
           createdAt: 1,
           lastActiveAt: 2,
-          color: null
+          color: null,
+          pinned: false
         },
         {
           id: 'tab_b',
@@ -51,7 +52,8 @@ describe('TabStateStore', () => {
           title: 'B',
           createdAt: 3,
           lastActiveAt: 4,
-          color: null
+          color: null,
+          pinned: false
         }
       ],
       activeId: 'tab_b'
@@ -130,7 +132,8 @@ describe('TabStateStore', () => {
             title: '',
             createdAt: 1,
             lastActiveAt: 2,
-            color: 'red'
+            color: 'red',
+            pinned: false
           },
           {
             id: 'tab_b',
@@ -138,7 +141,8 @@ describe('TabStateStore', () => {
             title: '',
             createdAt: 3,
             lastActiveAt: 4,
-            color: null
+            color: null,
+            pinned: false
           }
         ],
         activeId: 'tab_a'
@@ -166,10 +170,69 @@ describe('TabStateStore', () => {
     })
   })
 
+  // Sprint 011 M3 — pinned 영속 + 호환 fallback
+  describe('pinned (Sprint 011 M3)', () => {
+    it('pinned round-trip', async () => {
+      const store = new TabStateStore(path)
+      await store.save({
+        tabs: [
+          {
+            id: 'tab_pinned',
+            url: 'a.com',
+            title: '',
+            createdAt: 1,
+            lastActiveAt: 2,
+            color: null,
+            pinned: true
+          },
+          {
+            id: 'tab_normal',
+            url: 'b.com',
+            title: '',
+            createdAt: 3,
+            lastActiveAt: 4,
+            color: null,
+            pinned: false
+          }
+        ],
+        activeId: 'tab_normal'
+      })
+      const state = await store.load()
+      expect(state.tabs[0].pinned).toBe(true)
+      expect(state.tabs[1].pinned).toBe(false)
+    })
+
+    it('기존 파일에 pinned 누락 → false fallback', async () => {
+      await fs.writeFile(
+        path,
+        JSON.stringify({
+          policyVersion: TAB_STATE_POLICY_VERSION,
+          tabs: [
+            { id: 'tab_a', url: 'a.com', title: '', createdAt: 1, lastActiveAt: 2 }
+          ],
+          activeId: 'tab_a'
+        })
+      )
+      const store = new TabStateStore(path)
+      const state = await store.load()
+      expect(state.tabs[0].pinned).toBe(false)
+    })
+  })
+
   it('clear 후 load → 빈 상태', async () => {
     const store = new TabStateStore(path)
     await store.save({
-      tabs: [{ id: 'tab_a', url: 'a.com', title: '', createdAt: 1, lastActiveAt: 2, color: null }],
+      tabs: [
+        {
+          id: 'tab_a',
+          url: 'a.com',
+          title: '',
+          createdAt: 1,
+          lastActiveAt: 2,
+          color: null,
+          pinned: false
+        }
+      ],
       activeId: 'tab_a'
     })
     await store.clear()

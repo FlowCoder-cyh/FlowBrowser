@@ -36,6 +36,8 @@ export interface PersistedTabSession {
   lastActiveAt: number
   /** Sprint 011 M2 — 누락 시 null fallback (호환) */
   color: PersistedTabColor
+  /** Sprint 011 M3 — 누락 시 false fallback (호환) */
+  pinned: boolean
 }
 
 export interface PersistedTabState {
@@ -79,7 +81,8 @@ export class TabStateStore {
           color:
             typeof t.color === 'string' && VALID_COLORS.has(t.color)
               ? (t.color as PersistedTabColor)
-              : null
+              : null,
+          pinned: typeof t.pinned === 'boolean' ? t.pinned : false
         })
       }
       const activeId =

@@ -17,6 +17,7 @@ interface TabSessionPayload {
   createdAt: number
   lastActiveAt: number
   color: TabColorPayload
+  pinned: boolean
 }
 
 const COLOR_HEX: Record<NonNullable<TabColorPayload>, string> = {
@@ -129,10 +130,12 @@ export default function TabBar(): JSX.Element {
             key={t.id}
             className={`tab-item ${isActive ? 'active' : ''} ${
               draggingId === t.id ? 'dragging' : ''
-            } ${dropTargetIdx === idx && draggingId && draggingId !== t.id ? 'drop-target' : ''}`}
+            } ${dropTargetIdx === idx && draggingId && draggingId !== t.id ? 'drop-target' : ''} ${
+              t.pinned ? 'pinned' : ''
+            }`}
             onClick={() => void handleSwitch(t.id)}
             onContextMenu={(e) => handleContextMenu(e, t.id)}
-            title={t.url}
+            title={t.pinned ? `📌 ${t.url}` : t.url}
             draggable
             style={{ borderTopColor }}
             onDragStart={(e) => handleDragStart(e, t.id)}
@@ -141,18 +144,21 @@ export default function TabBar(): JSX.Element {
             onDrop={(e) => void handleDrop(e, idx)}
             onDragEnd={handleDragEnd}
           >
+            {t.pinned && <span className="tab-pin-icon" aria-label="고정됨">📌</span>}
             <span className="tab-label">{formatTabLabel(t)}</span>
-            <button
-              type="button"
-              className="tab-close"
-              draggable={false}
-              onClick={(e) => void handleClose(e, t.id)}
-              onDragStart={(e) => e.preventDefault()}
-              aria-label="탭 닫기"
-              title="탭 닫기"
-            >
-              ×
-            </button>
+            {!t.pinned && (
+              <button
+                type="button"
+                className="tab-close"
+                draggable={false}
+                onClick={(e) => void handleClose(e, t.id)}
+                onDragStart={(e) => e.preventDefault()}
+                aria-label="탭 닫기"
+                title="탭 닫기"
+              >
+                ×
+              </button>
+            )}
           </div>
           )
         })}
