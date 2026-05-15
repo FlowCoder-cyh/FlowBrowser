@@ -141,6 +141,16 @@ ipcMain.handle('browser:get-view-id', (): number | null => {
   return browserView?.webContents.id ?? null
 })
 
+/**
+ * Sprint 004 M1 / S004-T02 — paragraph abort 일관성.
+ */
+let paragraphsAborted = false
+
+ipcMain.handle('translate:paragraphs-abort', (): { ok: true } => {
+  paragraphsAborted = true
+  return { ok: true }
+})
+
 ipcMain.handle(
   'translate:paragraphs',
   async (
@@ -148,13 +158,17 @@ ipcMain.handle(
     args: { providerType: string; sourceLanguage: string; targetLanguage: string }
   ): Promise<{ ok: boolean; total: number; reason?: string }> => {
     if (!mainWindow || !browserView) {
+      mainWindow?.webContents.send('translate:paragraphs-error', { reason: 'browser-not-ready' })
       return { ok: false, total: 0, reason: 'browser-not-ready' }
     }
+    paragraphsAborted = false
     const url = browserView.webContents.getURL()
     const webContentsId = browserView.webContents.id
     const paragraphs = await extractWebContentsParagraphs(webContentsId)
     if (paragraphs.length === 0) {
-      return { ok: false, total: 0, reason: '문단을 찾지 못했습니다.' }
+      const reason = '문단을 찾지 못했습니다.'
+      mainWindow.webContents.send('translate:paragraphs-error', { reason })
+      return { ok: false, total: 0, reason }
     }
 
     const fieldScan = await scanWebContentsFields(webContentsId)
@@ -168,9 +182,14 @@ ipcMain.handle(
     let completed = 0
     let blocked = 0
     let failed = 0
+    let stoppedReason: 'aborted' | 'page_wide_block' | null = null
 
     for (const p of paragraphs) {
       if (!mainWindow) break
+      if (paragraphsAborted) {
+        stoppedReason = 'aborted'
+        break
+      }
       const result = await executeTranslateRequest({
         providerType: args.providerType as 'openai',
         input: {
@@ -210,16 +229,26 @@ ipcMain.handle(
       })
 
       if (result.decision === 'blocked' && result.pageWideBlock) {
-        // 페이지 전체 차단 — 후속 문단도 동일 결정이므로 즉시 정지.
+        stoppedReason = 'page_wide_block'
         break
       }
+    }
+
+    if (stoppedReason === 'aborted') {
+      mainWindow.webContents.send('translate:paragraphs-aborted', {
+        total: paragraphs.length,
+        completed,
+        blocked,
+        failed
+      })
     }
 
     mainWindow.webContents.send('translate:paragraphs-done', {
       total: paragraphs.length,
       completed,
       blocked,
-      failed
+      failed,
+      stoppedReason
     })
     return { ok: true, total: paragraphs.length }
   }
@@ -248,6 +277,7 @@ ipcMain.handle(
     reason?: string
   }> => {
     if (!mainWindow || !browserView) {
+      mainWindow?.webContents.send('translate:page-error', { reason: 'browser-not-ready' })
       return { ok: false, total: 0, reason: 'browser-not-ready' }
     }
     pageTranslateAborted = false
@@ -255,7 +285,9 @@ ipcMain.handle(
     const webContentsId = browserView.webContents.id
     const bundle = await extractWebContentsPageNodes(webContentsId)
     if (bundle.nodes.length === 0) {
-      return { ok: false, total: 0, reason: '페이지 노드를 찾지 못했습니다.' }
+      const reason = '페이지 노드를 찾지 못했습니다.'
+      mainWindow.webContents.send('translate:page-error', { reason })
+      return { ok: false, total: 0, reason }
     }
 
     const fieldScan = await scanWebContentsFields(webContentsId)
@@ -321,6 +353,15 @@ ipcMain.handle(
         stoppedReason = 'page_wide_block'
         break
       }
+    }
+
+    if (stoppedReason === 'aborted') {
+      mainWindow.webContents.send('translate:page-aborted', {
+        total: bundle.nodes.length,
+        completed,
+        blocked,
+        failed
+      })
     }
 
     mainWindow.webContents.send('translate:page-done', {
