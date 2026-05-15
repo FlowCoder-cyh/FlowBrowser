@@ -203,19 +203,14 @@ ipcMain.handle(
         translatedText: result.output?.translatedText,
         fromCache: result.fromCache,
         reason: result.reason,
-        decision: result.decision
+        decision: result.decision,
+        blockReason: result.blockReason,
+        pageWideBlock: result.pageWideBlock
       })
 
-      if (result.decision === 'blocked') {
-        // 페이지 전체 차단 사유 (예: consent / password) — 더 진행 안 함
-        if (
-          result.reason &&
-          (result.reason.includes('전역 동의') ||
-            result.reason.includes('비밀번호') ||
-            result.reason.includes('결제'))
-        ) {
-          break
-        }
+      if (result.decision === 'blocked' && result.pageWideBlock) {
+        // 페이지 전체 차단 — 후속 문단도 동일 결정이므로 즉시 정지.
+        break
       }
     }
 
