@@ -79,7 +79,19 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       })
     })
 
-    const offDone = window.translateApi.onParagraphsDone(() => {
+    const offDone = window.translateApi.onParagraphsDone((p) => {
+      setBusy(false)
+      if (p.stoppedReason) {
+        setStoppedReason(p.stoppedReason)
+      }
+    })
+
+    const offParagraphsAborted = window.translateApi.onParagraphsAborted(() => {
+      setStoppedReason('aborted')
+    })
+
+    const offParagraphsError = window.translateApi.onParagraphsError((p) => {
+      setError(p.reason)
       setBusy(false)
     })
 
@@ -135,13 +147,26 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       setStoppedReason(p.stoppedReason)
     })
 
+    const offPageAborted = window.translateApi.onPageAborted(() => {
+      setStoppedReason('aborted')
+    })
+
+    const offPageError = window.translateApi.onPageError((p) => {
+      setError(p.reason)
+      setBusy(false)
+    })
+
     return () => {
       offStart()
       offProgress()
       offDone()
+      offParagraphsAborted()
+      offParagraphsError()
       offPageStart()
       offPageProgress()
       offPageDone()
+      offPageAborted()
+      offPageError()
     }
   }, [])
 
@@ -180,7 +205,11 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   }
 
   async function handleAbort(): Promise<void> {
-    await window.translateApi.abortPage()
+    if (mode === 'page') {
+      await window.translateApi.abortPage()
+    } else {
+      await window.translateApi.abortParagraphs()
+    }
   }
 
   if (!open) return null
@@ -211,7 +240,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         >
           {busy && mode === 'page' ? '진행 중…' : '페이지 전체 번역'}
         </button>
-        {busy && mode === 'page' && (
+        {busy && (
           <button type="button" className="panel-btn danger" onClick={() => void handleAbort()}>
             취소
           </button>

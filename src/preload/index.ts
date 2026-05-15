@@ -155,6 +155,29 @@ interface ParagraphsDonePayload {
   completed: number
   blocked: number
   failed: number
+  stoppedReason?: 'aborted' | 'page_wide_block' | null
+}
+
+interface ParagraphsAbortedPayload {
+  total: number
+  completed: number
+  blocked: number
+  failed: number
+}
+
+interface ParagraphsErrorPayload {
+  reason: string
+}
+
+interface PageAbortedPayload {
+  total: number
+  completed: number
+  blocked: number
+  failed: number
+}
+
+interface PageErrorPayload {
+  reason: string
 }
 
 interface PageStartPayload {
@@ -190,6 +213,8 @@ const translateApi = {
   request: (args: TranslateRequest) => ipcRenderer.invoke('translate:request', args),
   paragraphs: (args: ParagraphsRequest): Promise<{ ok: boolean; total: number; reason?: string }> =>
     ipcRenderer.invoke('translate:paragraphs', args),
+  abortParagraphs: (): Promise<{ ok: true }> =>
+    ipcRenderer.invoke('translate:paragraphs-abort'),
   page: (
     args: ParagraphsRequest
   ): Promise<{ ok: boolean; total: number; chunks?: number; reason?: string }> =>
@@ -210,6 +235,16 @@ const translateApi = {
     ipcRenderer.on('translate:paragraphs-done', listener)
     return () => ipcRenderer.removeListener('translate:paragraphs-done', listener)
   },
+  onParagraphsAborted: (handler: (p: ParagraphsAbortedPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: ParagraphsAbortedPayload): void => handler(p)
+    ipcRenderer.on('translate:paragraphs-aborted', listener)
+    return () => ipcRenderer.removeListener('translate:paragraphs-aborted', listener)
+  },
+  onParagraphsError: (handler: (p: ParagraphsErrorPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: ParagraphsErrorPayload): void => handler(p)
+    ipcRenderer.on('translate:paragraphs-error', listener)
+    return () => ipcRenderer.removeListener('translate:paragraphs-error', listener)
+  },
   onPageStart: (handler: (p: PageStartPayload) => void): (() => void) => {
     const listener = (_e: unknown, p: PageStartPayload): void => handler(p)
     ipcRenderer.on('translate:page-start', listener)
@@ -224,6 +259,16 @@ const translateApi = {
     const listener = (_e: unknown, p: PageDonePayload): void => handler(p)
     ipcRenderer.on('translate:page-done', listener)
     return () => ipcRenderer.removeListener('translate:page-done', listener)
+  },
+  onPageAborted: (handler: (p: PageAbortedPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: PageAbortedPayload): void => handler(p)
+    ipcRenderer.on('translate:page-aborted', listener)
+    return () => ipcRenderer.removeListener('translate:page-aborted', listener)
+  },
+  onPageError: (handler: (p: PageErrorPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: PageErrorPayload): void => handler(p)
+    ipcRenderer.on('translate:page-error', listener)
+    return () => ipcRenderer.removeListener('translate:page-error', listener)
   }
 }
 
