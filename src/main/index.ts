@@ -6,7 +6,8 @@ import {
   WebContentsRegistry,
   executeTranslateRequest,
   scanWebContentsFields,
-  extractWebContentsParagraphs
+  extractWebContentsParagraphs,
+  extractWebContentsPageNodes
 } from './services'
 
 let mainWindow: BrowserWindow | null = null
@@ -221,6 +222,115 @@ ipcMain.handle(
       failed
     })
     return { ok: true, total: paragraphs.length }
+  }
+)
+
+/**
+ * Sprint 003 M2 — 페이지 전체 번역. PRD §9.2 P1.
+ * paragraph보다 광범위한 블록 노드 집합. abort 지원.
+ */
+let pageTranslateAborted = false
+
+ipcMain.handle('translate:page-abort', (): { ok: true } => {
+  pageTranslateAborted = true
+  return { ok: true }
+})
+
+ipcMain.handle(
+  'translate:page',
+  async (
+    _event,
+    args: { providerType: string; sourceLanguage: string; targetLanguage: string }
+  ): Promise<{
+    ok: boolean
+    total: number
+    chunks?: number
+    reason?: string
+  }> => {
+    if (!mainWindow || !browserView) {
+      return { ok: false, total: 0, reason: 'browser-not-ready' }
+    }
+    pageTranslateAborted = false
+    const url = browserView.webContents.getURL()
+    const webContentsId = browserView.webContents.id
+    const bundle = await extractWebContentsPageNodes(webContentsId)
+    if (bundle.nodes.length === 0) {
+      return { ok: false, total: 0, reason: '페이지 노드를 찾지 못했습니다.' }
+    }
+
+    const fieldScan = await scanWebContentsFields(webContentsId)
+
+    mainWindow.webContents.send('translate:page-start', {
+      url,
+      total: bundle.nodes.length,
+      chunks: bundle.chunks.length,
+      nodes: bundle.nodes
+    })
+
+    let completed = 0
+    let blocked = 0
+    let failed = 0
+    let stoppedReason: 'aborted' | 'page_wide_block' | null = null
+
+    for (const node of bundle.nodes) {
+      if (!mainWindow) break
+      if (pageTranslateAborted) {
+        stoppedReason = 'aborted'
+        break
+      }
+
+      const result = await executeTranslateRequest({
+        providerType: args.providerType as 'openai',
+        input: {
+          sourceText: node.text,
+          sourceLanguage: args.sourceLanguage,
+          targetLanguage: args.targetLanguage,
+          requestType: 'page',
+          context: { url }
+        },
+        context: {
+          url,
+          hasPasswordField: fieldScan.hasPasswordField,
+          hasCardField: fieldScan.hasCardField
+        }
+      })
+
+      if (result.ok && result.output) {
+        completed++
+      } else if (result.decision === 'blocked') {
+        blocked++
+      } else {
+        failed++
+      }
+
+      mainWindow.webContents.send('translate:page-progress', {
+        id: node.id,
+        completed,
+        blocked,
+        failed,
+        total: bundle.nodes.length,
+        translatedText: result.output?.translatedText,
+        fromCache: result.fromCache,
+        reason: result.reason,
+        decision: result.decision,
+        blockReason: result.blockReason,
+        pageWideBlock: result.pageWideBlock
+      })
+
+      if (result.decision === 'blocked' && result.pageWideBlock) {
+        stoppedReason = 'page_wide_block'
+        break
+      }
+    }
+
+    mainWindow.webContents.send('translate:page-done', {
+      total: bundle.nodes.length,
+      completed,
+      blocked,
+      failed,
+      stoppedReason
+    })
+    return { ok: true, total: bundle.nodes.length, chunks: bundle.chunks.length }
   }
 )
 

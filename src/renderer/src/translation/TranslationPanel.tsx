@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 
-interface ParagraphRow {
+interface NodeRow {
   id: string
   tag: string
   sourceText: string
   translatedText: string | null
   status: 'pending' | 'done' | 'blocked' | 'failed'
   reason?: string
+  blockReason?: string
   fromCache: boolean
 }
+
+type Mode = 'paragraph' | 'page'
 
 interface Props {
   open: boolean
@@ -16,7 +19,7 @@ interface Props {
 }
 
 export default function TranslationPanel({ open, onClose }: Props): JSX.Element | null {
-  const [rows, setRows] = useState<ParagraphRow[]>([])
+  const [rows, setRows] = useState<NodeRow[]>([])
   const [progress, setProgress] = useState<{
     total: number
     completed: number
@@ -24,12 +27,17 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     failed: number
   } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [mode, setMode] = useState<Mode>('paragraph')
   const [error, setError] = useState<string | null>(null)
-  const rowsRef = useRef<Map<string, ParagraphRow>>(new Map())
+  const [pageWideMessage, setPageWideMessage] = useState<string | null>(null)
+  const [stoppedReason, setStoppedReason] = useState<
+    'aborted' | 'page_wide_block' | null
+  >(null)
+  const rowsRef = useRef<Map<string, NodeRow>>(new Map())
 
   useEffect(() => {
     const offStart = window.translateApi.onParagraphsStart((p) => {
-      const initial: ParagraphRow[] = p.paragraphs.map((para) => ({
+      const initial: NodeRow[] = p.paragraphs.map((para) => ({
         id: para.id,
         tag: para.tag,
         sourceText: para.text,
@@ -41,6 +49,8 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       setRows(initial)
       setProgress({ total: p.total, completed: 0, blocked: 0, failed: 0 })
       setError(null)
+      setPageWideMessage(null)
+      setStoppedReason(null)
     })
 
     const offProgress = window.translateApi.onParagraphProgress((p) => {
@@ -73,16 +83,74 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       setBusy(false)
     })
 
+    const offPageStart = window.translateApi.onPageStart((p) => {
+      const initial: NodeRow[] = p.nodes.map((node) => ({
+        id: node.id,
+        tag: node.tag,
+        sourceText: node.text,
+        translatedText: null,
+        status: 'pending',
+        fromCache: false
+      }))
+      rowsRef.current = new Map(initial.map((r) => [r.id, r]))
+      setRows(initial)
+      setProgress({ total: p.total, completed: 0, blocked: 0, failed: 0 })
+      setError(null)
+      setPageWideMessage(null)
+      setStoppedReason(null)
+    })
+
+    const offPageProgress = window.translateApi.onPageProgress((p) => {
+      const map = rowsRef.current
+      const row = map.get(p.id)
+      if (row) {
+        if (p.translatedText) {
+          row.translatedText = p.translatedText
+          row.status = 'done'
+          row.fromCache = !!p.fromCache
+        } else if (p.decision === 'blocked') {
+          row.status = 'blocked'
+          row.reason = p.reason
+          row.blockReason = p.blockReason
+        } else {
+          row.status = 'failed'
+          row.reason = p.reason
+        }
+        rowsRef.current = new Map(map)
+        setRows(Array.from(rowsRef.current.values()))
+      }
+      setProgress({
+        total: p.total,
+        completed: p.completed,
+        blocked: p.blocked,
+        failed: p.failed
+      })
+      if (p.pageWideBlock && p.reason) {
+        setPageWideMessage(p.reason)
+      }
+    })
+
+    const offPageDone = window.translateApi.onPageDone((p) => {
+      setBusy(false)
+      setStoppedReason(p.stoppedReason)
+    })
+
     return () => {
       offStart()
       offProgress()
       offDone()
+      offPageStart()
+      offPageProgress()
+      offPageDone()
     }
   }, [])
 
-  async function handleStart(): Promise<void> {
+  async function handleStartParagraph(): Promise<void> {
     setBusy(true)
     setError(null)
+    setPageWideMessage(null)
+    setStoppedReason(null)
+    setMode('paragraph')
     const result = await window.translateApi.paragraphs({
       providerType: 'openai',
       sourceLanguage: 'auto',
@@ -94,12 +162,33 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     }
   }
 
+  async function handleStartPage(): Promise<void> {
+    setBusy(true)
+    setError(null)
+    setPageWideMessage(null)
+    setStoppedReason(null)
+    setMode('page')
+    const result = await window.translateApi.page({
+      providerType: 'openai',
+      sourceLanguage: 'auto',
+      targetLanguage: 'ko'
+    })
+    if (!result.ok) {
+      setError(result.reason ?? '페이지 번역 시작 실패')
+      setBusy(false)
+    }
+  }
+
+  async function handleAbort(): Promise<void> {
+    await window.translateApi.abortPage()
+  }
+
   if (!open) return null
 
   return (
     <aside className="translation-panel">
       <div className="panel-header">
-        <h2 className="panel-title">페이지 번역</h2>
+        <h2 className="panel-title">번역 패널</h2>
         <button type="button" className="panel-close" onClick={onClose} aria-label="닫기">
           ×
         </button>
@@ -109,14 +198,40 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         <button
           type="button"
           className="panel-btn primary"
-          onClick={() => void handleStart()}
+          onClick={() => void handleStartParagraph()}
           disabled={busy}
         >
-          {busy ? '진행 중…' : '페이지 번역 시작'}
+          {busy && mode === 'paragraph' ? '진행 중…' : '문단 번역'}
         </button>
+        <button
+          type="button"
+          className="panel-btn"
+          onClick={() => void handleStartPage()}
+          disabled={busy}
+        >
+          {busy && mode === 'page' ? '진행 중…' : '페이지 전체 번역'}
+        </button>
+        {busy && mode === 'page' && (
+          <button type="button" className="panel-btn danger" onClick={() => void handleAbort()}>
+            취소
+          </button>
+        )}
       </div>
 
       {error && <div className="panel-error">{error}</div>}
+
+      {pageWideMessage && (
+        <div className="panel-pagewide-block">
+          페이지 전체 차단: {pageWideMessage}
+        </div>
+      )}
+
+      {stoppedReason === 'aborted' && !busy && (
+        <div className="panel-status-note">사용자가 취소했습니다.</div>
+      )}
+      {stoppedReason === 'page_wide_block' && !busy && (
+        <div className="panel-status-note">민감 페이지 차단으로 진행이 중단됐습니다.</div>
+      )}
 
       {progress && (
         <div className="panel-progress">

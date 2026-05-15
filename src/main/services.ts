@@ -417,6 +417,26 @@ export async function extractWebContentsParagraphs(
 }
 
 /**
+ * 외부 페이지(WebContentsView)에서 페이지 전체 노드를 추출한다.
+ * Sprint 003 M2 / PRD §9.2 페이지 전체 번역.
+ */
+export async function extractWebContentsPageNodes(webContentsId: number): Promise<
+  import('../perception/PageNodeExtractor').PageNodeBundle
+> {
+  const wc = WebContentsRegistry.get(webContentsId)
+  if (!wc) return { nodes: [], chunks: [] }
+  try {
+    const { extractPageNodesScript, validatePageNodes } = await import(
+      '../perception/PageNodeExtractor'
+    )
+    const raw = (await wc.executeJavaScript(extractPageNodesScript())) as unknown
+    return validatePageNodes(raw)
+  } catch {
+    return { nodes: [], chunks: [] }
+  }
+}
+
+/**
  * 외부 페이지(WebContentsView)에서 민감 필드를 스캔한다.
  * 본문 카드 패턴은 sourceText에 대해 evaluatePrivacy 안에서 별도로 평가됨.
  */
