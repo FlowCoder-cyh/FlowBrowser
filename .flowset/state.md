@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~012 종료, Sprint 013 정의
-- **Sprint**: **013 정의 완료** (M1부터 자율 착수)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~013 종료
+- **Sprint**: **013 종료** (M4 종합 evaluator 진행 중)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: **v0.3.10** (2026-05-15, Sprint 012 실측 반영)
-- **최근 갱신**: 2026-05-15 (Sprint 013 정의 작성)
+- **PRD 버전**: **v0.3.11** (2026-05-15, Sprint 013 실측 반영)
+- **최근 갱신**: 2026-05-15 (Sprint 013 M4 PRD 패치 + Sprint 종료)
 
 ## 현재 작업
 
@@ -83,15 +83,22 @@
 - PRD v0.3.9 발행
 - commit-check CI 5 PR 모두 success
 
-### Sprint 012 결과 (PR #66~#70 진행 / 머지 예정)
+### Sprint 012 결과 (PR #66~#70 머지)
 
-- M1 (PR #67): ThumbnailStore + 활성 탭 변경 직전 capture hook + cycleActiveTabId 사전 작업. 초기 Partial → 핫픽스 (WI-S012M1-1-fix dead code 해소) 후 Pass 12/0/0
-- M2 (PR #68): TabBar hover 미리보기 UI (600ms 지연 + fade-in 150ms + placeholder + 드래그 무시). evaluator Pass 9/0/0
-- M3 (PR #69): 키보드 단축키 (Ctrl+T/W/Tab/Shift+Tab Application Menu accelerator). evaluator Pass 13/0/0
-- M4 (현재 브랜치): PRD v0.3.10 + Sprint 종합
-- 누적 단위 테스트: 273 → 287 (+14, AC-4 ≥ 285 충족 +2)
+- 누적 단위 테스트: 273 → 287 (+14)
+- Sprint 종합 evaluator: Pass 12 / 0 / 0
 - PRD v0.3.10 발행
-- commit-check CI 5 PR 모두 success (G-009 NNN 한 분절 6 Sprint 연속)
+- commit-check CI 6 PR 모두 success
+
+### Sprint 013 결과 (PR #71~#75 진행 / 머지 예정)
+
+- M1 (PR #72): ClosedTabHistory + Ctrl+Shift+T + tab:reopen IPC. evaluator Pass 15/0/0
+- M2 (PR #73): ThumbnailDiskStore + write-through + 재시작 후 복원. evaluator Pass 16/0/0
+- M3 (PR #74): viewport 우측 경계 clamp + formatTabLabel 순수 함수 추출. evaluator Pass 12/0/0
+- M4 (현재 브랜치): PRD v0.3.11 + Sprint 종합
+- 누적 단위 테스트: 287 → 307 (+20, AC-4 ≥ 300 충족 +7)
+- PRD v0.3.11 발행
+- commit-check CI 5 PR 모두 success (G-009 NNN 한 분절 7 Sprint 연속)
 
 ## 활성 Spike (5종)
 
