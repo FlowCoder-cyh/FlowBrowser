@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { formatTabLabel } from './translation/tabLabel'
 
 const HOVER_DELAY_MS = 600
+const PREVIEW_WIDTH = 320
+const PREVIEW_MARGIN = 8
 
 interface ThumbnailPayload {
   dataUrl: string
@@ -49,17 +52,6 @@ const COLOR_HEX: Record<NonNullable<TabColorPayload>, string> = {
 interface TabListSnapshot {
   tabs: TabSessionPayload[]
   activeId: string | null
-}
-
-function formatTabLabel(t: TabSessionPayload): string {
-  if (t.title) return t.title
-  if (!t.url || t.url === 'about:blank') return '새 탭'
-  try {
-    const u = new URL(t.url)
-    return u.hostname || t.url
-  } catch {
-    return t.url
-  }
 }
 
 export default function TabBar(): JSX.Element {
@@ -155,7 +147,12 @@ export default function TabBar(): JSX.Element {
     if (draggingRef.current !== null) return
     clearHoverTimer()
     const target = e.currentTarget
-    const anchorLeft = target.getBoundingClientRect().left
+    const rawLeft = target.getBoundingClientRect().left
+    // Sprint 013 M3 — viewport 우측 경계 보정
+    // anchorLeft + PREVIEW_WIDTH + PREVIEW_MARGIN > innerWidth이면 우측 경계 맞춰 이동
+    const innerWidth = typeof window !== 'undefined' ? window.innerWidth : 1280
+    const maxLeft = Math.max(PREVIEW_MARGIN, innerWidth - PREVIEW_WIDTH - PREVIEW_MARGIN)
+    const anchorLeft = Math.max(PREVIEW_MARGIN, Math.min(rawLeft, maxLeft))
     hoverTimerRef.current = window.setTimeout(() => {
       hoverTimerRef.current = null
       if (draggingRef.current !== null) return
