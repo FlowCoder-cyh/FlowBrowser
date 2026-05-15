@@ -114,7 +114,14 @@ interface TranslateRequest {
     sourceText: string
     sourceLanguage: string
     targetLanguage: string
-    requestType: 'selection' | 'paragraph' | 'page' | 'subtitle' | 'tts_script'
+    requestType:
+      | 'selection'
+      | 'paragraph'
+      | 'page'
+      | 'subtitle'
+      | 'tts_script'
+      | 'explanation'
+      | 'summary'
     modelHint?: string
     context?: { url?: string; title?: string; surroundingText?: string }
   }
@@ -278,6 +285,7 @@ interface PopupShowPayload {
   anchorX: number
   anchorY: number
   status: 'loading'
+  mode?: 'translation' | 'explanation'
 }
 
 interface PopupResultPayload {
@@ -285,6 +293,7 @@ interface PopupResultPayload {
   decision: string
   reason?: string
   fromCache?: boolean
+  mode?: 'translation' | 'explanation'
   output?: {
     translatedText: string
     modelUsed: string

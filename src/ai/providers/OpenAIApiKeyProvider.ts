@@ -37,7 +37,15 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
   readonly info: ProviderInfo = {
     providerType: 'openai',
     displayName: 'OpenAI API Key',
-    supportedRequestTypes: ['selection', 'paragraph', 'page', 'subtitle', 'tts_script'],
+    supportedRequestTypes: [
+      'selection',
+      'paragraph',
+      'page',
+      'subtitle',
+      'tts_script',
+      'explanation',
+      'summary'
+    ],
     defaultModel: DEFAULT_MODEL,
     availableModels: AVAILABLE_MODELS
   }
@@ -141,29 +149,60 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
     ]
   }
 
+  // Sprint 004 M2 / M3 — system prompt 분기는 buildSystemPrompt에서 노출 (단위 테스트 대상).
   private systemPromptFor(input: TranslationInput): string {
-    const base = `You are a professional translator. Translate from ${input.sourceLanguage} to ${input.targetLanguage}. Output ONLY the translated text without explanations, quotation marks, or commentary.`
-    if (input.requestType === 'subtitle') {
-      return `${base} Keep each line short and readable as a subtitle.`
-    }
-    if (input.requestType === 'tts_script') {
-      return `${base} Use short, easy-to-speak sentences suitable for TTS narration in ${input.targetLanguage}.`
-    }
-    return base
+    return buildSystemPrompt(input)
   }
 
   private userPromptFor(input: TranslationInput): string {
-    const ctxLines: string[] = []
-    if (input.context?.url) ctxLines.push(`URL: ${input.context.url}`)
-    if (input.context?.title) ctxLines.push(`Page title: ${input.context.title}`)
-    const ctx = ctxLines.length > 0 ? `Context:\n${ctxLines.join('\n')}\n\n` : ''
-    return `${ctx}Translate the following ${input.sourceLanguage} text to ${input.targetLanguage}:\n\n${input.sourceText}`
+    return buildUserPrompt(input)
   }
 
   private estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-    const pricing = MODEL_PRICING_PER_M_TOKENS[model] ?? MODEL_PRICING_PER_M_TOKENS[DEFAULT_MODEL]
-    const inputCost = (inputTokens / 1_000_000) * pricing.input
-    const outputCost = (outputTokens / 1_000_000) * pricing.output
-    return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000
+    return estimateCost(model, inputTokens, outputTokens)
   }
+}
+
+/**
+ * Sprint 004 M2/M3 — system prompt 분기. 단위 테스트가 직접 호출한다.
+ */
+export function buildSystemPrompt(input: TranslationInput): string {
+  if (input.requestType === 'explanation') {
+    return `You are a tutor who explains difficult sentences clearly. Read the following ${input.sourceLanguage} text and write a short, easy-to-understand explanation in ${input.targetLanguage}. Unpack jargon, define terms, and clarify references. Output ONLY the explanation in ${input.targetLanguage}. Do not translate verbatim. Do not add prefaces or quotation marks.`
+  }
+  if (input.requestType === 'summary') {
+    return `You are a summarizer. Write a concise summary of the following ${input.sourceLanguage} text in ${input.targetLanguage}. Use 3 to 5 short sentences. Capture the main points only. Output ONLY the summary in ${input.targetLanguage}. Do not add prefaces or quotation marks.`
+  }
+  const base = `You are a professional translator. Translate from ${input.sourceLanguage} to ${input.targetLanguage}. Output ONLY the translated text without explanations, quotation marks, or commentary.`
+  if (input.requestType === 'subtitle') {
+    return `${base} Keep each line short and readable as a subtitle.`
+  }
+  if (input.requestType === 'tts_script') {
+    return `${base} Use short, easy-to-speak sentences suitable for TTS narration in ${input.targetLanguage}.`
+  }
+  return base
+}
+
+/**
+ * Sprint 004 M2/M3 — user prompt 분기. 단위 테스트가 직접 호출한다.
+ */
+export function buildUserPrompt(input: TranslationInput): string {
+  const ctxLines: string[] = []
+  if (input.context?.url) ctxLines.push(`URL: ${input.context.url}`)
+  if (input.context?.title) ctxLines.push(`Page title: ${input.context.title}`)
+  const ctx = ctxLines.length > 0 ? `Context:\n${ctxLines.join('\n')}\n\n` : ''
+  if (input.requestType === 'explanation') {
+    return `${ctx}Explain the following ${input.sourceLanguage} text in ${input.targetLanguage}:\n\n${input.sourceText}`
+  }
+  if (input.requestType === 'summary') {
+    return `${ctx}Summarize the following ${input.sourceLanguage} text in ${input.targetLanguage}:\n\n${input.sourceText}`
+  }
+  return `${ctx}Translate the following ${input.sourceLanguage} text to ${input.targetLanguage}:\n\n${input.sourceText}`
+}
+
+function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing = MODEL_PRICING_PER_M_TOKENS[model] ?? MODEL_PRICING_PER_M_TOKENS[DEFAULT_MODEL]
+  const inputCost = (inputTokens / 1_000_000) * pricing.input
+  const outputCost = (outputTokens / 1_000_000) * pricing.output
+  return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000
 }

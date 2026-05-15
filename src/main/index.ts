@@ -62,6 +62,12 @@ function createMainWindow(): void {
         click: () => {
           void handleContextMenuTranslate(selectionText, params.x, params.y)
         }
+      },
+      {
+        label: `쉽게 설명: "${preview}"`,
+        click: () => {
+          void handleContextMenuExplain(selectionText, params.x, params.y)
+        }
       }
     ])
     menu.popup({ window: mainWindow })
@@ -380,6 +386,23 @@ async function handleContextMenuTranslate(
   webViewX: number,
   webViewY: number
 ): Promise<void> {
+  await handleContextMenuAi(selectionText, webViewX, webViewY, 'selection')
+}
+
+async function handleContextMenuExplain(
+  selectionText: string,
+  webViewX: number,
+  webViewY: number
+): Promise<void> {
+  await handleContextMenuAi(selectionText, webViewX, webViewY, 'explanation')
+}
+
+async function handleContextMenuAi(
+  selectionText: string,
+  webViewX: number,
+  webViewY: number,
+  requestType: 'selection' | 'explanation'
+): Promise<void> {
   if (!mainWindow || !browserView) return
   const url = browserView.webContents.getURL()
   const webContentsId = browserView.webContents.id
@@ -390,7 +413,8 @@ async function handleContextMenuTranslate(
     url,
     anchorX: webViewX,
     anchorY: webViewY + URL_BAR_HEIGHT,
-    status: 'loading'
+    status: 'loading',
+    mode: requestType === 'explanation' ? 'explanation' : 'translation'
   })
 
   const fieldScan = await scanWebContentsFields(webContentsId)
@@ -401,7 +425,7 @@ async function handleContextMenuTranslate(
       sourceText: selectionText,
       sourceLanguage: 'auto',
       targetLanguage: 'ko',
-      requestType: 'selection',
+      requestType,
       context: { url }
     },
     context: {
@@ -411,7 +435,10 @@ async function handleContextMenuTranslate(
     }
   })
 
-  mainWindow.webContents.send('translation:popup-result', result)
+  mainWindow.webContents.send('translation:popup-result', {
+    ...result,
+    mode: requestType === 'explanation' ? 'explanation' : 'translation'
+  })
 }
 
 app.whenReady().then(async () => {

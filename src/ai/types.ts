@@ -5,7 +5,14 @@
 
 export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'deepl' | 'elevenlabs' | 'codex' | 'local'
 
-export type RequestType = 'selection' | 'paragraph' | 'page' | 'subtitle' | 'tts_script'
+export type RequestType =
+  | 'selection'
+  | 'paragraph'
+  | 'page'
+  | 'subtitle'
+  | 'tts_script'
+  | 'explanation'
+  | 'summary'
 
 export interface TranslationInput {
   sourceText: string
