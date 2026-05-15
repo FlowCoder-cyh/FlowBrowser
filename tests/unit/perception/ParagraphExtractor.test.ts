@@ -106,5 +106,30 @@ describe('ParagraphExtractor', () => {
       const result = extractParagraphsBrowser()
       expect(result.map((r) => r.id)).toEqual(['p0', 'p1', 'p2'])
     })
+
+    // Sprint 014 M3-13: style/script 자식 + CSS-like 필터
+    it('inline <style> 자식 텍스트 제외', () => {
+      document.body.innerHTML =
+        '<li>실제 본문 텍스트입니다<style>.cls{color:red;font-size:12px}</style></li>'
+      const result = extractParagraphsBrowser()
+      expect(result.length).toBe(1)
+      expect(result[0].text).toBe('실제 본문 텍스트입니다')
+    })
+
+    it('inline <script> 자식 텍스트 제외', () => {
+      document.body.innerHTML =
+        '<p>본문 시작<script>const x=1;alert(x);</script>본문 끝</p>'
+      const result = extractParagraphsBrowser()
+      expect(result.length).toBe(1)
+      expect(result[0].text).not.toContain('alert')
+      expect(result[0].text).toContain('본문 시작')
+    })
+
+    it('CSS-like 텍스트(중괄호+콜론 다수) 필터', () => {
+      document.body.innerHTML =
+        '<p>.cls{color:red;font-size:12px;margin:10px}.other{padding:5px}</p>'
+      const result = extractParagraphsBrowser()
+      expect(result.length).toBe(0)
+    })
   })
 })
