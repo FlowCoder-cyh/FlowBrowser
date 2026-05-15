@@ -75,9 +75,14 @@
 | createdAt | datetime | 생성일 |
 | updatedAt | datetime | 수정일 |
 
-### 조회 키 (v0.2 결정)
+### 조회 키 (v0.2 결정, v0.3.3 확장)
 
-복합 unique 키: `(sourceHash, sourceLanguage, targetLanguage, providerType, glossaryVersion)`
+복합 unique 키 — v0.3.3 Sprint 005 M1에서 `requestType` 추가:
+
+`(sourceHash, sourceLanguage, targetLanguage, providerType, requestType, glossaryVersion)`
+
+requestType 추가 사유: 같은 sourceText로 selection 번역 / explanation / summary 호출 시 충돌 회피. Sprint 004 cache 우회 정책 제거 — 모든 requestType이 정상 lookup/store.
+기존 디스크 항목은 `requestType` 누락 시 `'selection'`으로 fallback (자연 폐기).
 
 ### TTL 정책
 
@@ -93,11 +98,9 @@
 - 단위 테스트로 LRU trim 직접 측정 (Sprint 003 M1 신규 3 tests)
 - `lastAccessedAt`은 `lookup()` 시 갱신 → hit 항목 우선 생존
 
-### 캐시 우회 (v0.3.2 / Sprint 004 M2/M3)
+### 캐시 우회 (v0.3.2 Sprint 004 → v0.3.3 Sprint 005에서 제거)
 
-- `requestType === 'explanation' | 'summary'`는 lookup/store 모두 스킵
-- 사유: 캐시 키에 requestType이 포함되지 않아 동일 sourceText + 다른 requestType이 충돌. 우회로 충돌 회피.
-- 캐시 키 확장 (requestType 포함)은 Sprint 005 이후 별도 검토.
+Sprint 004 M2/M3에서 도입한 explanation/summary 캐시 우회는 Sprint 005 M1 캐시 키 확장으로 제거됨. 모든 requestType이 정상 lookup/store. 신규 키 사용 시점 이전의 디스크 캐시는 자연 폐기 (load fallback 'selection').
 
 ## 12.5 VideoSession (v0.2 보강)
 
@@ -143,19 +146,29 @@
 - `asr`: YouTube 자동 생성 자막 (품질 가변, 번역 시 보정 필요)
 - `generated`: STT로 생성한 자막 (Phase 5)
 
-## 12.7 GlossaryTerm
+## 12.7 GlossaryTerm (v0.3.3 Sprint 005 M2 실측)
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | id | string | 용어 ID |
-| sourceTerm | string | 원문 용어 |
-| targetTerm | string | 번역 용어 |
-| description | text | 설명 |
-| domain | string | 적용 도메인 |
+| sourceTerm | string | 원문 용어 (최대 200자, trim 후 저장) |
+| targetTerm | string | 번역 용어 (최대 200자, trim 후 저장) |
+| description | text | 설명 (선택) |
+| domain | string | 적용 도메인 (빈 값 = 모든 도메인) |
 | isActive | boolean | 사용 여부 |
-| version | string | 용어집 버전 (캐시 무효화 키) |
+| version | string | 용어집 버전 (캐시 무효화 키, sha256 12자) |
 | createdAt | datetime | 생성일 |
 | updatedAt | datetime | 수정일 |
+
+### 영속 / 적용 정책 (v0.3.3 Sprint 005 M2)
+
+- 파일: `glossary.json` (정책 버전 `GLOSSARY_POLICY_VERSION=1`, JSON import/export 지원)
+- 매 mutation (add/update/remove/clearAll/importTerms) 시 `currentVersion` 갱신
+- TranslationCache 복합 키에 `glossaryVersion` 포함 → 버전 변경 시 자동 invalidation (`invalidateByGlossaryVersion`)
+- 적용 범위:
+  - 활성(`isActive=true`) + 도메인 일치(또는 빈 도메인) 최대 50개
+  - `explanation` / `summary` 요청은 의역이라 적용 외
+  - prompt 컨텍스트 블록 `Glossary (use these terms consistently): - src → tgt — description` 형태로 user prompt 앞부분에 prepend
 
 ## 12.8 UsageLog (v0.2 신규)
 

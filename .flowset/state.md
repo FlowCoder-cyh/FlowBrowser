@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~004 종료, **Sprint 005 정의 완료 / M1 대기**
-- **Sprint**: **005 정의 완료** (Sprint 004 종합 Pass 9/1/0)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~005 종료
+- **Sprint**: **005 종료** (M4 종합 evaluator 진행 중)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: v0.3.2 (2026-05-15) — Sprint 005 M4에서 v0.3.3 패치 예정
-- **최근 갱신**: 2026-05-15 (Sprint 005 정의 작성, contracts/sprint-005.md)
+- **PRD 버전**: **v0.3.3** (2026-05-15, Sprint 005 실측 반영)
+- **최근 갱신**: 2026-05-15 (Sprint 005 M4 PRD 패치 + Sprint 종료)
 
 ## 현재 작업
 
@@ -31,14 +31,20 @@
 - Sprint 종합 evaluator: Pass 17 / 0 / 0
 - PRD v0.3.1 발행
 
-### Sprint 004 진행 (2026-05-15)
+### Sprint 004 결과 (PR #25~#29 머지)
 
-- 산출물: `.flowset/contracts/sprint-004.md`
-- M1 (PR #26): IPC 채널 분리 (4종 신규 이벤트) + paragraph abort. evaluator Pass 12/0/0.
-- M2 (PR #27): 쉬운 설명 (requestType 'explanation') + buildSystemPrompt/buildUserPrompt export + 컨텍스트 메뉴 + 11 tests. evaluator Pass 12/1/0.
-- M3 (PR #28): 페이지 요약 (`translate:summarize-page` IPC) + SummarizationPlanner + 9 tests. evaluator Pass 11/1/0.
-- M4: PRD v0.3.2 패치 + Sprint 종합 evaluator 진행 중
 - 누적 단위 테스트: 115 → 135 (+20 신규)
+- Sprint 종합 evaluator: Pass 9 / Partial 1 / Fail 0
+- PRD v0.3.2 발행
+
+### Sprint 005 진행 (2026-05-15)
+
+- 산출물: `.flowset/contracts/sprint-005.md`
+- M1 (PR #31): 캐시 키 확장 (requestType 포함) + cache 우회 제거 + 2 tests. evaluator Pass 7/1/0.
+- M2 (PR #32): GlossaryStore (PRD §12.7 1:1) + applyGlossary + glossaryVersion invalidation + GlossaryPanel UI + 17 tests. evaluator Pass 6/0/0 AC 단위.
+- M3 (PR #33): summarizeChunks 폭주 보호 (combineCharLimit 8000) + chunkSummaries 펼치기 UX + 4 tests. evaluator Pass 9/0/0.
+- M4: PRD v0.3.3 패치 + Sprint 종합 evaluator 진행 중
+- 누적 단위 테스트: 135 → 158 (+23 신규)
 - 모든 자동 검증 (lint/typecheck/test/build) PASS
 
 ## 활성 Spike (5종)

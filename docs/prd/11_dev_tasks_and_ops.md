@@ -8,9 +8,10 @@
 - BrowserWindow / BrowserView 구성 (WebContentsView 우선 검토)
 - URL Bar 구현
 - 기본 Navigation 구현
-- Translation Panel 구현
+- Translation Panel 구현 (v0.3.3 Sprint 005 M3: chunkSummaries 펼치기 토글 + PATH_LABELS 한국어)
 - Subtitle Overlay 구현
-- Settings Page 구현
+- Settings Page 구현 (v0.3.3 Sprint 005 M2: GlossaryPanel 추가)
+- GlossaryPanel UI (v0.3.3 Sprint 005 M2): 4 필드 폼 + 검증 + 활성 토글 + 도메인 필터 + JSON import/export
 - 온보딩 / 샘플 체험 모드 UI
 
 ## 19.2 Browser Engine Layer
@@ -58,11 +59,12 @@
 
 - SQLite 또는 local database 구성
 - ProviderCredential OS Keychain 위임 구현 (Electron safeStorage)
-- TranslationCache 저장 (복합 키, TTL, LRU)
+- TranslationCache 저장 (복합 키 6요소: sourceHash | lang × 2 | provider | **requestType** | glossaryVersion, TTL, LRU. v0.3.3 Sprint 005 M1 requestType 추가)
 - SubtitleSegment 저장 (sourceType 포함)
 - UserSetting 저장
 - UsageLog 저장
-- GlossaryTerm 저장 (version 관리)
+- GlossaryStore 구현 (v0.3.3 Sprint 005 M2): PRD §12.7 1:1, JSON 영속, version 자동 갱신, getActiveForDomain 최대 50개, formatGlossaryContext, validateTerm 5종, GLOSSARY_POLICY_VERSION import/export
+- SummarizationPlanner combineCharLimit 보호 (v0.3.3 Sprint 005 M3): 4 경로 (single/direct/resplit/truncated), 재분할 1회 후 truncate 폴백, 기본 limit 8000자
 
 ## 19.6 운영 인프라 (v0.2 신규)
 
