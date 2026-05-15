@@ -5,16 +5,16 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001 / 002 종료, Sprint 003 대기
-- **Sprint**: 002 종료 (Sprint 종합 evaluator Pass — 누적 37 Pass)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001 / 002 종료, **Sprint 003 정의 완료 / M1 대기**
+- **Sprint**: **003 정의 완료** (Sprint 002 Pass, 누적 37 Pass)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영)
-- **최근 갱신**: 2026-05-11 (Sprint 002 종료, 본 세션 누적 18 commits / 70 tests, 신규 세션 대기)
+- **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영) — Sprint 003 M4에서 v0.3.1 패치 예정
+- **최근 갱신**: 2026-05-15 (Sprint 003 정의 작성, contracts/sprint-003.md)
 
 ## 현재 작업
 
 - Sprint 002 완전 종료 — main 18 commits / 18 PR 모두 머지
-- 본 세션 누적: 18 PR / 70 unit tests / 14 evaluator 호출 / 가드레일 위반 0
+- 누적: 18 PR / 70 unit tests / 14 evaluator 호출 / 가드레일 위반 0
 - 통과 기준 Pass ≥ 8 적용 (S002부터): 모든 evaluator 충족
 - Sprint 001/002 합쳐 Phase 1 MVP 핵심 기능 완성:
   - Electron 셸 + WebContentsView + URL Bar
@@ -24,7 +24,17 @@
   - TranslationCache (복합 키 + TTL 90/365일 + LRU)
   - UsageLog UI / 차단 통계
   - ESLint + CI lint+typecheck+test+build
-- 다음 작업: 신규 세션에서 Sprint 003 정의 + 진행 (사용자 협의)
+
+### Sprint 003 정의 (2026-05-15)
+
+- 산출물: `.flowset/contracts/sprint-003.md`
+- 목표: Sprint 002 잔여 보강 + Phase 1 MVP 페이지 전체 번역 + Privacy 정책 가시화
+- 4 마일스톤 / 12 작업 / 7 AC / 2~3주
+  - M1: LRU trim 테스트 + `pageWideBlock`/`BlockReason` enum 구조화
+  - M2: PageNodeExtractor + 페이지 전체 번역 IPC + 패널 확장
+  - M3: DomainPolicyStore + 도메인 화이트/블랙리스트 UI + 우선순위 적용
+  - M4: PRD v0.3.1 패치 + 단위 테스트 + Sprint 종합 evaluator
+- 다음 작업: Sprint 003 정의 PR 머지 후 M1 착수
 
 ## 활성 Spike (5종)
 
@@ -42,7 +52,8 @@
 
 ## 최근 핸드오프
 
-- [2026-05-11](./handoffs/2026-05-11.md)
+- [2026-05-15](./handoffs/2026-05-15.md) — Sprint 003 정의
+- [2026-05-11](./handoffs/2026-05-11.md) — Sprint 001/002 진행 종합
 
 ## 갱신 트리거
 
