@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~013 종료, Sprint 014 정의 (사용자 테스트 진입 게이트)
-- **Sprint**: **014 정의 완료** (M1부터 자율 착수)
+- **Phase**: **1 (웹 번역 MVP) — 본체 완료, 사용자 테스트 진입 단계 + Phase 1.5 트랙 정의**
+- **Sprint**: **014 종료** (M4 종합 evaluator 진행 중)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: **v0.3.11** (2026-05-15, Sprint 013 실측 반영)
-- **최근 갱신**: 2026-05-15 (Sprint 014 정의 — Codex OAuth Login Provider 활성화)
+- **PRD 버전**: **v0.3.12** (2026-05-15, Phase 1 MVP 본체 완료 선언)
+- **최근 갱신**: 2026-05-15 (Sprint 014 M4 — Phase 1 §16 11개 항목 100% 완료)
 
 ## 현재 작업
 
@@ -90,15 +90,30 @@
 - PRD v0.3.10 발행
 - commit-check CI 6 PR 모두 success
 
-### Sprint 013 결과 (PR #71~#75 진행 / 머지 예정)
+### Sprint 013 결과 (PR #71~#75 머지)
 
-- M1 (PR #72): ClosedTabHistory + Ctrl+Shift+T + tab:reopen IPC. evaluator Pass 15/0/0
-- M2 (PR #73): ThumbnailDiskStore + write-through + 재시작 후 복원. evaluator Pass 16/0/0
-- M3 (PR #74): viewport 우측 경계 clamp + formatTabLabel 순수 함수 추출. evaluator Pass 12/0/0
-- M4 (현재 브랜치): PRD v0.3.11 + Sprint 종합
-- 누적 단위 테스트: 287 → 307 (+20, AC-4 ≥ 300 충족 +7)
+- 누적 단위 테스트: 287 → 307 (+20)
+- Sprint 종합 evaluator: Pass 13 / 0 / 0
 - PRD v0.3.11 발행
-- commit-check CI 5 PR 모두 success (G-009 NNN 한 분절 7 Sprint 연속)
+- commit-check CI 5 PR 모두 success
+
+### Sprint 014 결과 (PR #76~#80 진행 / 머지 예정) — **Phase 1 MVP 본체 완료 선언**
+
+- M1 (PR #77): DeviceCodeFlow + CodexLoginProvider 코어 (Codex CLI 오픈소스 gh api 직접 참조). evaluator Pass 8/1/0 → 12/0/0 (M2에서 Partial 해소)
+- M2 (PR #78): CodexLoginPanel UI + services.ts pollCodexLoop + 5 IPC + Spike 1 조건 5개 모두 충족. evaluator Pass 10/0/0
+- M3 (PR #79): OnboardingTour + README + docs/USAGE.md 7 섹션. evaluator Pass 12/0/0
+- M4 (현재 브랜치): PRD v0.3.12 + Phase 1 §16 정합 매트릭스 + Phase 1.5 트랙 정의 + Phase 1 완료 선언
+- 누적 단위 테스트: 307 → 336 (+29, AC-5 ≥ 325 충족 +11)
+- PRD v0.3.12 발행
+- commit-check CI 5 PR 모두 success (G-009 NNN 한 분절 8 Sprint 연속)
+
+### Phase 1 §16 11개 항목 100% 완료 매트릭스
+
+| Phase 1 항목 | Sprint |
+|---|---|
+| Electron 셸 / URL·DOM / Privacy Filter / 선택·문단 번역 / 패널 / 캐시 / API Key+Keychain / UsageLog | 001~002 |
+| **Codex Login Provider 실험 (Spike 1 통과 시)** | **014** |
+| **온보딩 / 샘플 체험 모드** | 002 (Consent) + **014 (OnboardingTour)** |
 
 ## 활성 Spike (5종)
 

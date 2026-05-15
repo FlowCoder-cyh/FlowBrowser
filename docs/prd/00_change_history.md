@@ -7,6 +7,65 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.15 v0.3.12 변경 이력 (2026-05-15) — Sprint 014 + Phase 1 완료 선언
+
+Phase 1 사용자 테스트 진입 게이트 = Codex OAuth Login Provider 활성화. **Phase 1 MVP 본체 완료**.
+
+v0.3.11 대비 주요 변경:
+
+1. **§11.3 / §15.2 Codex Login Provider 활성화** (Experimental):
+   - `DeviceCodeFlow` 신규 (src/ai/codex/) — Codex CLI 흐름 직접 구현 (gh api로 openai/codex 오픈소스 직접 참조). DEFAULT_ISSUER `https://auth.openai.com` + 공개 client_id `app_EMoamEEZ73f0CkXaXp7hrann` 재사용. requestUserCode → /api/accounts/deviceauth/usercode + pollOnce → /api/accounts/deviceauth/token (200 success / 403·404 pending / 그 외 error) + exchangeTokens → /oauth/token (PKCE 서버 발급 흐름) + refreshTokens (회전 처리).
+   - `CodexLoginProvider` (ProviderAdapter) — access_token bearer로 OpenAI chat completions 호출. 만료 60초 이내 자동 refresh + 401 시 refresh 1회 재시도. 재시도도 실패면 ProviderError auth_invalid → 폴백 트리거.
+   - `services.ts` 통합: makeCodexTokenAccess (CredentialsStore safeStorage 위 JSON 토큰 묶음) + rebuildProvider codex 분기 + pollCodexLoop 자동 폴링 (interval × 15분 deadline) + 5종 IPC (codex:start-login / poll-status / cancel-login / logout / status).
+   - `CodexLoginPanel` UI — Experimental 라벨 + OpenAI 차단 가능성 경고 + user_code 카드 (24px mono + 복사 + 인증 URL 링크 + 피싱 경고) + Stage 6종 × accountStatus 3종 분기 + 폴링 진행률.
+2. **§15.3 G-011 회색지대 패턴 실증**: Spike 1 조건 5개 모두 충족 — Experimental 라벨 ✓ / 자체 OAuth 미등록 ✓ / device-code+PKCE 직접 구현 ✓ / OS Keychain 위임 ✓ / 정책 변경 시 즉시 폴백 (BYOK 유지) ✓. access_token은 main 내부만 보관, renderer 미노출.
+3. **§9.7 (신규) OnboardingTour**: 첫 실행 Consent 후 + UserSetting.onboardingShown=false 시 표시. Codex Login 추천 + OpenAI API Key 2-카드 (Provider 미설정 시 노출) + 추천 URL 3개 (위키 / Hacker News / arXiv) — 클릭 시 활성 탭 navigate + 자동 닫힘. "다시 보지 않기" → onboardingShown=true 영속.
+4. **§12.1 UserSetting.onboardingShown** 필드 추가 (boolean, 기본 false, 호환 fallback).
+5. **§19 사용자 테스트 진입 게이트 충족**: README.md 전면 갱신 (빠른 시작 + Provider 전략 + 기능 요약 + 보안 + 문서 진입점). `docs/USAGE.md` 신규 7 섹션 (빌드/Provider 등록/기본 사용법/고급 기능/설정/FAQ/알려진 한계). 사용자가 받은 즉시 빌드→Codex 로그인→번역 체험 가능.
+
+### Phase 1 §16 정합 매트릭스
+
+| PRD §16 Phase 1 항목 | 상태 | Sprint |
+|---|---|---|
+| Electron 브라우저 셸 생성 | ✅ | 001 |
+| URL 로드, DOM 텍스트 추출 | ✅ | 001/002 |
+| Privacy Filter (P0) | ✅ | 001/002 |
+| 선택 영역 번역 | ✅ | 002 |
+| 문단 번역 | ✅ | 002 |
+| 번역 패널 | ✅ | 002 |
+| 캐시 저장 (TTL/키 정책) | ✅ | 002/005 |
+| API Key 등록 (OS Keychain 위임) | ✅ | 002 |
+| **Codex Login Provider 실험 (Spike 1 통과 시)** | ✅ | **014** |
+| 온보딩 / 샘플 체험 모드 | ✅ Consent + OnboardingTour | 002 + **014** |
+| UsageLog 기록 | ✅ | 002 |
+
+**Phase 1 §16 11개 항목 모두 완료**.
+
+PRD 외 추가 구현 (Sprint 003~013, 사용자 테스트 품질 향상):
+- 페이지 전체 번역 / 도메인 정책 / 쉬운 설명·요약 / 용어집 / 페이지 캐시
+- 다중 탭 (영속/드래그/순서/컬러/핀/미리보기/닫은 탭 복원/키보드 단축키)
+- 표시 모드 3종 / Navigation 동기화 / cancel-on-switch
+
+### Phase 1.5 트랙 (사용자 실측 후속)
+
+Phase 1 MVP 본체 완료 후 사용자 직접 사용 데이터 기반 후속:
+- **Phase 1 PoC 4종 실측** (Sprint 014 §7 리스크 #2·3 + Spike 1 PoC 이관 항목):
+  1. Codex Login 비용 / 한도 (ChatGPT 구독으로 커버되는지 직접 측정)
+  2. OpenAI 측 임의 차단 시그널
+  3. 모델 가용성 차이 (Codex Login vs API Key)
+  4. Refresh token 만료 정책
+- **사용자 수동 QA 결과 반영** (사용자 직접 사용 피드백)
+- **탭 그룹** (Sprint 011 evaluator부터 4회 권고 누적, 단독 Sprint)
+- **endpoint URL 정확도 실측 보완** (M1 fetch 모킹만 검증, 사용자 실측 후 핫픽스 가능성)
+
+### Phase 2 진입 전제
+
+- Spike 2/3/4 PoC 임계 정량화 (YouTube 자막 / 시스템 오디오 캡처 / TTS 3축)
+- Spike 5 사용자 인터뷰 (5~10명, 사용자 직접 진행)
+- Phase 1 PoC 4종 실측 완료
+
+본 패치는 Sprint 014 M1~M3 evaluator 결과를 입력으로 작성됨. **Phase 1 MVP 본체 종료 선언**.
+
 ## 0.14 v0.3.11 변경 이력 (2026-05-15) — Sprint 013 실측 반영
 
 Phase 1 Sprint 013 산출물을 PRD에 반영한 패치 (닫은 탭 복원 + 디스크 영속 + 미리보기 보정).
