@@ -182,6 +182,97 @@ ipcMain.handle('tab:reorder', (_event, id: string, newIndex: number): boolean =>
   return tabManager.reorder(id, newIndex)
 })
 
+// Sprint 010 M2 — 탭 컨텍스트 메뉴 동작.
+ipcMain.handle('tab:close-others', (_event, keepId: string): boolean => {
+  const result = tabManager.closeOthers(keepId)
+  if (!result.ok) return false
+  for (const id of result.closed) destroyTabView(id)
+  setActiveTabView(keepId)
+  return true
+})
+
+ipcMain.handle('tab:close-right', (_event, fromId: string): boolean => {
+  const result = tabManager.closeRight(fromId)
+  if (!result.ok) return false
+  for (const id of result.closed) destroyTabView(id)
+  const active = tabManager.getActiveId()
+  if (active) setActiveTabView(active)
+  return true
+})
+
+ipcMain.handle('tab:duplicate', (_event, id: string): TabSession | null => {
+  const session = tabManager.duplicate(id)
+  if (!session) return null
+  createTabView(session.id, session.url)
+  setActiveTabView(session.id)
+  return session
+})
+
+// Sprint 010 M2 — TabBar 우클릭 시 OS 네이티브 컨텍스트 메뉴 popup.
+ipcMain.handle(
+  'tab:show-context-menu',
+  (_event, args: { tabId: string }): void => {
+    if (!mainWindow) return
+    const { tabId } = args
+    const list = tabManager.list()
+    const fromIdx = list.findIndex((t) => t.id === tabId)
+    if (fromIdx < 0) return
+    const total = list.length
+    const isRightmost = fromIdx === total - 1
+    const onlyOne = total <= 1
+    const menu = Menu.buildFromTemplate([
+      {
+        label: '탭 닫기',
+        click: () => {
+          void (async (): Promise<void> => {
+            const removed = tabManager.close(tabId)
+            if (removed) destroyTabView(tabId)
+            let active = tabManager.getActiveId()
+            if (!active) {
+              const fresh = tabManager.open('about:blank')
+              createTabView(fresh.id, fresh.url)
+              active = fresh.id
+            }
+            setActiveTabView(active)
+          })()
+        }
+      },
+      {
+        label: '다른 탭 닫기',
+        enabled: !onlyOne,
+        click: () => {
+          const result = tabManager.closeOthers(tabId)
+          if (!result.ok) return
+          for (const id of result.closed) destroyTabView(id)
+          setActiveTabView(tabId)
+        }
+      },
+      {
+        label: '오른쪽 탭 모두 닫기',
+        enabled: !isRightmost,
+        click: () => {
+          const result = tabManager.closeRight(tabId)
+          if (!result.ok) return
+          for (const id of result.closed) destroyTabView(id)
+          const active = tabManager.getActiveId()
+          if (active) setActiveTabView(active)
+        }
+      },
+      { type: 'separator' },
+      {
+        label: '탭 복제',
+        click: () => {
+          const session = tabManager.duplicate(tabId)
+          if (!session) return
+          createTabView(session.id, session.url)
+          setActiveTabView(session.id)
+        }
+      }
+    ])
+    menu.popup({ window: mainWindow })
+  }
+)
+
 /**
  * Sprint 008 M1 — 신규 탭의 WebContentsView를 생성하고 listener를 등록.
  * 활성화는 별도 함수에서.

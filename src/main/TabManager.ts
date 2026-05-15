@@ -126,6 +126,65 @@ export class TabManager {
   }
 
   /**
+   * Sprint 010 M2 — keepId 외 모든 탭 close. keepId 활성 보장.
+   * keepId가 존재하지 않으면 false 반환, 변동 없음.
+   * 닫힌 탭 id 배열 반환 (main/index.ts가 destroyTabView에 사용).
+   */
+  closeOthers(keepId: string): { ok: boolean; closed: string[] } {
+    if (!this.tabs.has(keepId)) return { ok: false, closed: [] }
+    const closed: string[] = []
+    for (const id of [...this.order]) {
+      if (id !== keepId) {
+        this.tabs.delete(id)
+        const idx = this.order.indexOf(id)
+        if (idx >= 0) this.order.splice(idx, 1)
+        closed.push(id)
+      }
+    }
+    if (this.activeId !== keepId) {
+      this.activeId = keepId
+      const s = this.tabs.get(keepId)
+      if (s) s.lastActiveAt = Date.now()
+    }
+    if (closed.length > 0) this.emit()
+    return { ok: true, closed }
+  }
+
+  /**
+   * Sprint 010 M2 — fromId 오른쪽(order index >) 탭들만 close.
+   * fromId 활성 유지 (단, 닫힌 탭 중에 활성이 있었으면 fromId로 전환).
+   */
+  closeRight(fromId: string): { ok: boolean; closed: string[] } {
+    const fromIdx = this.order.indexOf(fromId)
+    if (fromIdx < 0) return { ok: false, closed: [] }
+    const toClose = this.order.slice(fromIdx + 1)
+    if (toClose.length === 0) return { ok: true, closed: [] }
+    const wasActiveClosed = this.activeId !== null && toClose.includes(this.activeId)
+    for (const id of toClose) {
+      this.tabs.delete(id)
+      const idx = this.order.indexOf(id)
+      if (idx >= 0) this.order.splice(idx, 1)
+    }
+    if (wasActiveClosed) {
+      this.activeId = fromId
+      const s = this.tabs.get(fromId)
+      if (s) s.lastActiveAt = Date.now()
+    }
+    this.emit()
+    return { ok: true, closed: toClose }
+  }
+
+  /**
+   * Sprint 010 M2 — 동일 url로 새 탭 생성 후 활성화.
+   * 원본이 존재하지 않으면 null 반환.
+   */
+  duplicate(id: string): TabSession | null {
+    const src = this.tabs.get(id)
+    if (!src) return null
+    return this.open(src.url)
+  }
+
+  /**
    * Sprint 010 M1 — 탭 순서 변경.
    * newIndex는 음수면 0, length 초과면 length-1로 clamp.
    * 같은 위치면 no-op (emit skip).
