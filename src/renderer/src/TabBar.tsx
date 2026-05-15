@@ -1,4 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
+const HOVER_DELAY_MS = 600
+
+interface ThumbnailPayload {
+  dataUrl: string
+  capturedAt: number
+  width: number
+  height: number
+}
+
+interface PreviewState {
+  tabId: string
+  anchorLeft: number
+  thumbnail: ThumbnailPayload | null
+  loading: boolean
+}
 
 type TabColorPayload =
   | 'red'
@@ -50,11 +66,21 @@ export default function TabBar(): JSX.Element {
   const [snapshot, setSnapshot] = useState<TabListSnapshot>({ tabs: [], activeId: null })
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null)
+  // Sprint 012 M2 — hover 미리보기
+  const [preview, setPreview] = useState<PreviewState | null>(null)
+  const hoverTimerRef = useRef<number | null>(null)
+  const draggingRef = useRef<string | null>(null)
+  draggingRef.current = draggingId
 
   useEffect(() => {
     void refresh()
     const off = window.tabApi.onListUpdate(setSnapshot)
-    return off
+    return () => {
+      off()
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current)
+      }
+    }
   }, [])
 
   async function refresh(): Promise<void> {
@@ -117,6 +143,45 @@ export default function TabBar(): JSX.Element {
     void window.tabApi.showContextMenu(id)
   }
 
+  function clearHoverTimer(): void {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = null
+    }
+  }
+
+  function handleMouseEnter(e: React.MouseEvent<HTMLDivElement>, id: string): void {
+    // 드래그 중이면 미리보기 표시 안 함
+    if (draggingRef.current !== null) return
+    clearHoverTimer()
+    const target = e.currentTarget
+    const anchorLeft = target.getBoundingClientRect().left
+    hoverTimerRef.current = window.setTimeout(() => {
+      hoverTimerRef.current = null
+      if (draggingRef.current !== null) return
+      // 미리보기 영역 표시 (placeholder 먼저)
+      setPreview({ tabId: id, anchorLeft, thumbnail: null, loading: true })
+      void window.tabApi
+        .getThumbnail(id)
+        .then((thumb) => {
+          // 다른 탭으로 이동했거나 leave 됐으면 ignore
+          setPreview((curr) =>
+            curr && curr.tabId === id ? { ...curr, thumbnail: thumb, loading: false } : curr
+          )
+        })
+        .catch(() => {
+          setPreview((curr) =>
+            curr && curr.tabId === id ? { ...curr, thumbnail: null, loading: false } : curr
+          )
+        })
+    }, HOVER_DELAY_MS)
+  }
+
+  function handleMouseLeave(): void {
+    clearHoverTimer()
+    setPreview(null)
+  }
+
   return (
     <div className="tab-bar">
       <div className="tab-bar-list">
@@ -135,6 +200,8 @@ export default function TabBar(): JSX.Element {
             }`}
             onClick={() => void handleSwitch(t.id)}
             onContextMenu={(e) => handleContextMenu(e, t.id)}
+            onMouseEnter={(e) => handleMouseEnter(e, t.id)}
+            onMouseLeave={handleMouseLeave}
             title={t.pinned ? `📌 ${t.url}` : t.url}
             draggable
             style={{ borderTopColor }}
@@ -163,6 +230,40 @@ export default function TabBar(): JSX.Element {
           )
         })}
       </div>
+      {preview && (
+        <div
+          className="tab-preview"
+          style={{ left: preview.anchorLeft }}
+          role="tooltip"
+          onMouseEnter={(e) => e.stopPropagation()}
+        >
+          {preview.thumbnail ? (
+            <>
+              <img
+                src={preview.thumbnail.dataUrl}
+                alt="탭 미리보기"
+                className="tab-preview-img"
+              />
+              <div className="tab-preview-meta">
+                {(() => {
+                  const t = snapshot.tabs.find((x) => x.id === preview.tabId)
+                  if (!t) return null
+                  return (
+                    <>
+                      <div className="tab-preview-title">{formatTabLabel(t)}</div>
+                      <div className="tab-preview-url">{t.url}</div>
+                    </>
+                  )
+                })()}
+              </div>
+            </>
+          ) : (
+            <div className="tab-preview-empty">
+              {preview.loading ? '미리보기 로드 중…' : '미리보기 없음'}
+            </div>
+          )}
+        </div>
+      )}
       <button
         type="button"
         className="tab-new"

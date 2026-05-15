@@ -91,6 +91,71 @@ body {
   margin-right: 2px;
 }
 
+/* Sprint 012 M2 — hover 미리보기 */
+.tab-bar {
+  position: relative;
+}
+
+.tab-preview {
+  position: absolute;
+  top: 38px;
+  width: 320px;
+  background: #232323;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  overflow: hidden;
+  animation: tabPreviewFadeIn 150ms ease-out;
+  pointer-events: none;
+}
+
+@keyframes tabPreviewFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tab-preview-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #1a1a1a;
+}
+
+.tab-preview-meta {
+  padding: 8px 10px;
+  border-top: 1px solid #2a2a2a;
+}
+
+.tab-preview-title {
+  color: #e0e0e0;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-preview-url {
+  color: #888;
+  font-size: 11px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-preview-empty {
+  padding: 24px 10px;
+  text-align: center;
+  color: #888;
+  font-size: 12px;
+}
+
 .tab-label {
   flex: 1;
   overflow: hidden;
