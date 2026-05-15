@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001 / 002 종료, **Sprint 003 정의 완료 / M1 대기**
-- **Sprint**: **003 정의 완료** (Sprint 002 Pass, 누적 37 Pass)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001 / 002 / 003 종료
+- **Sprint**: **003 종료** (Sprint 종합 evaluator 대기 → 진행 중 M4)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: v0.3 (2026-05-11, Phase 0 1차 조사 반영) — Sprint 003 M4에서 v0.3.1 패치 예정
-- **최근 갱신**: 2026-05-15 (Sprint 003 정의 작성, contracts/sprint-003.md)
+- **PRD 버전**: **v0.3.1** (2026-05-15, Sprint 002·003 실측 반영)
+- **최근 갱신**: 2026-05-15 (Sprint 003 M4 PRD 패치 + Sprint 종료)
 
 ## 현재 작업
 
@@ -25,16 +25,15 @@
   - UsageLog UI / 차단 통계
   - ESLint + CI lint+typecheck+test+build
 
-### Sprint 003 정의 (2026-05-15)
+### Sprint 003 진행 (2026-05-15)
 
 - 산출물: `.flowset/contracts/sprint-003.md`
-- 목표: Sprint 002 잔여 보강 + Phase 1 MVP 페이지 전체 번역 + Privacy 정책 가시화
-- 4 마일스톤 / 12 작업 / 7 AC / 2~3주
-  - M1: LRU trim 테스트 + `pageWideBlock`/`BlockReason` enum 구조화
-  - M2: PageNodeExtractor + 페이지 전체 번역 IPC + 패널 확장
-  - M3: DomainPolicyStore + 도메인 화이트/블랙리스트 UI + 우선순위 적용
-  - M4: PRD v0.3.1 패치 + 단위 테스트 + Sprint 종합 evaluator
-- 다음 작업: Sprint 003 정의 PR 머지 후 M1 착수
+- M1 (PR #21 머지): LRU trim 3 tests + BlockReason enum + pageWideBlock + reason 문자열 매칭 제거. evaluator Pass 16/1/0.
+- M2 (PR #22 머지): PageNodeExtractor 16종 선택자 + `translate:page` IPC + abort + 페이지 모드 UI + 15 tests. evaluator Pass 10/1/0.
+- M3 (PR #23 머지): DomainPolicyStore + DomainPolicyPanel UI + JSON import/export + 19 tests. evaluator Pass 9/0/0.
+- M4: PRD v0.3.1 패치 + Sprint 종합 evaluator 진행 중
+- 누적 단위 테스트: 70 → 115 (+45 신규)
+- 모든 자동 검증 (lint/typecheck/test/build) PASS
 
 ## 활성 Spike (5종)
 

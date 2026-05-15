@@ -17,17 +17,22 @@
 
 - DOM Extractor 구현
 - Selection Extractor 구현
+- ParagraphExtractor 구현 (v0.3.1 Sprint 002 M3): 9종 블록 선택자 (p/h1~h6/blockquote/li/dd), 길이 [8,5000], 중복 제거
+- PageNodeExtractor 구현 (v0.3.1 Sprint 003 M2): 16종 블록 선택자 (Paragraph + dt/figcaption/caption/summary/td/th), 4000자 청크 그루핑, validatePageNodes
 - Video Detector (직접 + iframe) 구현
 - YouTube Detector 구현
 - Subtitle Extractor 구현 (v0.3 Spike 2): postMessage IFrame API + caption track URL 직접 fetch (`timedtext.googlevideo.com`), 또는 youtube-transcript-api 같은 비공식 라이브러리. sourceType 구분 (human / asr).
 - Playback Controller 구현
 
-## 19.3 Privacy Layer (v0.2 신규)
+## 19.3 Privacy Layer (v0.2 신규, v0.3.1 보강)
 
 - Sensitive Field Detector (password / card) 구현
 - Domain Filter (blacklist / whitelist) 구현
+- DomainPolicyStore 구현 (v0.3.1 Sprint 003 M3): JSON 영속 (`policyVersion=1`), validatePattern, import/export, setRules bulk, clearAll
+- DomainPolicyPanel UI (v0.3.1 Sprint 003 M3): Settings 안 화이트/블랙 2 컬럼 + JSON import/export
 - Consent Gate 구현
 - Transmission Logger 구현
+- BlockReason enum / pageWideBlock 구조화 (v0.3.1 Sprint 003 M1): 차단 사유 enum 6종, 페이지 전체 차단 boolean
 - 사용자 승인 다이얼로그 구현
 
 ## 19.4 AI Layer

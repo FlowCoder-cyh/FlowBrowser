@@ -57,7 +57,7 @@
 | createdAt | datetime | 생성일 |
 | completedAt | datetime | 완료일 |
 
-## 12.4 TranslationCache (v0.2 보강)
+## 12.4 TranslationCache (v0.2 보강, v0.3.1 실측)
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
@@ -81,10 +81,17 @@
 
 ### TTL 정책
 
-- 기본 번역 캐시: 90일
-- 자막 캐시 (videoSessionId 연결): 365일
-- 용량 한도: 사용자 디스크 1GB, 초과 시 LRU 만료
+- 기본 번역 캐시: 90일 (`DEFAULT_TTL_MS`)
+- 자막 캐시 (videoSessionId 연결): 365일 (`SUBTITLE_TTL_MS`)
+- 용량 한도: 사용자 디스크 1GB (`DEFAULT_MAX_BYTES`), 초과 시 LRU 만료
 - glossaryVersion 변경 시 해당 용어집 적용 캐시 자동 무효화
+
+### 영속 실측 (v0.3.1 / Sprint 002 M2 + Sprint 003 M1)
+
+- JSON 직렬화 영속 + 메모리 Map 동기화 (SQLite는 데이터 규모 따라 추후 도입)
+- `persistOnce()`에서 직렬화 크기 > maxBytes 시 `lastAccessedAt` 내림차순 정렬 후 절반 보존
+- 단위 테스트로 LRU trim 직접 측정 (Sprint 003 M1 신규 3 tests)
+- `lastAccessedAt`은 `lookup()` 시 갱신 → hit 항목 우선 생존
 
 ## 12.5 VideoSession (v0.2 보강)
 
