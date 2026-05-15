@@ -125,6 +125,27 @@ export class TabManager {
     return { tabs: this.list(), activeId: this.activeId }
   }
 
+  /**
+   * Sprint 009 M3 — 외부 상태(TabStateStore) 복원.
+   * 기존 상태는 모두 제거. emit 1회.
+   */
+  restore(state: { tabs: TabSession[]; activeId: string | null }): void {
+    this.tabs.clear()
+    this.order = []
+    for (const s of state.tabs) {
+      this.tabs.set(s.id, { ...s })
+      this.order.push(s.id)
+    }
+    if (state.activeId && this.tabs.has(state.activeId)) {
+      this.activeId = state.activeId
+    } else if (this.order.length > 0) {
+      this.activeId = this.order[this.order.length - 1]
+    } else {
+      this.activeId = null
+    }
+    this.emit()
+  }
+
   private emit(): void {
     const snap = this.snapshot()
     for (const h of this.subscribers) {

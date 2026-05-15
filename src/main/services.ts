@@ -30,12 +30,14 @@ import {
   GlossaryStore,
   UserSettingStore,
   PageResultStore,
+  TabStateStore,
   defaultCredentialsPath,
   defaultUsageLogPath,
   defaultTranslationCachePath,
   defaultGlossaryPath,
   defaultUserSettingPath,
   defaultPageResultPath,
+  defaultTabStatePath,
   nodesSignatureFromTexts,
   formatGlossaryContext,
   type CredentialRecord,
@@ -77,6 +79,7 @@ let translationCache!: TranslationCache
 let glossaryStore!: GlossaryStore
 let userSettingStore!: UserSettingStore
 let pageResultStore!: PageResultStore
+let tabStateStore!: TabStateStore
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 
 let consentStatePath!: string
@@ -111,6 +114,8 @@ export async function initServices(): Promise<void> {
 
   pageResultStore = new PageResultStore(defaultPageResultPath(userDataDir))
   await pageResultStore.load()
+
+  tabStateStore = new TabStateStore(defaultTabStatePath(userDataDir))
 
   registerConsentIpc()
   registerCredentialIpc()
@@ -191,6 +196,20 @@ export async function pageResultLookup(args: {
     ...args,
     glossaryVersion: args.glossaryVersion ?? glossaryStore.getVersion()
   })
+}
+
+/**
+ * Sprint 009 M3 — TabStateStore 접근 헬퍼.
+ */
+export async function loadTabState(): Promise<import('../storage/TabStateStore').PersistedTabState> {
+  return tabStateStore.load()
+}
+
+export async function saveTabState(state: {
+  tabs: import('../storage/TabStateStore').PersistedTabSession[]
+  activeId: string | null
+}): Promise<void> {
+  await tabStateStore.save(state)
 }
 
 function registerUserSettingIpc(): void {

@@ -9,7 +9,9 @@ import {
   extractWebContentsParagraphs,
   extractWebContentsPageNodes,
   persistPageResult,
-  pageResultLookup
+  pageResultLookup,
+  loadTabState,
+  saveTabState
 } from './services'
 import {
   renderTranslationsScript,
@@ -41,13 +43,51 @@ function syncBrowserViewRef(): void {
   browserView = getActiveTabView()
 }
 
+// Sprint 009 M3 — 탭 상태 영속 (debounced 200ms)
+let saveTimer: NodeJS.Timeout | null = null
+
+function scheduleTabStateSave(): void {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    const snap = tabManager.snapshot()
+    void saveTabState({
+      tabs: snap.tabs,
+      activeId: snap.activeId
+    }).catch(() => {
+      // 저장 실패는 로그만 (UX 영향 없음)
+    })
+    saveTimer = null
+  }, 200)
+}
+
+async function initializeTabs(): Promise<void> {
+  try {
+    const persisted = await loadTabState()
+    if (persisted.tabs.length > 0) {
+      tabManager.restore({ tabs: persisted.tabs, activeId: persisted.activeId })
+      for (const t of persisted.tabs) {
+        createTabView(t.id, t.url)
+      }
+      const active = tabManager.getActiveId()
+      if (active) setActiveTabView(active)
+      return
+    }
+  } catch {
+    // ignore - fallthrough
+  }
+  // 복원 실패 또는 빈 상태 → 첫 탭 신규 생성
+  const firstTab = tabManager.open('about:blank')
+  createTabView(firstTab.id, firstTab.url)
+  setActiveTabView(firstTab.id)
+}
+
 interface NavigateResult {
   ok: boolean
   url?: string
   error?: string
 }
 
-function createMainWindow(): void {
+async function createMainWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -67,18 +107,29 @@ function createMainWindow(): void {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  // Sprint 008 M1 — 첫 탭 자동 생성. 다중 탭 운영 시작.
-  const firstTab = tabManager.open('about:blank')
-  createTabView(firstTab.id, firstTab.url)
-  setActiveTabView(firstTab.id)
-
-  // TabManager 변동 broadcast (TabBar / UrlBar 구독)
+  // TabManager 변동 broadcast (TabBar / UrlBar 구독) — initializeTabs 이전에 등록해야
+  // 복원 emit이 push 경로로도 도달함 (renderer가 mount 직후 받음).
   tabManager.subscribe((snapshot) => {
     if (!mainWindow) return
     mainWindow.webContents.send('tab:list-update', snapshot)
+    scheduleTabStateSave()
   })
 
+  // Sprint 009 M3 — TabStateStore에서 복원 시도, 없으면 첫 탭 자동 생성.
+  await initializeTabs()
+
   mainWindow.on('resize', updateBrowserViewBounds)
+  mainWindow.on('close', () => {
+    // Sprint 009 M3 — 종료 시 탭 상태 강제 flush (debounce 누락 방지)
+    if (saveTimer) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+    }
+    const snap = tabManager.snapshot()
+    void saveTabState({ tabs: snap.tabs, activeId: snap.activeId }).catch(() => {
+      // ignore — 종료 중 IO 오류
+    })
+  })
   mainWindow.on('closed', () => {
     mainWindow = null
     // 탭 view 정리
@@ -866,11 +917,11 @@ async function handleContextMenuAi(
 app.whenReady().then(async () => {
   await initServices()
   rebuildAllProviders()
-  createMainWindow()
+  await createMainWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow()
+      void createMainWindow()
     }
   })
 })
