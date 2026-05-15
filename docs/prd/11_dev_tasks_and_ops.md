@@ -9,7 +9,8 @@
 - URL Bar 구현
 - 기본 Navigation 구현 (v0.3.4 Sprint 006 M1: canGoBack/canGoForward broadcast + UrlBar 버튼 disabled 동기화)
 - TabBar UI (v0.3.6 Sprint 008 M2): 가로 스크롤 + 활성 강조 + 닫기 X + 신규 + 버튼
-- TabManager (v0.3.6 Sprint 008 M1): 순수 모델 (TabSession + open/close/switch/list/snapshot + subscribe broadcast 콜백) + 다중 WebContentsView 사전 생성/활성 view만 add/remove/cleanup + 5 IPC + tab:list-update broadcast
+- TabManager (v0.3.6 Sprint 008 M1 + v0.3.7 Sprint 009 M3): 순수 모델 (TabSession + open/close/switch/list/snapshot + subscribe broadcast 콜백 + **restore** v0.3.7 추가) + 다중 WebContentsView 사전 생성/활성 view만 add/remove/cleanup + 5 IPC + tab:list-update broadcast
+- TabStateStore (v0.3.7 Sprint 009 M3): tabs.json policyVersion=1 영속 + load/save/clear + 손상 fallback. main initializeTabs가 startup 시 복원, mainWindow close 시 강제 flush, subscribe debounced 200ms 자동 저장
 - Translation Panel 구현 (v0.3.3 Sprint 005 M3: chunkSummaries 펼치기 토글 + PATH_LABELS 한국어 / v0.3.4 Sprint 006 M2/M3: mode 분기 + 자동 render + 페이지 캐시 restoreHint 배너)
 - DisplayModePanel UI (v0.3.4 Sprint 006 M2): translationMode 3종 (panel/replace/overlay) 라디오
 - GeneralPanel UI (v0.3.5 Sprint 007 M1): 언어 / Provider / Privacy 토글 + 안전 정책 안내

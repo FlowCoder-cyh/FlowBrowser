@@ -7,6 +7,20 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.10 v0.3.7 변경 이력 (2026-05-15) — Sprint 009 실측 반영
+
+Phase 1 Sprint 009 산출물을 PRD에 반영한 패치 (안정화 묶음).
+
+v0.3.6 대비 주요 변경:
+
+1. **§12.7 GlossaryStore bumpVersion 안정화**: 같은 ms 내 mutation 시 동일 version 반환하던 flaky를 단조 증가 counter 추가로 해소. Sprint 008 evaluator §Glossary flaky 직접 해소. 회귀 테스트 2 추가 (10/10 PASS).
+2. **§9.1 / §9.2 sourceTabId 가드**: paragraphs/page/summarize 3종 IPC 진입 시점 활성 탭 ID 캡처 후 13종 이벤트 페이로드에 전파. TranslationPanel이 활성 탭과 비교해 다르면 UI 업데이트 무시. 백그라운드 작업이 다른 탭에 잘못 patch되지 않음.
+3. **§9.1 / §12.10 탭 영속**: TabStateStore (`tabs.json` policyVersion=1) — TabManager 상태(tabs + activeId)를 디스크에 영속. 앱 재시작 시 자동 복원. debounced 200ms 자동 저장 + 종료 시 강제 flush. 손상 파일은 빈 상태 fallback (안전).
+4. **§11 TabManager.restore**: 외부 상태 import + emit 1회. activeId가 tabs에 없으면 마지막 탭 자동 선택. subscribe 등록 순서 정합 (복원 broadcast push 경로 보장).
+5. **§19 모듈 등록**: TabStateStore + TabManager.restore + initializeTabs + scheduleTabStateSave 신규 등록.
+
+본 패치는 Sprint 009 M1~M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.9 v0.3.6 변경 이력 (2026-05-15) — Sprint 008 실측 반영
 
 Phase 1 Sprint 008 산출물을 PRD에 반영한 패치. PRD §9.1 탭 관리 P2 구현 완료.
