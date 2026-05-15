@@ -629,14 +629,31 @@ function setActiveTabView(tabId: string): void {
 
 const PANEL_WIDTH = 420
 let panelOpen = false
+// Sprint 014 M3-2 핫픽스 — Consent/Settings stage일 때 view를 화면 밖으로 숨겨 클릭 차단 회피.
+// 시작 시 false: renderer가 boot 후 consent OR browser 결정 시점에 app:set-view-visible 호출.
+let viewVisible = false
 
 ipcMain.handle('panel:set-open', (_event, open: boolean): void => {
   panelOpen = !!open
   updateBrowserViewBounds()
 })
 
+/**
+ * Sprint 014 M3-2 핫픽스 — renderer stage(consent/settings) 동안 WebContentsView 가시성 제어.
+ * stage='browser'일 때만 visible=true. 그 외에는 화면 밖(0x0)으로 이동하여 클릭 가로채기 차단.
+ */
+ipcMain.handle('app:set-view-visible', (_event, visible: boolean): void => {
+  viewVisible = !!visible
+  updateBrowserViewBounds()
+})
+
 function updateBrowserViewBounds(): void {
   if (!mainWindow || !browserView) return
+  if (!viewVisible) {
+    // 화면 밖으로 이동 — Consent/Settings 카드가 클릭 가능하도록
+    browserView.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+    return
+  }
   const bounds = mainWindow.getContentBounds()
   const rightInset = panelOpen ? PANEL_WIDTH : 0
   browserView.setBounds({

@@ -78,6 +78,8 @@ const browserApi = {
   getCurrentUrl: (): Promise<string> => ipcRenderer.invoke('get-current-url'),
   getViewId: (): Promise<number | null> => ipcRenderer.invoke('browser:get-view-id'),
   setPanelOpen: (open: boolean): Promise<void> => ipcRenderer.invoke('panel:set-open', open),
+  setViewVisible: (visible: boolean): Promise<void> =>
+    ipcRenderer.invoke('app:set-view-visible', visible),
   navState: (): Promise<NavStatePayload> => ipcRenderer.invoke('browser:nav-state'),
   onNavigated: (handler: (p: NavStatePayload) => void): (() => void) => {
     const listener = (_e: unknown, p: NavStatePayload): void => handler(p)
