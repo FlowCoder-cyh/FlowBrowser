@@ -29,6 +29,15 @@ export interface SummarizeResult {
    * - 'truncated': 재분할 후에도 limit 초과 → 마지막 통합은 truncated 입력
    */
   combinedPath: 'single' | 'direct' | 'resplit' | 'truncated'
+  /**
+   * Sprint 007 M2 — 통합 단계에 실제로 들어간 입력 길이 (chars).
+   * truncated 경로면 limit 값과 같음. UI에서 limit과 함께 노출하여 사용자가 보호 동작 가시화.
+   */
+  combinedInputChars: number
+  /**
+   * Sprint 007 M2 — 적용된 combineCharLimit (기본 8000).
+   */
+  combineCharLimit: number
 }
 
 export interface SummarizeOptions {
@@ -76,7 +85,14 @@ export async function summarizeChunks(
 ): Promise<SummarizeResult> {
   const combineCharLimit = options.combineCharLimit ?? DEFAULT_COMBINE_CHAR_LIMIT
   if (chunkTexts.length === 0) {
-    return { summary: '', chunkSummaries: [], combined: false, combinedPath: 'single' }
+    return {
+      summary: '',
+      chunkSummaries: [],
+      combined: false,
+      combinedPath: 'single',
+      combinedInputChars: 0,
+      combineCharLimit
+    }
   }
   const chunkSummaries: string[] = []
   for (const text of chunkTexts) {
@@ -87,14 +103,23 @@ export async function summarizeChunks(
       summary: chunkSummaries[0],
       chunkSummaries,
       combined: false,
-      combinedPath: 'single'
+      combinedPath: 'single',
+      combinedInputChars: chunkTexts[0]?.length ?? 0,
+      combineCharLimit
     }
   }
 
   const combinedInput = chunkSummaries.join('\n\n')
   if (combinedInput.length <= combineCharLimit) {
     const combined = await summarize(combinedInput)
-    return { summary: combined, chunkSummaries, combined: true, combinedPath: 'direct' }
+    return {
+      summary: combined,
+      chunkSummaries,
+      combined: true,
+      combinedPath: 'direct',
+      combinedInputChars: combinedInput.length,
+      combineCharLimit
+    }
   }
 
   // 1단계 재분할 — chunkSummaries를 limit 단위로 묶어 부분 통합 요약 만든 뒤 최종 통합.
@@ -106,12 +131,26 @@ export async function summarizeChunks(
   const finalInput = partialSummaries.join('\n\n')
   if (finalInput.length <= combineCharLimit) {
     const final = await summarize(finalInput)
-    return { summary: final, chunkSummaries, combined: true, combinedPath: 'resplit' }
+    return {
+      summary: final,
+      chunkSummaries,
+      combined: true,
+      combinedPath: 'resplit',
+      combinedInputChars: finalInput.length,
+      combineCharLimit
+    }
   }
   // 재분할 후에도 초과 → truncate 폴백 (한 번만 재분할 한다는 규약)
   const truncated = finalInput.slice(0, combineCharLimit)
   const final = await summarize(truncated)
-  return { summary: final, chunkSummaries, combined: true, combinedPath: 'truncated' }
+  return {
+    summary: final,
+    chunkSummaries,
+    combined: true,
+    combinedPath: 'truncated',
+    combinedInputChars: truncated.length,
+    combineCharLimit
+  }
 }
 
 function groupByCharLimit(texts: string[], limit: number): string[][] {

@@ -540,6 +540,8 @@ ipcMain.handle(
     chunkSummaries?: string[]
     combined?: boolean
     combinedPath?: 'single' | 'direct' | 'resplit' | 'truncated'
+    combinedInputChars?: number
+    combineCharLimit?: number
     chunks?: number
     reason?: string
     blockReason?: string
@@ -607,6 +609,8 @@ ipcMain.handle(
         chunkSummaries: result.chunkSummaries,
         combined: result.combined,
         combinedPath: result.combinedPath,
+        combinedInputChars: result.combinedInputChars,
+        combineCharLimit: result.combineCharLimit,
         chunks: planned.length
       })
       return {
@@ -615,6 +619,8 @@ ipcMain.handle(
         chunkSummaries: result.chunkSummaries,
         combined: result.combined,
         combinedPath: result.combinedPath,
+        combinedInputChars: result.combinedInputChars,
+        combineCharLimit: result.combineCharLimit,
         chunks: planned.length
       }
     } catch (err) {
