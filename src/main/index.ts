@@ -11,6 +11,13 @@ import {
   persistPageResult,
   pageResultLookup
 } from './services'
+import {
+  renderTranslationsScript,
+  restoreOriginalsScript,
+  type RenderPayload
+} from '../perception/TranslationRenderer'
+import { nodesSignatureFromTexts } from '../storage/PageResultStore'
+import { planChunks, summarizeChunks } from '../ai/SummarizationPlanner'
 
 let mainWindow: BrowserWindow | null = null
 let browserView: WebContentsView | null = null
@@ -189,11 +196,10 @@ ipcMain.handle(
   'translate:render',
   async (
     _event,
-    payload: import('../perception/TranslationRenderer').RenderPayload
+    payload: RenderPayload
   ): Promise<{ ok: boolean; applied?: number; missing?: number; reason?: string }> => {
     if (!browserView) return { ok: false, reason: 'browser-view-not-ready' }
     try {
-      const { renderTranslationsScript } = await import('../perception/TranslationRenderer')
       const result = (await browserView.webContents.executeJavaScript(
         renderTranslationsScript(payload)
       )) as { applied: number; missing: number }
@@ -227,7 +233,6 @@ ipcMain.handle(
     const webContentsId = browserView.webContents.id
     const bundle = await extractWebContentsPageNodes(webContentsId)
     if (bundle.nodes.length === 0) return { ok: false, reason: 'no-nodes' }
-    const { nodesSignatureFromTexts } = await import('../storage/PageResultStore')
     const signature = nodesSignatureFromTexts(bundle.nodes)
     const entry = await pageResultLookup({
       url,
@@ -246,7 +251,6 @@ ipcMain.handle(
         : { ok: false, reason: 'no-hit' }
     }
     try {
-      const { renderTranslationsScript } = await import('../perception/TranslationRenderer')
       const result = (await browserView.webContents.executeJavaScript(
         renderTranslationsScript({
           mode: args.mode,
@@ -266,7 +270,6 @@ ipcMain.handle(
   async (): Promise<{ ok: boolean; restored?: number; overlays?: number; reason?: string }> => {
     if (!browserView) return { ok: false, reason: 'browser-view-not-ready' }
     try {
-      const { restoreOriginalsScript } = await import('../perception/TranslationRenderer')
       const result = (await browserView.webContents.executeJavaScript(
         restoreOriginalsScript()
       )) as { restored: number; overlays: number }
@@ -557,7 +560,6 @@ ipcMain.handle(
     }
 
     const fieldScan = await scanWebContentsFields(webContentsId)
-    const { planChunks, summarizeChunks } = await import('../ai/SummarizationPlanner')
     const planned = planChunks(bundle)
     if (planned.length === 0) {
       return { ok: false, reason: '요약 가능한 청크가 없습니다.' }

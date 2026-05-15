@@ -21,7 +21,13 @@
   },
   "include": [
     "electron.vite.config.ts",
+    "vitest.config.ts",
     "src/main/**/*.ts",
-    "src/preload/**/*.ts"
+    "src/preload/**/*.ts",
+    "src/storage/**/*.ts",
+    "src/ai/**/*.ts",
+    "src/privacy/**/*.ts",
+    "src/perception/**/*.ts",
+    "tests/**/*.ts"
   ]
 }

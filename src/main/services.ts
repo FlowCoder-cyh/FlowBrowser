@@ -52,6 +52,12 @@ import {
   type TranslationInput,
   type TranslationOutput
 } from '../ai'
+import { extractParagraphsScript } from '../perception/ParagraphExtractor'
+import {
+  extractPageNodesScript,
+  validatePageNodes,
+  type PageNodeBundle
+} from '../perception/PageNodeExtractor'
 
 interface DiskConsentState {
   globalConsented: boolean
@@ -656,7 +662,6 @@ export async function extractWebContentsParagraphs(
   const wc = WebContentsRegistry.get(webContentsId)
   if (!wc) return []
   try {
-    const { extractParagraphsScript } = await import('../perception/ParagraphExtractor')
     const result = (await wc.executeJavaScript(extractParagraphsScript())) as Array<{
       id: string
       text: string
@@ -672,15 +677,12 @@ export async function extractWebContentsParagraphs(
  * 외부 페이지(WebContentsView)에서 페이지 전체 노드를 추출한다.
  * Sprint 003 M2 / PRD §9.2 페이지 전체 번역.
  */
-export async function extractWebContentsPageNodes(webContentsId: number): Promise<
-  import('../perception/PageNodeExtractor').PageNodeBundle
-> {
+export async function extractWebContentsPageNodes(
+  webContentsId: number
+): Promise<PageNodeBundle> {
   const wc = WebContentsRegistry.get(webContentsId)
   if (!wc) return { nodes: [], chunks: [] }
   try {
-    const { extractPageNodesScript, validatePageNodes } = await import(
-      '../perception/PageNodeExtractor'
-    )
     const raw = (await wc.executeJavaScript(extractPageNodesScript())) as unknown
     return validatePageNodes(raw)
   } catch {
