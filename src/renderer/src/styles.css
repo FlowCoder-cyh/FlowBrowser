@@ -605,6 +605,29 @@ body {
   font-size: 11px;
 }
 
+.panel-restore-hint {
+  margin: 8px 16px;
+  padding: 10px 12px;
+  background: #1a2a3a;
+  color: #aaccff;
+  border-left: 3px solid #4a9eff;
+  border-radius: 4px;
+  font-size: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-restore-result {
+  margin: 8px 16px;
+  padding: 6px 10px;
+  background: #1a3a2a;
+  color: #aaffcc;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
 .settings-message {
   padding: 8px 12px;
   border-radius: 4px;

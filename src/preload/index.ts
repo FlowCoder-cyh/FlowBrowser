@@ -120,6 +120,56 @@ const cacheApi = {
     ipcRenderer.invoke('cache:invalidate-glossary', version)
 }
 
+interface PageResultLookupArgs {
+  url: string
+  targetLanguage: string
+  providerType: string
+  glossaryVersion?: string
+  nodesSignature?: string
+}
+
+interface PageResultEntryPayload {
+  id: string
+  key: string
+  url: string
+  targetLanguage: string
+  providerType: string
+  glossaryVersion: string
+  nodesSignature: string
+  selectorPreset: 'paragraph' | 'page'
+  instructions: Array<{ id: string; translatedText: string }>
+  createdAt: number
+  updatedAt: number
+  lastAccessedAt: number
+  expiresAt: number
+}
+
+const pageResultApi = {
+  stats: (): Promise<{ count: number }> => ipcRenderer.invoke('pageResult:stats'),
+  clear: (): Promise<void> => ipcRenderer.invoke('pageResult:clear'),
+  lookup: (args: PageResultLookupArgs): Promise<PageResultEntryPayload | null> =>
+    ipcRenderer.invoke('pageResult:lookup', args),
+  store: (args: {
+    url: string
+    targetLanguage: string
+    providerType: string
+    glossaryVersion?: string
+    nodesSignature: string
+    selectorPreset: 'paragraph' | 'page'
+    instructions: Array<{ id: string; translatedText: string }>
+  }): Promise<PageResultEntryPayload> => ipcRenderer.invoke('pageResult:store', args),
+  restoreCurrent: (args: {
+    targetLanguage: string
+    providerType: string
+    mode: 'replace' | 'overlay'
+  }): Promise<{
+    ok: boolean
+    applied?: number
+    missing?: number
+    reason?: string
+  }> => ipcRenderer.invoke('pageResult:restore-current', args)
+}
+
 interface GlossaryTermPayload {
   id: string
   sourceTerm: string
@@ -454,6 +504,7 @@ contextBridge.exposeInMainWorld('credentialApi', credentialApi)
 contextBridge.exposeInMainWorld('privacyApi', privacyApi)
 contextBridge.exposeInMainWorld('usageApi', usageApi)
 contextBridge.exposeInMainWorld('cacheApi', cacheApi)
+contextBridge.exposeInMainWorld('pageResultApi', pageResultApi)
 contextBridge.exposeInMainWorld('glossaryApi', glossaryApi)
 contextBridge.exposeInMainWorld('userSettingApi', userSettingApi)
 contextBridge.exposeInMainWorld('translateApi', translateApi)
@@ -465,6 +516,7 @@ export type CredentialApi = typeof credentialApi
 export type PrivacyApi = typeof privacyApi
 export type UsageApi = typeof usageApi
 export type CacheApi = typeof cacheApi
+export type PageResultApi = typeof pageResultApi
 export type GlossaryApi = typeof glossaryApi
 export type UserSettingApi = typeof userSettingApi
 export type TranslateApi = typeof translateApi
