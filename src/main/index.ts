@@ -240,6 +240,11 @@ ipcMain.handle('tab:set-color', (_event, id: string, color: TabColor): boolean =
   return tabManager.setColor(id, color)
 })
 
+// Sprint 011 M3 — 탭 핀(고정).
+ipcMain.handle('tab:set-pinned', (_event, id: string, pinned: boolean): boolean => {
+  return tabManager.setPinned(id, pinned)
+})
+
 // Sprint 010 M2 — TabBar 우클릭 시 OS 네이티브 컨텍스트 메뉴 popup.
 ipcMain.handle(
   'tab:show-context-menu',
@@ -298,6 +303,15 @@ ipcMain.handle(
           if (!session) return
           createTabView(session.id, session.url)
           setActiveTabView(session.id)
+        }
+      },
+      {
+        label: tabManager.list().find((t) => t.id === tabId)?.pinned
+          ? '핀 해제'
+          : '핀 고정',
+        click: () => {
+          const current = tabManager.list().find((t) => t.id === tabId)?.pinned ?? false
+          tabManager.setPinned(tabId, !current)
         }
       },
       { type: 'separator' },

@@ -27,6 +27,8 @@ export interface TabSession {
   lastActiveAt: number
   /** Sprint 011 M2 — 사용자 시각 분류용 컬러 라벨 (기본 null) */
   color: TabColor
+  /** Sprint 011 M3 — 핀(고정) 상태 (기본 false). 핀 탭은 항상 좌측 + closeOthers/closeRight 자동 제외 */
+  pinned: boolean
 }
 
 export type TabsChangeHandler = (snapshot: {
@@ -49,13 +51,42 @@ export class TabManager {
       title: '',
       createdAt: now,
       lastActiveAt: now,
-      color: null
+      color: null,
+      pinned: false
     }
     this.tabs.set(id, session)
+    // 신규 탭은 비핀이라 기존 핀 영역 뒤 (마지막)로 push — 핀 탭이 좌측에 모이는 invariant 유지
     this.order.push(id)
     this.activeId = id
     this.emit()
     return { ...session }
+  }
+
+  /**
+   * Sprint 011 M3 — 탭 핀 토글.
+   * 핀 시: order에서 제거 후 핀 영역 끝(첫 비핀 직전)에 삽입
+   * 핀 해제 시: order에서 제거 후 마지막에 삽입
+   * 같은 상태면 no-op (emit skip).
+   */
+  setPinned(id: string, pinned: boolean): boolean {
+    const s = this.tabs.get(id)
+    if (!s) return false
+    if (s.pinned === pinned) return true
+    s.pinned = pinned
+    // order 재정렬: 핀 영역 좌측 + 비핀 영역 우측 invariant 유지
+    const fromIdx = this.order.indexOf(id)
+    if (fromIdx >= 0) this.order.splice(fromIdx, 1)
+    if (pinned) {
+      // 핀 영역 끝 = 첫 비핀 탭의 index
+      let insertIdx = this.order.findIndex((tid) => !(this.tabs.get(tid)?.pinned ?? false))
+      if (insertIdx < 0) insertIdx = this.order.length
+      this.order.splice(insertIdx, 0, id)
+    } else {
+      // 비핀 영역 끝 (마지막)
+      this.order.push(id)
+    }
+    this.emit()
+    return true
   }
 
   /**
@@ -159,17 +190,19 @@ export class TabManager {
    * Sprint 010 M2 — keepId 외 모든 탭 close. keepId 활성 보장.
    * keepId가 존재하지 않으면 false 반환, 변동 없음.
    * 닫힌 탭 id 배열 반환 (main/index.ts가 destroyTabView에 사용).
+   * Sprint 011 M3 — 핀 탭은 자동 보존 (closed에서 제외).
    */
   closeOthers(keepId: string): { ok: boolean; closed: string[] } {
     if (!this.tabs.has(keepId)) return { ok: false, closed: [] }
     const closed: string[] = []
     for (const id of [...this.order]) {
-      if (id !== keepId) {
-        this.tabs.delete(id)
-        const idx = this.order.indexOf(id)
-        if (idx >= 0) this.order.splice(idx, 1)
-        closed.push(id)
-      }
+      if (id === keepId) continue
+      const s = this.tabs.get(id)
+      if (s?.pinned) continue // Sprint 011 M3 핀 자동 보존
+      this.tabs.delete(id)
+      const idx = this.order.indexOf(id)
+      if (idx >= 0) this.order.splice(idx, 1)
+      closed.push(id)
     }
     if (this.activeId !== keepId) {
       this.activeId = keepId
@@ -183,11 +216,13 @@ export class TabManager {
   /**
    * Sprint 010 M2 — fromId 오른쪽(order index >) 탭들만 close.
    * fromId 활성 유지 (단, 닫힌 탭 중에 활성이 있었으면 fromId로 전환).
+   * Sprint 011 M3 — 핀 탭은 자동 보존 (closed에서 제외).
    */
   closeRight(fromId: string): { ok: boolean; closed: string[] } {
     const fromIdx = this.order.indexOf(fromId)
     if (fromIdx < 0) return { ok: false, closed: [] }
-    const toClose = this.order.slice(fromIdx + 1)
+    const rightSlice = this.order.slice(fromIdx + 1)
+    const toClose = rightSlice.filter((id) => !(this.tabs.get(id)?.pinned ?? false))
     if (toClose.length === 0) return { ok: true, closed: [] }
     const wasActiveClosed = this.activeId !== null && toClose.includes(this.activeId)
     for (const id of toClose) {
@@ -224,7 +259,20 @@ export class TabManager {
     const fromIdx = this.order.indexOf(tabId)
     if (fromIdx < 0) return false
     const len = this.order.length
-    const clamped = Math.max(0, Math.min(newIndex, len - 1))
+    let clamped = Math.max(0, Math.min(newIndex, len - 1))
+    // Sprint 011 M3 — 핀↔비핀 경계 넘기는 이동 제한 (clamp)
+    const isPinned = this.tabs.get(tabId)?.pinned ?? false
+    const pinnedCount = this.order.reduce(
+      (acc, id) => acc + (this.tabs.get(id)?.pinned ? 1 : 0),
+      0
+    )
+    if (isPinned) {
+      // 핀 영역: [0, pinnedCount-1]
+      clamped = Math.min(clamped, pinnedCount - 1)
+    } else {
+      // 비핀 영역: [pinnedCount, len-1]
+      clamped = Math.max(clamped, pinnedCount)
+    }
     if (clamped === fromIdx) return true
     this.order.splice(fromIdx, 1)
     this.order.splice(clamped, 0, tabId)
@@ -240,10 +288,20 @@ export class TabManager {
     this.tabs.clear()
     this.order = []
     for (const s of state.tabs) {
-      // 영속 파일에 color 누락 시 null fallback
-      this.tabs.set(s.id, { ...s, color: s.color ?? null })
+      // 영속 파일에 color/pinned 누락 시 fallback
+      this.tabs.set(s.id, {
+        ...s,
+        color: s.color ?? null,
+        pinned: s.pinned ?? false
+      })
       this.order.push(s.id)
     }
+    // Sprint 011 M3 — 핀 탭이 좌측에 오도록 정렬 (stable: 같은 핀 상태 안에서는 원래 순서 유지)
+    this.order.sort((a, b) => {
+      const pa = this.tabs.get(a)?.pinned ? 1 : 0
+      const pb = this.tabs.get(b)?.pinned ? 1 : 0
+      return pb - pa // 핀(1)이 앞
+    })
     if (state.activeId && this.tabs.has(state.activeId)) {
       this.activeId = state.activeId
     } else if (this.order.length > 0) {

@@ -349,6 +349,93 @@ describe('TabManager', () => {
     })
   })
 
+  // Sprint 011 M3 — setPinned
+  describe('setPinned (Sprint 011 M3)', () => {
+    it('핀 시 핀 영역 끝으로 이동 (단일 핀)', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      tm.open('b.com')
+      const c = tm.open('c.com')
+      expect(tm.setPinned(c.id, true)).toBe(true)
+      // c가 0번 (핀), 그 뒤 a, b
+      expect(tm.list().map((t) => t.url)).toEqual(['c.com', 'a.com', 'b.com'])
+      expect(tm.list()[0].pinned).toBe(true)
+    })
+
+    it('핀 해제 시 비핀 영역 끝으로 이동', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      tm.open('b.com')
+      tm.open('c.com')
+      tm.setPinned(a.id, true)
+      // 현재: a(핀), b, c
+      expect(tm.setPinned(a.id, false)).toBe(true)
+      expect(tm.list().map((t) => t.url)).toEqual(['b.com', 'c.com', 'a.com'])
+      expect(tm.list().find((t) => t.id === a.id)?.pinned).toBe(false)
+    })
+
+    it('다중 핀 사이 순서 — 새 핀은 핀 영역 끝(첫 비핀 직전)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      const c = tm.open('c.com')
+      tm.setPinned(a.id, true) // 핀: a / 비핀: b, c
+      tm.setPinned(b.id, true) // 핀: a, b / 비핀: c
+      tm.setPinned(c.id, true) // 핀: a, b, c
+      expect(tm.list().map((t) => t.url)).toEqual(['a.com', 'b.com', 'c.com'])
+      expect(tm.list().every((t) => t.pinned)).toBe(true)
+    })
+
+    it('같은 상태 → no-op (emit skip)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const handler = vi.fn()
+      tm.subscribe(handler)
+      handler.mockClear()
+      expect(tm.setPinned(a.id, false)).toBe(true) // 이미 false
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('존재하지 않는 id → false', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      expect(tm.setPinned('nope', true)).toBe(false)
+    })
+  })
+
+  // Sprint 011 M3 — closeOthers / closeRight 핀 제외
+  describe('closeOthers / closeRight 핀 제외 (Sprint 011 M3)', () => {
+    it('closeOthers 시 핀 탭 자동 보존', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      const c = tm.open('c.com')
+      tm.setPinned(a.id, true) // a 핀
+      // 순서: a(핀), b, c
+      const result = tm.closeOthers(c.id)
+      expect(result.ok).toBe(true)
+      // closed에 a 없음 (핀 보존), b만 닫힘
+      expect(result.closed).toEqual([b.id])
+      expect(tm.size()).toBe(2) // a (핀) + c
+      expect(tm.getActiveId()).toBe(c.id)
+    })
+
+    it('closeRight 시 오른쪽 핀 탭 보존 (드문 케이스 invariant 보호)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      const c = tm.open('c.com')
+      // 인위적으로 c를 핀 (b 다음 비핀 다음에 핀 — invariant 위반 시뮬, 단 setPinned가 invariant 유지 → 핀 옮김)
+      tm.setPinned(c.id, true) // c가 0번 (핀 영역)
+      // 순서: c(핀), a, b
+      const result = tm.closeRight(a.id)
+      expect(result.ok).toBe(true)
+      // a 오른쪽 = b만 (c는 a 왼쪽). 핀 무관하게 b 닫힘
+      expect(result.closed).toEqual([b.id])
+      expect(tm.size()).toBe(2)
+    })
+  })
+
   // Sprint 011 M2 — setColor
   describe('setColor (Sprint 011 M2)', () => {
     it('palette 정상 색상 → true, color 변경', () => {
@@ -432,8 +519,8 @@ describe('TabManager', () => {
       handler.mockClear()
       tm.restore({
         tabs: [
-          { id: 'r1', url: 'r1.com', title: 'R1', createdAt: 1, lastActiveAt: 2, color: null },
-          { id: 'r2', url: 'r2.com', title: 'R2', createdAt: 3, lastActiveAt: 4, color: null }
+          { id: 'r1', url: 'r1.com', title: 'R1', createdAt: 1, lastActiveAt: 2, color: null, pinned: false },
+          { id: 'r2', url: 'r2.com', title: 'R2', createdAt: 3, lastActiveAt: 4, color: null, pinned: false }
         ],
         activeId: 'r2'
       })
@@ -447,8 +534,8 @@ describe('TabManager', () => {
       const tm = new TabManager()
       tm.restore({
         tabs: [
-          { id: 'r1', url: 'r1.com', title: '', createdAt: 1, lastActiveAt: 2, color: null },
-          { id: 'r2', url: 'r2.com', title: '', createdAt: 3, lastActiveAt: 4, color: null }
+          { id: 'r1', url: 'r1.com', title: '', createdAt: 1, lastActiveAt: 2, color: null, pinned: false },
+          { id: 'r2', url: 'r2.com', title: '', createdAt: 3, lastActiveAt: 4, color: null, pinned: false }
         ],
         activeId: 'missing'
       })

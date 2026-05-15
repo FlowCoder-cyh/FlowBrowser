@@ -29,6 +29,7 @@ interface TabSessionPayload {
   createdAt: number
   lastActiveAt: number
   color: TabColorPayload
+  pinned: boolean
 }
 
 interface TabListSnapshot {
@@ -54,6 +55,8 @@ const tabApi = {
     ipcRenderer.invoke('tab:show-context-menu', { tabId }),
   setColor: (id: string, color: TabColorPayload): Promise<boolean> =>
     ipcRenderer.invoke('tab:set-color', id, color),
+  setPinned: (id: string, pinned: boolean): Promise<boolean> =>
+    ipcRenderer.invoke('tab:set-pinned', id, pinned),
   onListUpdate: (handler: (snapshot: TabListSnapshot) => void): (() => void) => {
     const listener = (_e: unknown, snap: TabListSnapshot): void => handler(snap)
     ipcRenderer.on('tab:list-update', listener)
