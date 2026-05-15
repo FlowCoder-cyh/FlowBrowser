@@ -324,29 +324,27 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
   }
 
   // Cache lookup (Privacy Filter 통과 후, Provider 호출 전).
-  // Sprint 004 M2/M3: explanation/summary는 캐시 우회 (캐시 키에 requestType 없음 → 충돌 회피).
-  const cacheable = args.input.requestType !== 'explanation' && args.input.requestType !== 'summary'
-  if (cacheable) {
-    const cached = await translationCache.lookup({
-      sourceText: args.input.sourceText,
-      sourceLanguage: args.input.sourceLanguage,
-      targetLanguage: args.input.targetLanguage,
-      providerType: args.providerType,
-      glossaryVersion: undefined
-    })
-    if (cached) {
-      return {
-        ok: true,
-        decision: evaluation.decision,
-        fromCache: true,
-        output: {
-          translatedText: cached.translatedText,
-          modelUsed: `${args.providerType}/cache`,
-          inputTokens: 0,
-          outputTokens: 0,
-          estimatedCostUsd: 0,
-          durationMs: 0
-        }
+  // Sprint 005 M1: 캐시 키에 requestType 포함 → explanation/summary도 정상 캐싱.
+  const cached = await translationCache.lookup({
+    sourceText: args.input.sourceText,
+    sourceLanguage: args.input.sourceLanguage,
+    targetLanguage: args.input.targetLanguage,
+    providerType: args.providerType,
+    requestType: args.input.requestType,
+    glossaryVersion: undefined
+  })
+  if (cached) {
+    return {
+      ok: true,
+      decision: evaluation.decision,
+      fromCache: true,
+      output: {
+        translatedText: cached.translatedText,
+        modelUsed: `${args.providerType}/cache`,
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostUsd: 0,
+        durationMs: 0
       }
     }
   }
@@ -366,17 +364,16 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
 
   try {
     const output = await provider.translate(args.input)
-    if (cacheable) {
-      await translationCache.store({
-        sourceText: args.input.sourceText,
-        sourceLanguage: args.input.sourceLanguage,
-        targetLanguage: args.input.targetLanguage,
-        providerType: args.providerType,
-        translatedText: output.translatedText,
-        domain,
-        isSubtitle: args.input.requestType === 'subtitle'
-      })
-    }
+    await translationCache.store({
+      sourceText: args.input.sourceText,
+      sourceLanguage: args.input.sourceLanguage,
+      targetLanguage: args.input.targetLanguage,
+      providerType: args.providerType,
+      requestType: args.input.requestType,
+      translatedText: output.translatedText,
+      domain,
+      isSubtitle: args.input.requestType === 'subtitle'
+    })
     await usageLog.append({
       providerId: provider.info.providerType,
       feature: usageFeature,

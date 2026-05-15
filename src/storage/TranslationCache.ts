@@ -10,11 +10,25 @@ import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import { join, dirname } from 'node:path'
 
+/**
+ * Sprint 005 M1 — requestType 도입. 같은 sourceText로 다른 requestType
+ * (선택 영역 번역 vs 자막 vs 페이지 등) 호출 시 별도 캐시 항목 보존.
+ */
+export type CacheRequestType =
+  | 'selection'
+  | 'paragraph'
+  | 'page'
+  | 'subtitle'
+  | 'tts_script'
+  | 'explanation'
+  | 'summary'
+
 export interface CacheKeyInput {
   sourceText: string
   sourceLanguage: string
   targetLanguage: string
   providerType: string
+  requestType: CacheRequestType
   glossaryVersion?: string
 }
 
@@ -26,6 +40,7 @@ export interface CacheEntry {
   sourceLanguage: string
   targetLanguage: string
   providerType: string
+  requestType: CacheRequestType
   glossaryVersion: string
   domain: string | null
   hitCount: number
@@ -69,6 +84,7 @@ export class TranslationCache {
       args.sourceLanguage,
       args.targetLanguage,
       args.providerType,
+      args.requestType,
       args.glossaryVersion ?? 'default'
     ].join('|')
     return { sourceHash, composite }
@@ -77,9 +93,14 @@ export class TranslationCache {
   async load(): Promise<void> {
     try {
       const buf = await fs.readFile(this.filePath, 'utf-8')
-      const parsed = JSON.parse(buf) as CacheEntry[]
+      const parsed = JSON.parse(buf) as Array<CacheEntry & { requestType?: CacheRequestType }>
       this.memory.clear()
-      for (const entry of parsed) {
+      for (const raw of parsed) {
+        // Sprint 005 M1: requestType이 없는 구 항목은 'selection'으로 fallback (자연 폐기 대상)
+        const entry: CacheEntry = {
+          ...raw,
+          requestType: raw.requestType ?? 'selection'
+        }
         const composite = this.compositeFromEntry(entry)
         this.memory.set(composite, entry)
       }
@@ -139,6 +160,7 @@ export class TranslationCache {
           sourceLanguage: args.sourceLanguage,
           targetLanguage: args.targetLanguage,
           providerType: args.providerType,
+          requestType: args.requestType,
           glossaryVersion: args.glossaryVersion ?? 'default',
           domain: args.domain ?? null,
           hitCount: 0,
@@ -206,6 +228,7 @@ export class TranslationCache {
       e.sourceLanguage,
       e.targetLanguage,
       e.providerType,
+      e.requestType,
       e.glossaryVersion
     ].join('|')
   }

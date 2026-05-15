@@ -28,13 +28,15 @@ describe('TranslationCache', () => {
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
-        providerType: 'openai'
+        providerType: 'openai',
+        requestType: 'selection'
       })
       const k2 = TranslationCache.buildKey({
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
-        providerType: 'openai'
+        providerType: 'openai',
+        requestType: 'selection'
       })
       expect(k1.sourceHash).toBe(k2.sourceHash)
       expect(k1.composite).toBe(k2.composite)
@@ -45,13 +47,15 @@ describe('TranslationCache', () => {
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
-        providerType: 'openai'
+        providerType: 'openai',
+        requestType: 'selection'
       })
       const k2 = TranslationCache.buildKey({
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ja',
-        providerType: 'openai'
+        providerType: 'openai',
+        requestType: 'selection'
       })
       expect(k1.composite).not.toBe(k2.composite)
     })
@@ -61,7 +65,8 @@ describe('TranslationCache', () => {
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
-        providerType: 'openai'
+        providerType: 'openai',
+        requestType: 'selection'
       })
       const k2 = TranslationCache.buildKey({
         sourceText: 'hello',
@@ -72,12 +77,41 @@ describe('TranslationCache', () => {
       expect(k1.composite).not.toBe(k2.composite)
     })
 
+    it('requestType is part of the key (Sprint 005 M1)', () => {
+      const k1 = TranslationCache.buildKey({
+        sourceText: 'hello',
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'selection'
+      })
+      const k2 = TranslationCache.buildKey({
+        sourceText: 'hello',
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'summary'
+      })
+      const k3 = TranslationCache.buildKey({
+        sourceText: 'hello',
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'explanation'
+      })
+      expect(k1.sourceHash).toBe(k2.sourceHash) // 같은 source
+      expect(k1.composite).not.toBe(k2.composite) // 키는 다름
+      expect(k1.composite).not.toBe(k3.composite)
+      expect(k2.composite).not.toBe(k3.composite)
+    })
+
     it('glossaryVersion is part of the key', () => {
       const k1 = TranslationCache.buildKey({
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         glossaryVersion: 'v1'
       })
       const k2 = TranslationCache.buildKey({
@@ -85,9 +119,58 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         glossaryVersion: 'v2'
       })
       expect(k1.composite).not.toBe(k2.composite)
+    })
+  })
+
+  describe('requestType 분리 (Sprint 005 M1)', () => {
+    it('same sourceText with different requestType keeps separate entries', async () => {
+      const cache = new TranslationCache(cachePath)
+      await cache.load()
+      await cache.store({
+        sourceText: 'hello world',
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'selection',
+        translatedText: '번역: 안녕'
+      })
+      await cache.store({
+        sourceText: 'hello world',
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'summary',
+        translatedText: '요약: 인사말'
+      })
+      await cache.store({
+        sourceText: 'hello world',
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'explanation',
+        translatedText: '설명: 일반적 인사'
+      })
+      expect(cache.size()).toBe(3)
+      const sel = await cache.lookup({
+        sourceText: 'hello world',
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'selection'
+      })
+      const sum = await cache.lookup({
+        sourceText: 'hello world',
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'summary'
+      })
+      expect(sel?.translatedText).toBe('번역: 안녕')
+      expect(sum?.translatedText).toBe('요약: 인사말')
     })
   })
 
@@ -99,7 +182,8 @@ describe('TranslationCache', () => {
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
-        providerType: 'openai'
+        providerType: 'openai',
+        requestType: 'selection'
       })
       expect(hit).toBeNull()
     })
@@ -112,6 +196,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         translatedText: '안녕',
         domain: 'www.example.com'
       })
@@ -119,7 +204,8 @@ describe('TranslationCache', () => {
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
-        providerType: 'openai'
+        providerType: 'openai',
+        requestType: 'selection'
       })
       expect(hit1).not.toBeNull()
       expect(hit1?.translatedText).toBe('안녕')
@@ -128,7 +214,8 @@ describe('TranslationCache', () => {
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
-        providerType: 'openai'
+        providerType: 'openai',
+        requestType: 'selection'
       })
       expect(hit2?.hitCount).toBe(2)
     })
@@ -141,6 +228,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         translatedText: '안녕'
       })
       await new Promise((r) => setTimeout(r, 3))
@@ -149,6 +237,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         translatedText: '안녕하세요'
       })
       expect(b.id).toBe(a.id)
@@ -167,6 +256,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         translatedText: '안녕'
       })
       const ninetyDays = 90 * 24 * 60 * 60 * 1000
@@ -183,6 +273,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         translatedText: '안녕',
         isSubtitle: true
       })
@@ -198,6 +289,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         translatedText: '안녕'
       })
       await new Promise((r) => setTimeout(r, 20))
@@ -205,7 +297,8 @@ describe('TranslationCache', () => {
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
-        providerType: 'openai'
+        providerType: 'openai',
+        requestType: 'selection'
       })
       expect(hit).toBeNull()
       expect(cache.size()).toBe(0)
@@ -221,6 +314,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         translatedText: '안녕'
       })
       await cache1.flush()
@@ -231,7 +325,8 @@ describe('TranslationCache', () => {
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
-        providerType: 'openai'
+        providerType: 'openai',
+        requestType: 'selection'
       })
       expect(hit?.translatedText).toBe('안녕')
     })
@@ -244,6 +339,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         translatedText: '안녕'
       })
       await cache.clearAll()
@@ -261,6 +357,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         glossaryVersion: 'v1',
         translatedText: '에이'
       })
@@ -269,6 +366,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         glossaryVersion: 'v2',
         translatedText: '비'
       })
@@ -281,6 +379,7 @@ describe('TranslationCache', () => {
         sourceLanguage: 'en',
         targetLanguage: 'ko',
         providerType: 'openai',
+        requestType: 'selection',
         glossaryVersion: 'v2'
       })
       expect(hit?.translatedText).toBe('비')
