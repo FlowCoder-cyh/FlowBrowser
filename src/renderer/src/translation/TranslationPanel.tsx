@@ -20,6 +20,8 @@ interface SummaryState {
   chunkSummaries: string[]
   combined: boolean
   combinedPath?: 'single' | 'direct' | 'resplit' | 'truncated'
+  combinedInputChars?: number
+  combineCharLimit?: number
   chunks: number
   reason: string | null
 }
@@ -257,6 +259,8 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         chunkSummaries: p.chunkSummaries,
         combined: p.combined,
         combinedPath: p.combinedPath,
+        combinedInputChars: p.combinedInputChars,
+        combineCharLimit: p.combineCharLimit,
         chunks: p.chunks,
         reason: null
       })
@@ -493,6 +497,20 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
               <div className="panel-summary-meta">
                 {summary.chunks}개 청크 ·{' '}
                 {summary.combinedPath ? PATH_LABELS[summary.combinedPath] : '단일 요약'}
+                {summary.combinedInputChars !== undefined &&
+                  summary.combineCharLimit !== undefined && (
+                    <span
+                      className={
+                        summary.combinedPath === 'truncated'
+                          ? 'panel-summary-chars warn'
+                          : 'panel-summary-chars'
+                      }
+                    >
+                      {' '}
+                      · 통합 입력 {summary.combinedInputChars.toLocaleString()}자 / limit{' '}
+                      {summary.combineCharLimit.toLocaleString()}자
+                    </span>
+                  )}
                 {summary.chunkSummaries.length > 1 && (
                   <button
                     type="button"

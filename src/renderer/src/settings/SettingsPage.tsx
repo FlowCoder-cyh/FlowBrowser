@@ -4,6 +4,7 @@ import DomainPolicyPanel from './DomainPolicyPanel'
 import GlossaryPanel from './GlossaryPanel'
 import DisplayModePanel from './DisplayModePanel'
 import GeneralPanel from './GeneralPanel'
+import PageCachePanel from './PageCachePanel'
 
 interface CredentialRecord {
   id: string
@@ -154,6 +155,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
       <DisplayModePanel />
       <DomainPolicyPanel />
       <GlossaryPanel />
+      <PageCachePanel />
       <UsagePanel />
     </div>
   )

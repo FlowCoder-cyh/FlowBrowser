@@ -136,6 +136,28 @@ describe('summarizeChunks', () => {
     expect(summarize.mock.calls.length).toBeGreaterThan(4 + 1)
   })
 
+  it('combinedInputChars 메타 반환 — single 경로 (Sprint 007 M2)', async () => {
+    const result = await summarizeChunks(['원문 25자만'], async (t) => `S(${t})`, {
+      combineCharLimit: 100
+    })
+    expect(result.combinedPath).toBe('single')
+    expect(result.combinedInputChars).toBe('원문 25자만'.length)
+    expect(result.combineCharLimit).toBe(100)
+  })
+
+  it('combinedInputChars 메타 반환 — truncated 경로면 limit과 같음', async () => {
+    const summarize = vi.fn(async (t: string) => `${t}|tail`)
+    const longChunk = 'X'.repeat(80)
+    const result = await summarizeChunks(
+      [longChunk, longChunk, longChunk, longChunk, longChunk, longChunk],
+      summarize,
+      { combineCharLimit: 100 }
+    )
+    expect(result.combinedPath).toBe('truncated')
+    expect(result.combinedInputChars).toBe(100)
+    expect(result.combineCharLimit).toBe(100)
+  })
+
   it('combinedPath: truncated (재분할 후에도 limit 초과 → truncate 폴백)', async () => {
     // summarize가 입력 길이를 거의 유지 (truncate 안 됨) → 재분할 후에도 큰 입력 유지
     const summarize = vi.fn(async (t: string) => `${t}|tail`)
