@@ -61,6 +61,8 @@ const tabApi = {
     id: string
   ): Promise<{ dataUrl: string; capturedAt: number; width: number; height: number } | null> =>
     ipcRenderer.invoke('tab:get-thumbnail', id),
+  reopen: (): Promise<TabSessionPayload | null> => ipcRenderer.invoke('tab:reopen'),
+  reopenSize: (): Promise<number> => ipcRenderer.invoke('tab:reopen-size'),
   onListUpdate: (handler: (snapshot: TabListSnapshot) => void): (() => void) => {
     const listener = (_e: unknown, snap: TabListSnapshot): void => handler(snap)
     ipcRenderer.on('tab:list-update', listener)
