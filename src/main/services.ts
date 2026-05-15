@@ -27,11 +27,16 @@ import {
   CredentialsStore,
   UsageLog,
   TranslationCache,
+  GlossaryStore,
   defaultCredentialsPath,
   defaultUsageLogPath,
   defaultTranslationCachePath,
+  defaultGlossaryPath,
+  formatGlossaryContext,
   type CredentialRecord,
-  type CredentialProviderType
+  type CredentialProviderType,
+  type GlossaryTerm,
+  type GlossaryExport
 } from '../storage'
 
 import {
@@ -57,6 +62,7 @@ let transmissionLogger!: TransmissionLogger
 let credentialsStore!: CredentialsStore
 let usageLog!: UsageLog
 let translationCache!: TranslationCache
+let glossaryStore!: GlossaryStore
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 
 let consentStatePath!: string
@@ -83,12 +89,16 @@ export async function initServices(): Promise<void> {
   translationCache = new TranslationCache(defaultTranslationCachePath(userDataDir))
   await translationCache.load()
 
+  glossaryStore = new GlossaryStore(defaultGlossaryPath(userDataDir))
+  await glossaryStore.load()
+
   registerConsentIpc()
   registerCredentialIpc()
   registerPrivacyIpc()
   registerUsageIpc()
   registerTranslateIpc()
   registerCacheIpc()
+  registerGlossaryIpc()
 }
 
 function registerCacheIpc(): void {
@@ -100,6 +110,86 @@ function registerCacheIpc(): void {
     'cache:invalidate-glossary',
     async (_event, version: string): Promise<number> =>
       translationCache.invalidateByGlossaryVersion(version)
+  )
+}
+
+function registerGlossaryIpc(): void {
+  ipcMain.handle('glossary:list', (): GlossaryTerm[] => glossaryStore.list())
+
+  ipcMain.handle('glossary:version', (): string => glossaryStore.getVersion())
+
+  ipcMain.handle(
+    'glossary:add',
+    async (
+      _event,
+      args: {
+        sourceTerm: string
+        targetTerm: string
+        description?: string
+        domain?: string
+        isActive?: boolean
+      }
+    ): Promise<{ ok: boolean; error?: string; term?: GlossaryTerm }> => {
+      const prevVersion = glossaryStore.getVersion()
+      const result = await glossaryStore.add(args)
+      if (result.ok) {
+        await translationCache.invalidateByGlossaryVersion(prevVersion)
+      }
+      return { ok: result.ok, error: result.error, term: result.term }
+    }
+  )
+
+  ipcMain.handle(
+    'glossary:update',
+    async (
+      _event,
+      args: {
+        id: string
+        patch: Partial<Pick<GlossaryTerm, 'sourceTerm' | 'targetTerm' | 'description' | 'domain' | 'isActive'>>
+      }
+    ): Promise<{ ok: boolean; term?: GlossaryTerm }> => {
+      const prevVersion = glossaryStore.getVersion()
+      const result = await glossaryStore.update(args.id, args.patch)
+      if (result.ok) {
+        await translationCache.invalidateByGlossaryVersion(prevVersion)
+      }
+      return result
+    }
+  )
+
+  ipcMain.handle(
+    'glossary:remove',
+    async (_event, id: string): Promise<boolean> => {
+      const prevVersion = glossaryStore.getVersion()
+      const removed = await glossaryStore.remove(id)
+      if (removed) {
+        await translationCache.invalidateByGlossaryVersion(prevVersion)
+      }
+      return removed
+    }
+  )
+
+  ipcMain.handle('glossary:clear', async (): Promise<void> => {
+    const prevVersion = glossaryStore.getVersion()
+    await glossaryStore.clearAll()
+    await translationCache.invalidateByGlossaryVersion(prevVersion)
+  })
+
+  ipcMain.handle('glossary:export', (): GlossaryExport => glossaryStore.exportTerms())
+
+  ipcMain.handle(
+    'glossary:import',
+    async (
+      _event,
+      raw: unknown
+    ): Promise<{ ok: boolean; accepted: number; rejected: number; error?: string }> => {
+      const prevVersion = glossaryStore.getVersion()
+      const result = await glossaryStore.importTerms(raw)
+      if (result.ok) {
+        await translationCache.invalidateByGlossaryVersion(prevVersion)
+      }
+      return result
+    }
   )
 }
 
@@ -323,15 +413,25 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
     }
   }
 
+  // Sprint 005 M2 — 활성 용어집 추출. explanation/summary는 의역이라 적용 안 함.
+  const applyGlossary =
+    args.input.requestType !== 'explanation' && args.input.requestType !== 'summary'
+  const glossaryVersion = applyGlossary ? glossaryStore.getVersion() : 'default'
+  const glossaryTerms: GlossaryTerm[] = applyGlossary
+    ? glossaryStore.getActiveForDomain(domain || null)
+    : []
+  const glossaryContext = formatGlossaryContext(glossaryTerms)
+
   // Cache lookup (Privacy Filter 통과 후, Provider 호출 전).
   // Sprint 005 M1: 캐시 키에 requestType 포함 → explanation/summary도 정상 캐싱.
+  // Sprint 005 M2: glossaryVersion이 키의 일부 → 용어집 mutation 시 자동 invalidation.
   const cached = await translationCache.lookup({
     sourceText: args.input.sourceText,
     sourceLanguage: args.input.sourceLanguage,
     targetLanguage: args.input.targetLanguage,
     providerType: args.providerType,
     requestType: args.input.requestType,
-    glossaryVersion: undefined
+    glossaryVersion
   })
   if (cached) {
     return {
@@ -363,13 +463,25 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
   }
 
   try {
-    const output = await provider.translate(args.input)
+    const inputWithGlossary = glossaryContext
+      ? {
+          ...args.input,
+          context: {
+            ...(args.input.context ?? {}),
+            surroundingText: [args.input.context?.surroundingText, glossaryContext]
+              .filter(Boolean)
+              .join('\n\n')
+          }
+        }
+      : args.input
+    const output = await provider.translate(inputWithGlossary)
     await translationCache.store({
       sourceText: args.input.sourceText,
       sourceLanguage: args.input.sourceLanguage,
       targetLanguage: args.input.targetLanguage,
       providerType: args.providerType,
       requestType: args.input.requestType,
+      glossaryVersion,
       translatedText: output.translatedText,
       domain,
       isSubtitle: args.input.requestType === 'subtitle'

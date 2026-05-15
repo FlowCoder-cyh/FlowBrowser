@@ -5,6 +5,7 @@ import type {
   PrivacyApi,
   UsageApi,
   CacheApi,
+  GlossaryApi,
   TranslateApi,
   PopupApi
 } from './index'
@@ -17,6 +18,7 @@ declare global {
     privacyApi: PrivacyApi
     usageApi: UsageApi
     cacheApi: CacheApi
+    glossaryApi: GlossaryApi
     translateApi: TranslateApi
     popupApi: PopupApi
   }
