@@ -7,6 +7,20 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.6 v0.3.3 변경 이력 (2026-05-15) — Sprint 005 실측 반영
+
+Phase 1 Sprint 005 산출물을 PRD에 반영한 패치.
+
+v0.3.2 대비 주요 변경:
+
+1. **§9.2 / §12.4 캐시 키 확장**: TranslationCache 복합 키에 `requestType` 추가 (6요소화). Sprint 004 M2 cache 우회 정책 제거 — explanation/summary도 정상 lookup/store. 기존 디스크 항목은 `requestType` 누락 시 `'selection'` fallback (자연 폐기).
+2. **§9.2 / §12.7 용어집**: PRD §12.7 GlossaryTerm 1:1 정합 GlossaryStore 구현. 활성 + 도메인 일치 (또는 빈 도메인) 최대 50개를 prompt 컨텍스트로 주입. explanation/summary는 의역이라 적용 외. mutation 시 sha256 기반 version 자동 갱신 → `translationCache.invalidateByGlossaryVersion(prevVersion)` 7개 IPC에서 일관 호출.
+3. **§9.6 / §11 GlossaryPanel UI**: Settings 안 신규 섹션 — 4 필드 폼 + 검증 5종 (empty_source/empty_target/too_long_source/too_long_target/duplicate) + 활성 토글 + 도메인 필터 + JSON import/export + 모두 삭제. DomainPolicyPanel과 동일 패턴 적용.
+4. **§9.2 / §11.1 요약 폭주 보호**: `summarizeChunks(combineCharLimit=8000)` 옵션. 4 경로 (`single / direct / resplit / truncated`). 통합 입력 > limit 시 1회 재분할 → 재분할 후에도 초과 시 truncate 폴백 (무한 루프 방지). TranslationPanel에 `combinedPath` 한국어 라벨 + chunkSummaries 펼치기 토글.
+5. **§19.5 / §19.6 모듈 등록**: GlossaryStore / formatGlossaryContext / validateTerm / GlossaryPanel 신규 등록.
+
+본 패치는 Sprint 005 M1~M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.5 v0.3.2 변경 이력 (2026-05-15) — Sprint 004 실측 반영
 
 Phase 1 Sprint 004 산출물을 PRD에 반영한 패치. 본격 변경 없이 실측·정책 명문화.
