@@ -264,6 +264,15 @@ export interface TranslateResult {
   decision: PrivacyDecision | 'no_provider' | 'provider_error'
   reason?: string
   fromCache?: boolean
+  /**
+   * Sprint 003 M1: 차단 시에만 의미. true면 페이지 전체 차단 (호출자가 일괄 중단).
+   * `decision !== 'blocked'` 시 undefined.
+   */
+  pageWideBlock?: boolean
+  /**
+   * Sprint 003 M1: 차단 사유 enum (UI 분기용). 차단 외에는 'none'.
+   */
+  blockReason?: import('../privacy/types').BlockReason
 }
 
 export async function executeTranslateRequest(args: TranslateArgs): Promise<TranslateResult> {
@@ -291,7 +300,13 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
       feature: 'translation',
       reason: evaluation.reason
     })
-    return { ok: false, decision: 'blocked', reason: evaluation.reason }
+    return {
+      ok: false,
+      decision: 'blocked',
+      reason: evaluation.reason,
+      pageWideBlock: evaluation.pageWideBlock,
+      blockReason: evaluation.blockReason
+    }
   }
 
   // Cache lookup (Privacy Filter 통과 후, Provider 호출 전)

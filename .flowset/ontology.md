@@ -98,6 +98,27 @@ Codex/ChatGPT 로그인 기반 Provider. Phase 0 Spike 1 검증 통과 시에만
 
 이유: 사용자가 페이지를 승인해도, 실제 전송 본문에 카드 번호가 들어가는 것은 사용자 실수일 가능성이 더 높음. 의도된 강제 안전 정책.
 
+#### **BlockReason** (Sprint 003 결정)
+Privacy Filter 차단 사유 enum. `evaluatePrivacy()` 반환의 `blockReason` 필드.
+- `none`: 차단 아님 (`allowed | user_approved`)
+- `consent`: 전역 동의 미보유
+- `password`: password input 필드 존재 (수동 승인 없음)
+- `card_field`: 카드 입력 필드 존재 (수동 승인 없음)
+- `card_pattern`: 본문 카드 번호 패턴 (수동 승인 무력)
+- `domain`: 도메인 블랙리스트 매치 (수동 승인 없음)
+
+평가 우선순위는 위에서 아래로. 첫 매치 사유로 즉시 차단 반환.
+
+기존 `blockedBy` 필드는 호환 유지 (`password_field | card_field | domain_blacklist | consent_revoked`).
+
+#### **pageWideBlock** (Sprint 003 결정)
+차단 시 페이지 전체 차단 여부 boolean. `evaluatePrivacy()` 반환의 `pageWideBlock` 필드.
+- 모든 `BlockReason !== 'none'` 시 true (사용자가 명시 차단 가능한 모든 사유는 page-wide로 통일)
+- `allowed | user_approved` 시 false
+- 호출자(예: paragraph/page 번역 반복문)는 본 필드 true 시 후속 청크/문단을 즉시 중단해야 함
+
+Sprint 002까지는 reason 문자열(`'전역 동의' | '비밀번호' | '결제'`)을 매칭해 page-wide 판정했으나, Sprint 003에서 enum + boolean으로 구조화.
+
 ---
 
 ### 1.4 번역 계층
