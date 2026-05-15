@@ -2,19 +2,19 @@
 
 # 12. 데이터 모델 초안
 
-## 12.1 UserSetting (v0.3.4 Sprint 006 M2 부분 구현)
+## 12.1 UserSetting (v0.3.5 Sprint 007 M1 4 필드 추가 구현)
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | id | string | 설정 ID |
-| defaultLanguage | string | 기본 번역 대상 언어 |
-| sourceLanguage | string | 원문 언어 |
+| defaultLanguage | string | 기본 번역 대상 언어 (Sprint 007 M1, 기본 'ko') |
+| sourceLanguage | string | 원문 언어 (Sprint 007 M1, 기본 'auto') |
 | translationMode | enum | panel / overlay / replace (Sprint 006 M2에서 UserSettingStore + DisplayModePanel UI 구현. 영속: user-setting.json) |
 | subtitleMode | enum | translated / bilingual / original |
 | ttsEnabled | boolean | TTS 사용 여부 |
 | syncMode | enum | off / soft / strict |
-| defaultProviderId | string | 기본 Provider |
-| privacyFilterEnabled | boolean | Privacy Filter 활성 여부 (기본 true) |
+| defaultProviderId | string | 기본 Provider (Sprint 007 M1, 기본 'openai') |
+| privacyFilterEnabled | boolean | Privacy Filter 활성 여부 (Sprint 007 M1, 기본 true. false 시 도메인 차단만 우회, password/card 본문 차단은 항상 적용) |
 | createdAt | datetime | 생성일 |
 | updatedAt | datetime | 수정일 |
 

@@ -7,6 +7,20 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.8 v0.3.5 변경 이력 (2026-05-15) — Sprint 007 실측 반영
+
+Phase 1 Sprint 007 산출물을 PRD에 반영한 패치 (누적 정리 Sprint).
+
+v0.3.4 대비 주요 변경:
+
+1. **§12.1 UserSetting 잔여 4 필드 구현**: `defaultLanguage` (기본 'ko') / `sourceLanguage` (기본 'auto') / `defaultProviderId` (기본 'openai') / `privacyFilterEnabled` (기본 true). UserSettingStore 확장 + Settings GeneralPanel UI + TranslationPanel 5종 흐름(paragraphs/page/summarizePage/restoreCurrent/lookup)에 setting 적용. `subtitleMode / ttsEnabled / syncMode`는 Phase 2~4 진입 시 추가.
+2. **§9.6 / §10.3 privacyFilterEnabled 안전 정책**: false 시 도메인 차단만 우회. password 필드 / 카드 필드 / 본문 카드 패턴은 항상 차단 (G-004 안전 정책 무력화 절대 금지). services.ts evalDomains 분기 + manualApprovalToken 의도적 드롭으로 우회 불가 보장.
+3. **§9.2 / §12.10 요약 메타 수치 표시**: SummarizeResult에 `combinedInputChars` / `combineCharLimit` 추가. TranslationPanel 메타에 "통합 입력 N자 / limit M자" 표시. truncated 경로 시각적 강조.
+4. **§12.10 PageCachePanel UI**: Settings에 페이지 캐시 통계 (count) + 모두 삭제 (confirm) UI. PageResultStore.stats() / clearAll() 활용.
+5. **§19 빌드/타입 보강** (운영): tsconfig.node.json include 확장 (storage/ai/privacy/perception/tests). main/index.ts + services.ts의 dynamic import 5건 → 정적 import로 전환. vite chunk 분리 사라짐 (out/main에 index.js 단일).
+
+본 패치는 Sprint 007 M1~M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.7 v0.3.4 변경 이력 (2026-05-15) — Sprint 006 실측 반영
 
 Phase 1 Sprint 006 산출물을 PRD에 반영한 패치.

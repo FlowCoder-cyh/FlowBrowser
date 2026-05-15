@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~006 종료, **Sprint 007 정의 완료 / M1 대기**
-- **Sprint**: **007 정의 완료** (Sprint 006 종합 Pass 8/0/0)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~007 종료
+- **Sprint**: **007 종료** (M4 종합 evaluator 진행 중)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: v0.3.4 (2026-05-15) — Sprint 007 M4에서 v0.3.5 패치 예정
-- **최근 갱신**: 2026-05-15 (Sprint 007 정의 작성, contracts/sprint-007.md)
+- **PRD 버전**: **v0.3.5** (2026-05-15, Sprint 007 실측 반영)
+- **최근 갱신**: 2026-05-15 (Sprint 007 M4 PRD 패치 + Sprint 종료)
 
 ## 현재 작업
 
@@ -43,15 +43,22 @@
 - Sprint 종합 evaluator: Pass 9 / 0 / 0
 - PRD v0.3.3 발행
 
-### Sprint 006 진행 (2026-05-15)
+### Sprint 006 결과 (PR #35~#39 머지)
 
-- 산출물: `.flowset/contracts/sprint-006.md`
-- M1 (PR #36): Navigation 동기화 + TranslationRenderer (replace/overlay IIFE) + 12 tests. evaluator Pass 8/1/0.
-- M2 (PR #37): UserSettingStore + DisplayModePanel + TranslationPanel mode 분기 + 자동 render + 자동 restore + 6 tests. evaluator Pass 9/0/0 (M1 Partial Pass 전환).
-- M3 (PR #38): PageResultStore + persistPageResult + restoreCurrent IPC + restoreHint UI + 16 tests. evaluator Pass 7/0/0 (G-009 commit으로 8).
-- M4: PRD v0.3.4 패치 + Sprint 종합 evaluator 진행 중
-- 누적 단위 테스트: 158 → 192 (+34 신규)
+- 누적 단위 테스트: 158 → 192 (+34)
+- Sprint 종합 evaluator: Pass 8 / 0 / 0
+- PRD v0.3.4 발행
+
+### Sprint 007 진행 (2026-05-15)
+
+- 산출물: `.flowset/contracts/sprint-007.md`
+- M1 (PR #41): UserSetting 4 필드 (defaultLanguage/sourceLanguage/defaultProviderId/privacyFilterEnabled) + GeneralPanel UI + 5종 흐름 적용. evaluator Pass 11/0/0.
+- M2 (PR #42): 요약 메타 수치 (combinedInputChars / combineCharLimit) + PageCachePanel UI. evaluator Pass 8/0/0.
+- M3 (PR #43): tsconfig include 확장 + dynamic import 5건 → 정적 (out/main 단일 chunk). evaluator Pass 10/0/0.
+- M4: PRD v0.3.5 패치 + Sprint 종합 evaluator 진행 중
+- 누적 단위 테스트: 192 → 200 (+8 신규)
 - 모든 자동 검증 (lint/typecheck/test/build) PASS
+- **commit-check CI 모든 PR 성공** (Sprint 003~006 NNN 위반 패턴 완전 해소)
 
 ## 활성 Spike (5종)
 
