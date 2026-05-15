@@ -55,13 +55,24 @@ export default function Consent({ onAgreed }: Props): JSX.Element {
           </li>
         </ul>
 
-        <label className="consent-checkbox">
+        <label className="consent-checkbox" htmlFor="consent-agree-input">
           <input
+            id="consent-agree-input"
             type="checkbox"
             checked={agreed}
             onChange={(e) => setAgreed(e.target.checked)}
+            onClick={(e) => {
+              // Sprint 014 M3-1 핫픽스 — onChange가 일부 Electron 환경에서 미발화되는 케이스 보정
+              const next = (e.target as HTMLInputElement).checked
+              setAgreed(next)
+            }}
           />
-          <span>위 안내를 읽고 데이터 처리 / AI 전송에 동의합니다.</span>
+          <span
+            onClick={() => setAgreed((prev) => !prev)}
+            style={{ cursor: 'pointer' }}
+          >
+            위 안내를 읽고 데이터 처리 / AI 전송에 동의합니다.
+          </span>
         </label>
 
         <button

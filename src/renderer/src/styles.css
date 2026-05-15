@@ -348,12 +348,20 @@ body {
   margin: 24px 0 16px;
   font-size: 14px;
   cursor: pointer;
-  user-select: none;
+  /* Sprint 014 M3-1 핫픽스 — body user-select:none이 click 이벤트를 input에 propagation 차단하는 케이스 회피 */
+  -webkit-user-select: auto;
+  user-select: auto;
+  pointer-events: auto;
 }
 
 .consent-checkbox input {
   margin-top: 3px;
   cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: #4a9eff;
+  flex-shrink: 0;
+  pointer-events: auto;
 }
 
 .consent-agree {
