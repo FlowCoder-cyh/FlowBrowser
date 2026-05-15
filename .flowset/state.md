@@ -98,15 +98,29 @@
 - PRD v0.3.11 발행
 - commit-check CI 5 PR 모두 success
 
-### Sprint 014 결과 (PR #76~#80 진행 / 머지 예정) — **Phase 1 MVP 본체 완료 선언**
+### Sprint 014 결과 (PR #76~#80 머지) — Phase 1 MVP 본체 완료 선언
 
-- M1 (PR #77): DeviceCodeFlow + CodexLoginProvider 코어 (Codex CLI 오픈소스 gh api 직접 참조). evaluator Pass 8/1/0 → 12/0/0 (M2에서 Partial 해소)
-- M2 (PR #78): CodexLoginPanel UI + services.ts pollCodexLoop + 5 IPC + Spike 1 조건 5개 모두 충족. evaluator Pass 10/0/0
-- M3 (PR #79): OnboardingTour + README + docs/USAGE.md 7 섹션. evaluator Pass 12/0/0
-- M4 (현재 브랜치): PRD v0.3.12 + Phase 1 §16 정합 매트릭스 + Phase 1.5 트랙 정의 + Phase 1 완료 선언
-- 누적 단위 테스트: 307 → 336 (+29, AC-5 ≥ 325 충족 +11)
+- M1 (PR #77): DeviceCodeFlow + CodexLoginProvider 코어. evaluator Pass 8/1/0 → 12/0/0 (M2 자가 해소)
+- M2 (PR #78): CodexLoginPanel UI + Codex IPC + Spike 1 조건 5개. evaluator Pass 10/0/0
+- M3 (PR #79): OnboardingTour + README + docs/USAGE.md. evaluator Pass 12/0/0
+- M4 (PR #80): PRD v0.3.12 + Phase 1 §16 매트릭스 + Phase 1.5 트랙. evaluator Pass 14/0/0
+- Sprint 014 M4 시점 누적 단위 테스트: **336** / 358
 - PRD v0.3.12 발행
 - commit-check CI 5 PR 모두 success (G-009 NNN 한 분절 8 Sprint 연속)
+
+### Sprint 014 핫픽스 시퀀스 (PR #81~#95) — 15회 + END 핸드오프 (#96)
+
+사용자 실측 후 발견 문제 핫픽스 (M3-1~M3-15). 모두 main 머지.
+
+- M3-1 Consent 체크박스 / M3-2 WebContentsView 가림 / M3-3 OnboardingTour 가림
+- M3-4 Privacy 오탐 / M3-5 기본 Provider Codex 누락
+- M3-6 Codex endpoint chatgpt.com/backend-api/codex/responses
+- M3-7 모델명 gpt-5.5 + 우클릭 일반 메뉴
+- M3-8 instructions 필드 / M3-9 input list / M3-10 store/tools 필드 / M3-11 SSE streaming
+- M3-12 자동 번역 + reasoning low / M3-13 Extractor style/script 필터
+- M3-14 연속 navigate abort + state 초기화 + debounce / M3-15 progressive render
+- 본 세션 종료 시 누적 단위 테스트: **358** / 358 PASS
+- 모든 가드레일 위반 0
 
 ### Phase 1 §16 11개 항목 100% 완료 매트릭스
 
