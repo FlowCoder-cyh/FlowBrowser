@@ -153,4 +153,33 @@ describe('UserSettingStore', () => {
       expect(s.translationMode).toBe('panel') // 변경 없음
     })
   })
+
+  // Sprint 010 M3 — cancelOnTabSwitch
+  describe('cancelOnTabSwitch (Sprint 010 M3)', () => {
+    it('기본값 false', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().cancelOnTabSwitch).toBe(false)
+    })
+
+    it('update + persist', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      const s = await store.update({ cancelOnTabSwitch: true })
+      expect(s.cancelOnTabSwitch).toBe(true)
+
+      const reloaded = new UserSettingStore(path)
+      await reloaded.load()
+      expect(reloaded.getState().cancelOnTabSwitch).toBe(true)
+    })
+
+    it('비-boolean 값 거부', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await expect(
+        // @ts-expect-error invalid type for test
+        store.update({ cancelOnTabSwitch: 'yes' })
+      ).rejects.toThrow('invalid cancelOnTabSwitch')
+    })
+  })
 })

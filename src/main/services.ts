@@ -212,6 +212,13 @@ export async function saveTabState(state: {
   await tabStateStore.save(state)
 }
 
+/**
+ * Sprint 010 M3 — main/index.ts에서 cancelOnTabSwitch 분기에 사용.
+ */
+export function getUserSetting(): UserSettingState {
+  return userSettingStore.getState()
+}
+
 function registerUserSettingIpc(): void {
   ipcMain.handle('userSetting:get', (): UserSettingState => userSettingStore.getState())
   ipcMain.handle(

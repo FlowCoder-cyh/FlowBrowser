@@ -226,6 +226,11 @@ interface GlossaryExportPayload {
 
 interface UserSettingPayload {
   translationMode: 'panel' | 'replace' | 'overlay'
+  defaultLanguage?: string
+  sourceLanguage?: string
+  defaultProviderId?: string
+  privacyFilterEnabled?: boolean
+  cancelOnTabSwitch?: boolean
 }
 
 const userSettingApi = {
