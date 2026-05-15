@@ -66,10 +66,9 @@ export function detectSensitiveFields(): {
     if (cardHintPatterns.some((p) => p.test(haystack))) hasCard = true
   })
 
-  if (!hasCard) {
-    const reqApi = 'PaymentRequest' in window
-    hasCard = reqApi
-  }
+  // Sprint 014 M3-4 핫픽스: 기존 `'PaymentRequest' in window`는 Chromium에 PaymentRequest API가
+  // 기본 내장되어 있어 모든 페이지에서 true가 되는 치명 오탐. 실제 결제 필드 존재 여부는
+  // input 힌트 패턴만으로 판단. PaymentRequest API 존재 여부는 결제 페이지 판단 근거가 아님.
 
   return { hasPasswordField: hasPassword, hasCardField: hasCard }
 }
