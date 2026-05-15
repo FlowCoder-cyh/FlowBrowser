@@ -107,13 +107,14 @@ ipcMain.handle('tab:open', (_event, url?: string): TabSession => {
 ipcMain.handle('tab:close', (_event, id: string): boolean => {
   const removed = tabManager.close(id)
   if (removed) destroyTabView(id)
-  // 활성 탭 자동 전환 처리
-  const active = tabManager.getActiveId()
-  if (active) {
-    setActiveTabView(active)
-  } else {
-    browserView = null
+  // Sprint 008 M3 — 마지막 탭 close 시 새 빈 탭 자동 open (일반 브라우저 UX).
+  let active = tabManager.getActiveId()
+  if (!active) {
+    const fresh = tabManager.open('about:blank')
+    createTabView(fresh.id, fresh.url)
+    active = fresh.id
   }
+  setActiveTabView(active)
   return removed
 })
 
