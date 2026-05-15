@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~013 종료
-- **Sprint**: **013 종료** (M4 종합 evaluator 진행 중)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~013 종료, Sprint 014 정의 (사용자 테스트 진입 게이트)
+- **Sprint**: **014 정의 완료** (M1부터 자율 착수)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.3.11** (2026-05-15, Sprint 013 실측 반영)
-- **최근 갱신**: 2026-05-15 (Sprint 013 M4 PRD 패치 + Sprint 종료)
+- **최근 갱신**: 2026-05-15 (Sprint 014 정의 — Codex OAuth Login Provider 활성화)
 
 ## 현재 작업
 
