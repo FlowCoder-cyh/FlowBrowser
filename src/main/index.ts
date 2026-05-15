@@ -1153,9 +1153,74 @@ async function handleContextMenuAi(
   })
 }
 
+/**
+ * Sprint 012 M3 — 키보드 단축키 (Application Menu accelerator).
+ * Ctrl+T 신규 / Ctrl+W 활성 탭 닫기 / Ctrl+Tab 다음 / Ctrl+Shift+Tab 이전.
+ */
+function installApplicationMenu(): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: '탭',
+      submenu: [
+        {
+          label: '새 탭',
+          accelerator: 'CommandOrControl+T',
+          click: () => {
+            const session = tabManager.open('about:blank')
+            createTabView(session.id, session.url)
+            setActiveTabView(session.id)
+          }
+        },
+        {
+          label: '탭 닫기',
+          accelerator: 'CommandOrControl+W',
+          click: () => {
+            const activeId = tabManager.getActiveId()
+            if (!activeId) return
+            const removed = tabManager.close(activeId)
+            if (removed) destroyTabView(activeId)
+            let active = tabManager.getActiveId()
+            if (!active) {
+              const fresh = tabManager.open('about:blank')
+              createTabView(fresh.id, fresh.url)
+              active = fresh.id
+            }
+            setActiveTabView(active)
+          }
+        },
+        { type: 'separator' },
+        {
+          label: '다음 탭',
+          accelerator: 'CommandOrControl+Tab',
+          click: () => {
+            const nextId = tabManager.cycleActiveTabId('next')
+            if (nextId && nextId !== tabManager.getActiveId()) {
+              const ok = tabManager.switch(nextId)
+              if (ok) setActiveTabView(nextId)
+            }
+          }
+        },
+        {
+          label: '이전 탭',
+          accelerator: 'CommandOrControl+Shift+Tab',
+          click: () => {
+            const prevId = tabManager.cycleActiveTabId('prev')
+            if (prevId && prevId !== tabManager.getActiveId()) {
+              const ok = tabManager.switch(prevId)
+              if (ok) setActiveTabView(prevId)
+            }
+          }
+        }
+      ]
+    }
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 app.whenReady().then(async () => {
   await initServices()
   rebuildAllProviders()
+  installApplicationMenu()
   await createMainWindow()
 
   app.on('activate', () => {
