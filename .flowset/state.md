@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~005 종료
-- **Sprint**: **005 종료** (M4 종합 evaluator 진행 중)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~005 종료, **Sprint 006 정의 완료 / M1 대기**
+- **Sprint**: **006 정의 완료** (Sprint 005 종합 Pass 9/0/0)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: **v0.3.3** (2026-05-15, Sprint 005 실측 반영)
-- **최근 갱신**: 2026-05-15 (Sprint 005 M4 PRD 패치 + Sprint 종료)
+- **PRD 버전**: v0.3.3 (2026-05-15) — Sprint 006 M4에서 v0.3.4 패치 예정
+- **최근 갱신**: 2026-05-15 (Sprint 006 정의 작성, contracts/sprint-006.md)
 
 ## 현재 작업
 
