@@ -76,6 +76,7 @@ interface ListFilter {
 export class GlossaryStore {
   private terms: GlossaryTerm[] = []
   private currentVersion: string = 'default'
+  private versionCounter = 0
   private loaded = false
 
   constructor(private filePath: string) {}
@@ -266,7 +267,10 @@ export class GlossaryStore {
   }
 
   private bumpVersion(): string {
-    const stamp = `${Date.now()}-${this.terms.length}`
+    this.versionCounter++
+    // Sprint 009 M1 — 같은 ms 내 mutation 시에도 항상 다른 version 보장하기 위해
+    // 단조 증가 counter를 stamp에 포함. (Sprint 008 evaluator flaky 직접 해소)
+    const stamp = `${Date.now()}-${this.terms.length}-${this.versionCounter}`
     this.currentVersion = createHash('sha256').update(stamp).digest('hex').slice(0, 12)
     return this.currentVersion
   }

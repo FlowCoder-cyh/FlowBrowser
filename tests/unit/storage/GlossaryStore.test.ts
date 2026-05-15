@@ -192,6 +192,31 @@ describe('GlossaryStore', () => {
     )
   })
 
+  // Sprint 009 M1 — flaky 회귀 방지 (counter 도입으로 같은 ms 내 mutation 보장)
+  it('bumpVersion: add → remove 같은 ms 내라도 version 다름 (Sprint 009 M1 flaky 핫픽스)', async () => {
+    const store = new GlossaryStore(path)
+    await store.load()
+    const added = await store.add({ sourceTerm: 'a', targetTerm: '에이' })
+    const v1 = store.getVersion()
+    // 같은 ms 안에서 remove 호출 보장 — setTimeout 없이 즉시
+    await store.remove(added.term!.id)
+    const v2 = store.getVersion()
+    expect(v2).not.toBe(v1)
+  })
+
+  it('bumpVersion: 연속 add 100회 모두 다른 version', async () => {
+    const store = new GlossaryStore(path)
+    await store.load()
+    const versions = new Set<string>()
+    versions.add(store.getVersion())
+    for (let i = 0; i < 100; i++) {
+      await store.add({ sourceTerm: `t${i}`, targetTerm: `T${i}` })
+      versions.add(store.getVersion())
+    }
+    // default + 100 add → 최소 101 unique (default 포함 시 102지만 default도 1)
+    expect(versions.size).toBeGreaterThanOrEqual(101)
+  })
+
   it('clearAll removes all and bumps version', async () => {
     const store = new GlossaryStore(path)
     await store.load()
