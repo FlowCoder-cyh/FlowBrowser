@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~010 종료, Sprint 011 정의
-- **Sprint**: **011 정의 완료** (M1부터 자율 착수)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~011 종료
+- **Sprint**: **011 종료** (M4 종합 evaluator 진행 중)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: **v0.3.8** (2026-05-15, Sprint 010 실측 반영)
-- **최근 갱신**: 2026-05-15 (Sprint 011 정의 작성)
+- **PRD 버전**: **v0.3.9** (2026-05-15, Sprint 011 실측 반영)
+- **최근 갱신**: 2026-05-15 (Sprint 011 M4 PRD 패치 + Sprint 종료)
 
 ## 현재 작업
 
@@ -69,15 +69,22 @@
 - PRD v0.3.7 발행
 - commit-check CI 4개 PR 모두 success
 
-### Sprint 010 결과 (PR #56~#60 진행 / 머지 예정)
+### Sprint 010 결과 (PR #56~#60 머지)
 
-- M1 (PR #57): TabManager.reorder + HTML5 DnD. evaluator Pass 14/0/0
-- M2 (PR #58): closeOthers / closeRight / duplicate + OS 네이티브 컨텍스트 메뉴. evaluator Pass 13/0/0
-- M3 (PR #59): cancelOnTabSwitch UserSetting + tab:switch abort 분기 + tabGuard.ts (isCurrentTab 순수 함수). evaluator Pass 12/0/0
-- M4 (현재 브랜치): PRD v0.3.8 패치 + Sprint 종합
 - 누적 단위 테스트: 229 → 254 (+25)
+- Sprint 종합 evaluator: Pass 11 / 0 / 0
 - PRD v0.3.8 발행
-- commit-check CI 모든 PR success
+- commit-check CI 5 PR 모두 success
+
+### Sprint 011 결과 (PR #61~#65 진행 / 머지 예정)
+
+- M1 (PR #62): summary abort API (SummarizationPlanner.abortCheck + SummarizationAbortedError + translate:summarize-abort IPC + summary-aborted 이벤트 + cancel 버튼). evaluator Pass 9/0/0
+- M2 (PR #63): 탭 컬러 라벨 (TabSession.color + setColor + 컨텍스트 메뉴 색상 서브메뉴 + TabBar borderTopColor 매트릭스 + TabStateStore 영속·호환). evaluator Pass 13/0/0
+- M3 (PR #64): 탭 핀 (TabSession.pinned + setPinned + 핀↔비핀 invariant + closeOthers/closeRight 자동 제외 + reorder 핀 경계 clamp + TabBar 📌 시각화 + TabStateStore 영속·호환). evaluator Pass 12/0/0
+- M4 (현재 브랜치): PRD v0.3.9 + Sprint 종합
+- 누적 단위 테스트: 254 → 273 (+19, AC-4 ≥ 270 충족)
+- PRD v0.3.9 발행
+- commit-check CI 5 PR 모두 success (G-009 NNN 한 분절 5 Sprint 연속)
 
 ## 활성 Spike (5종)
 

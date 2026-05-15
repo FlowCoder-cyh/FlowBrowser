@@ -15,9 +15,21 @@
 | syncMode | enum | off / soft / strict |
 | defaultProviderId | string | 기본 Provider (Sprint 007 M1, 기본 'openai') |
 | privacyFilterEnabled | boolean | Privacy Filter 활성 여부 (Sprint 007 M1, 기본 true. false 시 도메인 차단만 우회, password/card 본문 차단은 항상 적용) |
-| cancelOnTabSwitch | boolean | 탭 전환 시 진행 중 paragraphs/page 작업 자동 abort 여부 (Sprint 010 M3, 기본 false. true 시 실제 탭 전환에서 paragraphsAborted/pageTranslateAborted 플래그 set. summary는 abort API 부재로 결과 무시만 — Sprint 011+ 후보) |
+| cancelOnTabSwitch | boolean | 탭 전환 시 진행 중 paragraphs/page/summary 작업 자동 abort 여부 (Sprint 010 M3 + Sprint 011 M1, 기본 false. true 시 실제 탭 전환에서 paragraphsAborted/pageTranslateAborted/summarizeAborted 플래그 set. Sprint 011 M1에서 summary abort API 추가로 3종 일관성 확보) |
 | createdAt | datetime | 생성일 |
 | updatedAt | datetime | 수정일 |
+
+### TabSession (v0.3.6 Sprint 008 M1 + v0.3.7 Sprint 009 M3 + v0.3.9 Sprint 011 M2/M3 확장)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| id | string | 탭 ID (tab_{base36ts}_{rand}) |
+| url | string | 현재 URL |
+| title | string | 페이지 타이틀 |
+| createdAt | number | 생성 ms |
+| lastActiveAt | number | 마지막 활성화 ms |
+| color | enum\|null | 컬러 라벨: red/orange/yellow/green/blue/purple/gray/null (Sprint 011 M2, 기본 null) |
+| pinned | boolean | 핀(고정) 상태 (Sprint 011 M3, 기본 false. true 시 항상 좌측 영역 + closeOthers/closeRight 자동 제외 + 닫기 X 숨김) |
 
 ## 12.2 ProviderCredential (v0.2 보강)
 
