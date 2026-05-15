@@ -59,7 +59,7 @@ function makeTokenAccess(initial: TokenBundle): {
   }
 }
 
-function responsesJson(text: string, model = 'gpt-5'): Response {
+function responsesJson(text: string, model = 'gpt-5.5'): Response {
   return new Response(
     JSON.stringify({
       id: 'resp_x',
@@ -80,7 +80,7 @@ function responsesJsonNewFormat(text: string): Response {
   return new Response(
     JSON.stringify({
       id: 'resp_y',
-      model: 'gpt-5',
+      model: 'gpt-5.5',
       output_text: text,
       usage: { input_tokens: 8, output_tokens: 3 }
     }),
@@ -115,7 +115,7 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     expect(opts.headers['ChatGPT-Account-Id']).toBe('acct_abc')
     expect(opts.headers['OAI-Product-Sku']).toBe('codex')
     const body = JSON.parse(opts.body)
-    expect(body.model).toBe('gpt-5')
+    expect(body.model).toBe('gpt-5.5')
     expect(Array.isArray(body.input)).toBe(true)
     expect(body.input[0].role).toBe('system')
     expect(body.input[1].role).toBe('user')
@@ -217,6 +217,6 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     const provider = new CodexLoginProvider({ tokenAccess: access })
     expect(provider.info.providerType).toBe('codex')
     expect(provider.info.displayName).toContain('Experimental')
-    expect(provider.info.defaultModel).toBe('gpt-5')
+    expect(provider.info.defaultModel).toBe('gpt-5.5')
   })
 })

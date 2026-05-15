@@ -25,8 +25,11 @@ import { resolveCodexAuthIdentity } from '../codex/JwtDecoder'
 import { buildSystemPrompt, buildUserPrompt } from './OpenAIApiKeyProvider'
 
 const CODEX_RESPONSES_BASE_URL = 'https://chatgpt.com/backend-api/codex'
-const DEFAULT_MODEL = 'gpt-5'
-const AVAILABLE_MODELS: ReadonlyArray<string> = ['gpt-5', 'gpt-5-mini', 'gpt-4o', 'gpt-4o-mini']
+// Sprint 014 M3-7 핫픽스: ChatGPT 백엔드가 받는 정확 모델명은 gpt-5.5 / gpt-5.4-mini / gpt-5.2
+// (OpenClaw provider-catalog.ts FALLBACK_CODEX_MODELS).
+// 사용자 보고 400: "The 'gpt-5' model is not supported when using Codex with a ChatGPT account."
+const DEFAULT_MODEL = 'gpt-5.5'
+const AVAILABLE_MODELS: ReadonlyArray<string> = ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.2']
 
 interface ResponsesApiOutputContent {
   type?: string
