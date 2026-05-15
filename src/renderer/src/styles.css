@@ -672,11 +672,39 @@ body {
   cursor: not-allowed;
 }
 
+.panel-btn.danger {
+  background: #6a2222;
+  color: #ffd0d0;
+}
+
+.panel-btn.danger:hover:not(:disabled) {
+  background: #882a2a;
+}
+
 .panel-error {
   margin: 8px 16px;
   padding: 8px 12px;
   background: #4a1a1a;
   color: #ffaaaa;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.panel-pagewide-block {
+  margin: 8px 16px;
+  padding: 10px 12px;
+  background: #4a2a1a;
+  color: #ffcc88;
+  border-left: 3px solid #ff8844;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.panel-status-note {
+  margin: 8px 16px;
+  padding: 8px 12px;
+  background: #2a2a3a;
+  color: #aaaadd;
   border-radius: 4px;
   font-size: 12px;
 }

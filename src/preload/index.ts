@@ -138,10 +138,44 @@ interface ParagraphsDonePayload {
   failed: number
 }
 
+interface PageStartPayload {
+  url: string
+  total: number
+  chunks: number
+  nodes: Array<{ id: string; text: string; tag: string }>
+}
+
+interface PageProgressPayload {
+  id: string
+  completed: number
+  blocked: number
+  failed: number
+  total: number
+  translatedText?: string
+  fromCache?: boolean
+  reason?: string
+  decision: string
+  blockReason?: string
+  pageWideBlock?: boolean
+}
+
+interface PageDonePayload {
+  total: number
+  completed: number
+  blocked: number
+  failed: number
+  stoppedReason: 'aborted' | 'page_wide_block' | null
+}
+
 const translateApi = {
   request: (args: TranslateRequest) => ipcRenderer.invoke('translate:request', args),
   paragraphs: (args: ParagraphsRequest): Promise<{ ok: boolean; total: number; reason?: string }> =>
     ipcRenderer.invoke('translate:paragraphs', args),
+  page: (
+    args: ParagraphsRequest
+  ): Promise<{ ok: boolean; total: number; chunks?: number; reason?: string }> =>
+    ipcRenderer.invoke('translate:page', args),
+  abortPage: (): Promise<{ ok: true }> => ipcRenderer.invoke('translate:page-abort'),
   onParagraphsStart: (handler: (p: ParagraphsStartPayload) => void): (() => void) => {
     const listener = (_e: unknown, p: ParagraphsStartPayload): void => handler(p)
     ipcRenderer.on('translate:paragraphs-start', listener)
@@ -156,6 +190,21 @@ const translateApi = {
     const listener = (_e: unknown, p: ParagraphsDonePayload): void => handler(p)
     ipcRenderer.on('translate:paragraphs-done', listener)
     return () => ipcRenderer.removeListener('translate:paragraphs-done', listener)
+  },
+  onPageStart: (handler: (p: PageStartPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: PageStartPayload): void => handler(p)
+    ipcRenderer.on('translate:page-start', listener)
+    return () => ipcRenderer.removeListener('translate:page-start', listener)
+  },
+  onPageProgress: (handler: (p: PageProgressPayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: PageProgressPayload): void => handler(p)
+    ipcRenderer.on('translate:page-progress', listener)
+    return () => ipcRenderer.removeListener('translate:page-progress', listener)
+  },
+  onPageDone: (handler: (p: PageDonePayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: PageDonePayload): void => handler(p)
+    ipcRenderer.on('translate:page-done', listener)
+    return () => ipcRenderer.removeListener('translate:page-done', listener)
   }
 }
 
