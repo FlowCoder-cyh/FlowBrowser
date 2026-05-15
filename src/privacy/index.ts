@@ -11,6 +11,18 @@ export { DomainFilter, defaultBlacklistPatterns } from './DomainFilter'
 export type { DomainFilterRule, DomainFilterState } from './DomainFilter'
 
 export {
+  DomainPolicyStore,
+  validatePattern,
+  defaultDomainPolicyPath,
+  POLICY_VERSION
+} from './DomainPolicyStore'
+export type {
+  DomainPolicyExport,
+  PatternValidationError,
+  PatternValidationResult
+} from './DomainPolicyStore'
+
+export {
   detectSensitiveFields,
   detectSensitiveFieldsScript,
   detectCardPatternInText,

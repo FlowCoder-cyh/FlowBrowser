@@ -10,13 +10,16 @@ import { promises as fs } from 'node:fs'
 import {
   ConsentGate,
   DomainFilter,
+  DomainPolicyStore,
   TransmissionLogger,
+  defaultDomainPolicyPath,
   defaultLogFilePath,
   evaluatePrivacy,
   detectSensitiveFieldsScript,
   type ConsentState,
   type DomainFilterRule,
   type DomainFilterState,
+  type DomainPolicyExport,
   type PrivacyDecision
 } from '../privacy'
 
@@ -49,6 +52,7 @@ const POLICY_VERSION = 1
 
 let consentGate!: ConsentGate
 let domainFilter!: DomainFilter
+let domainPolicyStore!: DomainPolicyStore
 let transmissionLogger!: TransmissionLogger
 let credentialsStore!: CredentialsStore
 let usageLog!: UsageLog
@@ -56,15 +60,17 @@ let translationCache!: TranslationCache
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 
 let consentStatePath!: string
-let domainStatePath!: string
+let domainPolicyPath!: string
 
 export async function initServices(): Promise<void> {
   const userDataDir = app.getPath('userData')
   consentStatePath = join(userDataDir, 'consent.json')
-  domainStatePath = join(userDataDir, 'domain-filter.json')
+  domainPolicyPath = defaultDomainPolicyPath(userDataDir)
 
   consentGate = new ConsentGate(await loadConsentState(), POLICY_VERSION)
-  domainFilter = new DomainFilter(await loadDomainState())
+  const loadedDomainState = await DomainPolicyStore.loadFromDisk(domainPolicyPath)
+  domainFilter = new DomainFilter(loadedDomainState)
+  domainPolicyStore = new DomainPolicyStore(domainPolicyPath, domainFilter)
 
   transmissionLogger = new TransmissionLogger(defaultLogFilePath(userDataDir))
   await transmissionLogger.loadFromDisk()
@@ -116,21 +122,6 @@ async function loadConsentState(): Promise<ConsentState> {
 
 async function persistConsentState(): Promise<void> {
   await fs.writeFile(consentStatePath, JSON.stringify(consentGate.getState(), null, 2), 'utf-8')
-}
-
-async function loadDomainState(): Promise<DomainFilterState> {
-  try {
-    const buf = await fs.readFile(domainStatePath, 'utf-8')
-    const parsed = JSON.parse(buf) as DomainFilterState
-    return { userRules: Array.isArray(parsed.userRules) ? parsed.userRules : [] }
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { userRules: [] }
-    throw err
-  }
-}
-
-async function persistDomainState(): Promise<void> {
-  await fs.writeFile(domainStatePath, JSON.stringify(domainFilter.getState(), null, 2), 'utf-8')
 }
 
 function registerConsentIpc(): void {
@@ -214,20 +205,43 @@ function registerPrivacyIpc(): void {
   ipcMain.handle('privacy:add-rule', async (
     _event,
     rule: DomainFilterRule
-  ): Promise<void> => {
-    domainFilter.addUserRule(rule)
-    await persistDomainState()
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const result = await domainPolicyStore.addRule(rule)
+    return { ok: result.ok, error: result.error }
   })
 
   ipcMain.handle('privacy:remove-rule', async (
     _event,
     args: { pattern: string; type: 'blacklist' | 'whitelist' }
   ): Promise<void> => {
-    domainFilter.removeUserRule(args.pattern, args.type)
-    await persistDomainState()
+    await domainPolicyStore.removeRule({ pattern: args.pattern, type: args.type })
   })
 
-  ipcMain.handle('privacy:get-rules', (): DomainFilterState => domainFilter.getState())
+  ipcMain.handle('privacy:get-rules', (): DomainFilterState => domainPolicyStore.getState())
+
+  ipcMain.handle(
+    'privacy:set-rules',
+    async (
+      _event,
+      rules: DomainFilterRule[]
+    ): Promise<{ accepted: number; rejected: number }> => domainPolicyStore.setRules(rules)
+  )
+
+  ipcMain.handle(
+    'privacy:export-policy',
+    (): DomainPolicyExport => domainPolicyStore.exportPolicy()
+  )
+
+  ipcMain.handle(
+    'privacy:import-policy',
+    async (
+      _event,
+      raw: unknown
+    ): Promise<{ ok: boolean; accepted: number; rejected: number; error?: string }> =>
+      domainPolicyStore.importPolicy(raw)
+  )
+
+  ipcMain.handle('privacy:clear-policy', async (): Promise<void> => domainPolicyStore.clearAll())
 
   ipcMain.handle('privacy:blocked-stats', () => transmissionLogger.getBlockedStats())
 }

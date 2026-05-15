@@ -75,6 +75,13 @@ export class DomainFilter {
     )
   }
 
+  /**
+   * Sprint 003 M3 — 사용자 룰을 일괄 교체. import 흐름용.
+   */
+  setUserRules(rules: DomainFilterRule[]): void {
+    this.state.userRules = rules.map((r) => ({ pattern: r.pattern, type: r.type }))
+  }
+
   getState(): DomainFilterState {
     return { userRules: [...this.state.userRules] }
   }

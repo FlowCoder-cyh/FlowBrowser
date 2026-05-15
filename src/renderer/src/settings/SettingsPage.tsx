@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import UsagePanel from './UsagePanel'
+import DomainPolicyPanel from './DomainPolicyPanel'
 
 interface CredentialRecord {
   id: string
@@ -146,6 +147,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
         )}
       </section>
 
+      <DomainPolicyPanel />
       <UsagePanel />
     </div>
   )
