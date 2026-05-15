@@ -7,6 +7,20 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.12 v0.3.9 변경 이력 (2026-05-15) — Sprint 011 실측 반영
+
+Phase 1 Sprint 011 산출물을 PRD에 반영한 패치 (summary abort + 탭 UX 추가 보강).
+
+v0.3.8 대비 주요 변경:
+
+1. **§9.2 summary abort API**: `summarizeChunks(texts, translate, options)`에 `abortCheck: () => boolean` 콜백 추가. 각 청크/통합/부분/최종/truncated 5개 summarize 호출 직전 검사 → true 시 `SummarizationAbortedError` throw. main에 `summarizeAborted` 플래그 + `translate:summarize-abort` IPC + `translate:summary-aborted` 이벤트 (`{ chunks, sourceTabId }`). `cancelOnTabSwitch=true` + 실제 탭 전환 시 자동 set. TranslationPanel summary 모드 "취소" 버튼 + onSummaryAborted listener. Sprint 010 §리스크 3 (summary abort 부재) 직접 해소.
+2. **§9.1 / §12.1 탭 컬러 라벨**: `TabSession.color` 필드 (red/orange/yellow/green/blue/purple/gray/null 8값, 기본 null). `TabManager.setColor(id, color)` palette 검증 + 같은 색 no-op. `tab:set-color` IPC + 컨텍스트 메뉴 "색상 변경" radio 서브메뉴 (7색 + 없음, checked 현재 색 + 한글 라벨). TabBar `borderTopColor` 매트릭스 (활성/비활성 × color/null). TabStateStore 영속 + 호환 fallback (옛 파일에 color 누락 → null).
+3. **§9.1 / §12.1 탭 핀(고정)**: `TabSession.pinned` 필드 (기본 false). `TabManager.setPinned(id, pinned)`는 핀↔비핀 invariant 유지 (핀 시 핀 영역 끝, 핀 해제 시 비핀 영역 끝). `closeOthers` / `closeRight` 핀 탭 자동 제외 (closed에서 빠짐, 보존). `reorder`는 핀↔비핀 경계 넘기는 이동 clamp. `tab:set-pinned` IPC + 컨텍스트 메뉴 "핀 고정 / 핀 해제" 토글. TabBar 핀 시각화 (📌 아이콘 + 좁은 너비 + 닫기 X 숨김). TabStateStore 영속 + 호환 fallback + restore 좌측 정렬 stable sort.
+4. **§11 TabManager API 확장**: `setColor` / `setPinned` 신규 + `restore` color/pinned fallback + 핀 invariant 정렬 + `reorder` 핀 영역 clamp. 9 IPC 유지 + `tab:set-color` / `tab:set-pinned` 2 추가 = 11 IPC.
+5. **§19 모듈 등록**: SummarizationPlanner.abortCheck / SummarizationAbortedError + TabManager.setColor/setPinned + TabBar 핀 시각화 + 컨텍스트 메뉴 6 항목 (탭 닫기 / 다른 탭 닫기 / 오른쪽 탭 모두 닫기 / 탭 복제 / 핀 토글 / 색상 서브메뉴).
+
+본 패치는 Sprint 011 M1~M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.11 v0.3.8 변경 이력 (2026-05-15) — Sprint 010 실측 반영
 
 Phase 1 Sprint 010 산출물을 PRD에 반영한 패치 (탭 UX 보강 + S009 잔여 P2).

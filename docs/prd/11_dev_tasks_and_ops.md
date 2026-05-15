@@ -8,8 +8,8 @@
 - BrowserWindow / BrowserView 구성 (WebContentsView 우선 검토)
 - URL Bar 구현
 - 기본 Navigation 구현 (v0.3.4 Sprint 006 M1: canGoBack/canGoForward broadcast + UrlBar 버튼 disabled 동기화)
-- TabBar UI (v0.3.6 Sprint 008 M2 + v0.3.8 Sprint 010 M1/M2): 가로 스크롤 + 활성 강조 + 닫기 X + 신규 + 버튼 + **HTML5 DnD 드래그/순서 변경** (v0.3.8) + **우클릭 OS 네이티브 컨텍스트 메뉴** (v0.3.8 — 탭 닫기 / 다른 탭 닫기 / 오른쪽 탭 닫기 / 탭 복제 + disabled 분기)
-- TabManager (v0.3.6 Sprint 008 M1 + v0.3.7 Sprint 009 M3 + v0.3.8 Sprint 010 M1/M2): 순수 모델 (TabSession + open/close/switch/list/snapshot + subscribe broadcast 콜백 + **restore** v0.3.7 + **reorder / closeOthers / closeRight / duplicate** v0.3.8) + 다중 WebContentsView 사전 생성/활성 view만 add/remove/cleanup + 9 IPC (tab:list/open/close/switch/active + reorder/close-others/close-right/duplicate + show-context-menu) + tab:list-update broadcast
+- TabBar UI (v0.3.6 Sprint 008 M2 + v0.3.8 Sprint 010 M1/M2 + v0.3.9 Sprint 011 M2/M3): 가로 스크롤 + 활성 강조 + 닫기 X + 신규 + 버튼 + HTML5 DnD 드래그/순서 변경 + 우클릭 OS 네이티브 컨텍스트 메뉴 (탭 닫기 / 다른 탭 닫기 / 오른쪽 탭 닫기 / 탭 복제 + disabled 분기 + **핀 토글** v0.3.9 + **색상 변경 서브메뉴** v0.3.9) + **컬러 라벨 borderTopColor 매트릭스** (v0.3.9) + **핀 시각화 📌 + 좁은 셀 + 닫기 X 숨김** (v0.3.9)
+- TabManager (v0.3.6 Sprint 008 M1 + v0.3.7 Sprint 009 M3 + v0.3.8 Sprint 010 M1/M2 + v0.3.9 Sprint 011 M2/M3): 순수 모델 (TabSession + open/close/switch/list/snapshot + subscribe broadcast 콜백 + restore v0.3.7 + reorder/closeOthers/closeRight/duplicate v0.3.8 + **setColor / setPinned** v0.3.9 + **핀↔비핀 invariant + closeOthers/closeRight 핀 자동 제외 + reorder 핀 경계 clamp + restore 좌측 정렬 stable sort**) + 다중 WebContentsView 사전 생성/활성 view만 add/remove/cleanup + 11 IPC (tab:list/open/close/switch/active + reorder/close-others/close-right/duplicate + show-context-menu + **set-color/set-pinned** v0.3.9) + tab:list-update broadcast
 - TabStateStore (v0.3.7 Sprint 009 M3): tabs.json policyVersion=1 영속 + load/save/clear + 손상 fallback. main initializeTabs가 startup 시 복원, mainWindow close 시 강제 flush, subscribe debounced 200ms 자동 저장
 - tabGuard.ts (v0.3.8 Sprint 010 M3): isCurrentTab(activeTabId, sourceTabId) 순수 함수 — null/undefined 둘 다 보수적 true. TranslationPanel이 inline 함수 대신 import 사용 (Sprint 009 M2 G-006 Partial 후속 해소)
 - Translation Panel 구현 (v0.3.3 Sprint 005 M3: chunkSummaries 펼치기 토글 + PATH_LABELS 한국어 / v0.3.4 Sprint 006 M2/M3: mode 분기 + 자동 render + 페이지 캐시 restoreHint 배너)
@@ -49,7 +49,7 @@
 - Provider Adapter Interface 설계
 - OpenAI API Provider 구현
 - `buildSystemPrompt` / `buildUserPrompt` 외부 export 함수 (v0.3.2 Sprint 004 M2): requestType 7종 분기 (selection / paragraph / page / subtitle / tts_script / explanation / summary), 단위 테스트 직접 매트릭스 검증
-- SummarizationPlanner (v0.3.2 Sprint 004 M3): planChunks + summarizeChunks pure 함수, mock provider 단위 테스트 가능 의존성 주입 구조
+- SummarizationPlanner (v0.3.2 Sprint 004 M3 + v0.3.9 Sprint 011 M1): planChunks + summarizeChunks pure 함수, mock provider 단위 테스트 가능 의존성 주입 구조 + **abortCheck 콜백 + SummarizationAbortedError sentinel** (v0.3.9 — 5개 summarize 호출 직전 검사, true 시 즉시 throw)
 - Codex Login Provider 실험 구현 (Spike 1 통과 시)
 - Translation Engine 구현
 - Summary Engine 구현 (v0.3.2 Sprint 004 M3): 선택 영역은 `translate:request` 통합 IPC, 페이지는 `translate:summarize-page` 전용 IPC + 청크 분할/통합 흐름
