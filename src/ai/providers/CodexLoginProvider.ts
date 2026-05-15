@@ -114,6 +114,10 @@ export class CodexLoginProvider implements ProviderAdapter {
               content: [{ type: 'input_text', text: 'ping' }]
             }
           ],
+          tools: [],
+          tool_choice: 'auto',
+          parallel_tool_calls: true,
+          store: false,
           stream: false
         })
       })
@@ -265,9 +269,9 @@ export class CodexLoginProvider implements ProviderAdapter {
     instructions: string,
     userInput: string
   ): Promise<Response> {
-    // Sprint 014 M3-9: ChatGPT 백엔드 Responses API는 input을 list로 받음.
-    // string 전송 시 "Input must be a list" 400. OpenAI Responses 표준 형식:
-    //   input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text }] }]
+    // Sprint 014 M3-10: Hermes(NousResearch/hermes-agent) agent/transports/codex.py 분석.
+    // ChatGPT 백엔드 Responses API는 store: false 필수 + tools/tool_choice/parallel_tool_calls
+    // 메타 필드도 요구. M3-9는 store 누락으로 "Store must be set to false" 400.
     return this.fetchImpl(`${CODEX_RESPONSES_BASE_URL}/responses`, {
       method: 'POST',
       headers: this.buildHeaders(accessToken, accountId),
@@ -281,6 +285,10 @@ export class CodexLoginProvider implements ProviderAdapter {
             content: [{ type: 'input_text', text: userInput }]
           }
         ],
+        tools: [],
+        tool_choice: 'auto',
+        parallel_tool_calls: true,
+        store: false,
         stream: false
       })
     })
