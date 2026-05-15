@@ -99,10 +99,10 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
     // Navigation 시: state 초기화 + 자동 restore + 캐시 hit 알림 + 자동 번역 (replace/overlay 모드, debounced)
     // Sprint 014 M3-14: 연속 navigate (뒤로가기/링크 클릭/URL 입력) 대응
-    //   - 이전 페이지 호출은 main의 did-start-navigation 핸들러에서 abort됨
-    //   - TranslationPanel state 초기화: rows / progress / renderQueue / error 등
-    //   - 자동 paragraphs 호출은 800ms debounce (빠른 연속 navigate 시 마지막만)
+    // Sprint 014 M3-15: progressive render (5개 batch 또는 1초마다 즉시 페이지 반영)
     let autoTranslateTimer: number | null = null
+    let pendingRender: Array<{ id: string; translatedText: string }> = []
+    let progressiveRenderTimer: number | null = null
     const offNav = window.browserApi.onNavigated((p) => {
       // 1) state 초기화 (이전 페이지 결과 잔여 제거)
       setRows([])
@@ -127,10 +127,15 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       // 2) 외부 페이지 원문 복원 시도 (Sprint 006 M3 패턴 유지)
       void window.translateApi.renderRestore()
 
-      // 3) 이전 debounce 타이머 cancel
+      // 3) 이전 debounce 타이머 cancel + progressive render queue/timer 초기화
       if (autoTranslateTimer !== null) {
         window.clearTimeout(autoTranslateTimer)
         autoTranslateTimer = null
+      }
+      pendingRender = []
+      if (progressiveRenderTimer !== null) {
+        window.clearTimeout(progressiveRenderTimer)
+        progressiveRenderTimer = null
       }
 
       if (!p.url) return
@@ -188,6 +193,44 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       renderQueueRef.current = []
     })
 
+    // Sprint 014 M3-15: progressive render — paragraph 번역 결과를 5개씩 batch 또는
+    // 1초마다 외부 페이지 DOM에 즉시 반영. 기존 paragraphs-done 시점 일괄 render는
+    // gpt-5.5 reasoning low로도 수십 초~분 걸려 사용자가 "안 됨"으로 인식.
+    const RENDER_BATCH_SIZE = 5
+    const RENDER_INTERVAL_MS = 1000
+
+    const flushPendingRender = (): void => {
+      if (pendingRender.length === 0) return
+      if (displayModeRef.current === 'panel') {
+        pendingRender = []
+        return
+      }
+      const batch = pendingRender
+      pendingRender = []
+      void window.translateApi.render({
+        mode: displayModeRef.current,
+        selectorPreset: 'paragraph',
+        instructions: batch
+      })
+    }
+
+    const scheduleProgressiveRender = (): void => {
+      if (pendingRender.length >= RENDER_BATCH_SIZE) {
+        // 크기 임계 도달 → 즉시 flush
+        if (progressiveRenderTimer !== null) {
+          window.clearTimeout(progressiveRenderTimer)
+          progressiveRenderTimer = null
+        }
+        flushPendingRender()
+        return
+      }
+      if (progressiveRenderTimer !== null) return // 이미 예약됨
+      progressiveRenderTimer = window.setTimeout(() => {
+        progressiveRenderTimer = null
+        flushPendingRender()
+      }, RENDER_INTERVAL_MS)
+    }
+
     const offProgress = window.translateApi.onParagraphProgress((p) => {
       if (!isCurrentTab(p)) return
       const map = rowsRef.current
@@ -198,6 +241,10 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
           row.status = 'done'
           row.fromCache = !!p.fromCache
           renderQueueRef.current.push({ id: p.id, translatedText: p.translatedText })
+          pendingRender.push({ id: p.id, translatedText: p.translatedText })
+          if (displayModeRef.current !== 'panel') {
+            scheduleProgressiveRender()
+          }
         } else if (p.decision === 'blocked') {
           row.status = 'blocked'
           row.reason = p.reason
@@ -222,14 +269,12 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       if (p.stoppedReason) {
         setStoppedReason(p.stoppedReason)
       }
-      // 자동 render (replace / overlay 모드)
-      if (displayModeRef.current !== 'panel' && renderQueueRef.current.length > 0) {
-        void window.translateApi.render({
-          mode: displayModeRef.current,
-          selectorPreset: 'paragraph',
-          instructions: renderQueueRef.current
-        })
+      // 마지막 잔여 batch flush
+      if (progressiveRenderTimer !== null) {
+        window.clearTimeout(progressiveRenderTimer)
+        progressiveRenderTimer = null
       }
+      flushPendingRender()
     })
 
     const offParagraphsAborted = window.translateApi.onParagraphsAborted((p) => {
@@ -368,11 +413,16 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
 
     return () => {
-      // Sprint 014 M3-14: 자동 번역 debounce 타이머 정리
+      // Sprint 014 M3-14/15: 자동 번역 + progressive render 타이머 정리
       if (autoTranslateTimer !== null) {
         window.clearTimeout(autoTranslateTimer)
         autoTranslateTimer = null
       }
+      if (progressiveRenderTimer !== null) {
+        window.clearTimeout(progressiveRenderTimer)
+        progressiveRenderTimer = null
+      }
+      pendingRender = []
       offTabUpdate()
       offNav()
       offStart()
