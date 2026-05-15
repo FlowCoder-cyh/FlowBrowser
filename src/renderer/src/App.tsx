@@ -27,12 +27,14 @@ export default function App(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Sprint 014 M3-2 핫픽스 — stage 변경 시 main에 WebContentsView 가시성 알림
-  // browser stage일 때만 view 노출, 그 외(consent/settings/loading)는 화면 밖으로 숨김
+  // Sprint 014 M3-2/3 핫픽스 — stage + OnboardingTour 가시성에 따라 WebContentsView 표시 제어
+  // WebContentsView는 Electron native layer라 renderer DOM z-index로 가릴 수 없음.
+  // browser stage이면서 OnboardingTour가 닫혀 있을 때만 view 노출.
   useEffect(() => {
     if (stage === 'loading') return
-    void window.browserApi.setViewVisible(stage === 'browser')
-  }, [stage])
+    const shouldShow = stage === 'browser' && !showOnboarding
+    void window.browserApi.setViewVisible(shouldShow)
+  }, [stage, showOnboarding])
 
   async function boot(): Promise<void> {
     const state = await window.consentApi.get()
