@@ -592,6 +592,27 @@ const popupApi = {
   }
 }
 
+interface CodexUserCodeResult {
+  deviceAuthId: string
+  userCode: string
+  interval: number
+  verificationUrl: string
+}
+
+interface CodexPollStatus {
+  status: 'idle' | 'pending' | 'success' | 'expired' | 'denied' | 'error'
+  errorReason?: string
+}
+
+const codexApi = {
+  startLogin: (): Promise<CodexUserCodeResult> => ipcRenderer.invoke('codex:start-login'),
+  pollStatus: (): Promise<CodexPollStatus> => ipcRenderer.invoke('codex:poll-status'),
+  cancelLogin: (): Promise<void> => ipcRenderer.invoke('codex:cancel-login'),
+  logout: (): Promise<boolean> => ipcRenderer.invoke('codex:logout'),
+  status: (): Promise<'active' | 'expired' | 'none'> => ipcRenderer.invoke('codex:status')
+}
+
+contextBridge.exposeInMainWorld('codexApi', codexApi)
 contextBridge.exposeInMainWorld('browserApi', browserApi)
 contextBridge.exposeInMainWorld('tabApi', tabApi)
 contextBridge.exposeInMainWorld('consentApi', consentApi)
@@ -606,6 +627,7 @@ contextBridge.exposeInMainWorld('translateApi', translateApi)
 contextBridge.exposeInMainWorld('popupApi', popupApi)
 
 export type BrowserApi = typeof browserApi
+export type CodexApi = typeof codexApi
 export type TabApi = typeof tabApi
 export type ConsentApi = typeof consentApi
 export type CredentialApi = typeof credentialApi

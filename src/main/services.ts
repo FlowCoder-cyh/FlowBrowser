@@ -49,10 +49,15 @@ import {
 
 import {
   OpenAIApiKeyProvider,
+  CodexLoginProvider,
+  DeviceCodeFlow,
   ProviderError,
   type ProviderAdapter,
   type TranslationInput,
-  type TranslationOutput
+  type TranslationOutput,
+  type CodexTokenAccess,
+  type TokenBundle,
+  type UserCodeResult
 } from '../ai'
 import { extractParagraphsScript } from '../perception/ParagraphExtractor'
 import {
@@ -126,6 +131,7 @@ export async function initServices(): Promise<void> {
   registerGlossaryIpc()
   registerUserSettingIpc()
   registerPageResultIpc()
+  registerCodexIpc()
 }
 
 function registerPageResultIpc(): void {
@@ -752,6 +758,144 @@ function rebuildProvider(providerType: CredentialProviderType): void {
       new OpenAIApiKeyProvider(() => credentialsStore.decryptSecret('openai'))
     )
   }
+  if (providerType === 'codex') {
+    providers.set('codex', new CodexLoginProvider({ tokenAccess: makeCodexTokenAccess() }))
+  }
+}
+
+/**
+ * Sprint 014 M2 — Codex 토큰 묶음을 CredentialsStore (safeStorage 암호화) 위에 JSON으로 저장.
+ * G-005 OS Keychain 위임.
+ */
+function makeCodexTokenAccess(): CodexTokenAccess {
+  return {
+    get(): TokenBundle {
+      const raw = credentialsStore.decryptSecret('codex')
+      const parsed = JSON.parse(raw) as TokenBundle
+      return parsed
+    },
+    update(bundle: TokenBundle): void {
+      // 비동기 upsert 트리거 (CodexLoginProvider는 fire-and-forget으로 호출). 다음 get은 갱신된 값.
+      void credentialsStore.upsert({
+        providerType: 'codex',
+        displayName: 'Codex Login (Experimental)',
+        authType: 'oauth',
+        secret: JSON.stringify(bundle)
+      })
+    }
+  }
+}
+
+/**
+ * Sprint 014 M2 — Codex 로그인 세션 상태. main process에서 폴링 진행 관리.
+ */
+type CodexLoginStatus = 'idle' | 'pending' | 'success' | 'expired' | 'denied' | 'error'
+
+interface CodexLoginSession {
+  status: CodexLoginStatus
+  deviceAuthId?: string
+  userCode?: string
+  verificationUrl?: string
+  intervalSec?: number
+  startedAt?: number
+  errorReason?: string
+}
+
+let codexLoginSession: CodexLoginSession = { status: 'idle' }
+let codexPollTimer: NodeJS.Timeout | null = null
+
+function clearCodexPolling(): void {
+  if (codexPollTimer) {
+    clearTimeout(codexPollTimer)
+    codexPollTimer = null
+  }
+}
+
+async function pollCodexLoop(flow: DeviceCodeFlow, deviceAuthId: string, userCode: string, intervalSec: number, deadlineMs: number): Promise<void> {
+  const tick = async (): Promise<void> => {
+    if (codexLoginSession.deviceAuthId !== deviceAuthId) return // 새 세션 시작됨, 종료
+    if (Date.now() > deadlineMs) {
+      codexLoginSession = { status: 'expired', errorReason: '15분 시간 초과' }
+      return
+    }
+    const result = await flow.pollOnce(deviceAuthId, userCode)
+    if (codexLoginSession.deviceAuthId !== deviceAuthId) return // 중간 취소
+    if (result.status === 'pending') {
+      codexPollTimer = setTimeout(() => void tick(), intervalSec * 1000)
+      return
+    }
+    if (result.status === 'success') {
+      try {
+        const tokens = await flow.exchangeTokens({
+          authorizationCode: result.authorizationCode,
+          codeVerifier: result.codeVerifier
+        })
+        await credentialsStore.upsert({
+          providerType: 'codex',
+          displayName: 'Codex Login (Experimental)',
+          authType: 'oauth',
+          secret: JSON.stringify(tokens)
+        })
+        rebuildProvider('codex')
+        codexLoginSession = { status: 'success' }
+      } catch (err) {
+        codexLoginSession = {
+          status: 'error',
+          errorReason: `토큰 교환 실패: ${err instanceof Error ? err.message : String(err)}`
+        }
+      }
+      return
+    }
+    // error / denied / timeout
+    codexLoginSession = {
+      status: result.status === 'denied' ? 'denied' : 'error',
+      errorReason: result.reason ?? '폴링 오류'
+    }
+  }
+  await tick()
+}
+
+function registerCodexIpc(): void {
+  const flow = new DeviceCodeFlow()
+  ipcMain.handle('codex:start-login', async (): Promise<UserCodeResult> => {
+    clearCodexPolling()
+    const uc = await flow.requestUserCode()
+    const deadlineMs = Date.now() + 15 * 60 * 1000
+    codexLoginSession = {
+      status: 'pending',
+      deviceAuthId: uc.deviceAuthId,
+      userCode: uc.userCode,
+      verificationUrl: uc.verificationUrl,
+      intervalSec: uc.interval,
+      startedAt: Date.now()
+    }
+    // 폴링 시작 (fire-and-forget)
+    void pollCodexLoop(flow, uc.deviceAuthId, uc.userCode, uc.interval, deadlineMs)
+    return uc
+  })
+
+  ipcMain.handle('codex:poll-status', (): { status: CodexLoginStatus; errorReason?: string } => {
+    return { status: codexLoginSession.status, errorReason: codexLoginSession.errorReason }
+  })
+
+  ipcMain.handle('codex:cancel-login', (): void => {
+    clearCodexPolling()
+    codexLoginSession = { status: 'idle' }
+  })
+
+  ipcMain.handle('codex:logout', async (): Promise<boolean> => {
+    clearCodexPolling()
+    const removed = await credentialsStore.remove('codex')
+    providers.delete('codex')
+    codexLoginSession = { status: 'idle' }
+    return removed
+  })
+
+  ipcMain.handle('codex:status', (): 'active' | 'expired' | 'none' => {
+    if (!credentialsStore.has('codex')) return 'none'
+    const rec = credentialsStore.list().find((r) => r.providerType === 'codex')
+    return rec?.status === 'active' ? 'active' : 'expired'
+  })
 }
 
 export function rebuildAllProviders(): void {
