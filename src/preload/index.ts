@@ -12,12 +12,23 @@ interface NavStatePayload {
   canGoForward: boolean
 }
 
+type TabColorPayload =
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'blue'
+  | 'purple'
+  | 'gray'
+  | null
+
 interface TabSessionPayload {
   id: string
   url: string
   title: string
   createdAt: number
   lastActiveAt: number
+  color: TabColorPayload
 }
 
 interface TabListSnapshot {
@@ -41,6 +52,8 @@ const tabApi = {
     ipcRenderer.invoke('tab:duplicate', id),
   showContextMenu: (tabId: string): Promise<void> =>
     ipcRenderer.invoke('tab:show-context-menu', { tabId }),
+  setColor: (id: string, color: TabColorPayload): Promise<boolean> =>
+    ipcRenderer.invoke('tab:set-color', id, color),
   onListUpdate: (handler: (snapshot: TabListSnapshot) => void): (() => void) => {
     const listener = (_e: unknown, snap: TabListSnapshot): void => handler(snap)
     ipcRenderer.on('tab:list-update', listener)

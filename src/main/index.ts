@@ -25,7 +25,7 @@ import {
   summarizeChunks,
   SummarizationAbortedError
 } from '../ai/SummarizationPlanner'
-import { TabManager, type TabSession } from './TabManager'
+import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
 
 let mainWindow: BrowserWindow | null = null
 const tabManager = new TabManager()
@@ -235,6 +235,11 @@ ipcMain.handle('tab:duplicate', (_event, id: string): TabSession | null => {
   return session
 })
 
+// Sprint 011 M2 — 탭 컬러 라벨.
+ipcMain.handle('tab:set-color', (_event, id: string, color: TabColor): boolean => {
+  return tabManager.setColor(id, color)
+})
+
 // Sprint 010 M2 — TabBar 우클릭 시 OS 네이티브 컨텍스트 메뉴 popup.
 ipcMain.handle(
   'tab:show-context-menu',
@@ -294,11 +299,38 @@ ipcMain.handle(
           createTabView(session.id, session.url)
           setActiveTabView(session.id)
         }
+      },
+      { type: 'separator' },
+      {
+        label: '색상 변경',
+        submenu: buildColorSubmenu(tabId)
       }
     ])
     menu.popup({ window: mainWindow })
   }
 )
+
+const COLOR_LABELS: Record<NonNullable<TabColor>, string> = {
+  red: '빨강',
+  orange: '주황',
+  yellow: '노랑',
+  green: '초록',
+  blue: '파랑',
+  purple: '보라',
+  gray: '회색'
+}
+
+function buildColorSubmenu(tabId: string): Electron.MenuItemConstructorOptions[] {
+  const current = tabManager.list().find((t) => t.id === tabId)?.color ?? null
+  return TAB_COLOR_PALETTE.map<Electron.MenuItemConstructorOptions>((color) => ({
+    label: color === null ? '없음' : COLOR_LABELS[color],
+    type: 'radio',
+    checked: current === color,
+    click: () => {
+      tabManager.setColor(tabId, color)
+    }
+  }))
+}
 
 /**
  * Sprint 008 M1 — 신규 탭의 WebContentsView를 생성하고 listener를 등록.

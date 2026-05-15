@@ -1,11 +1,32 @@
 import { useEffect, useState } from 'react'
 
+type TabColorPayload =
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'blue'
+  | 'purple'
+  | 'gray'
+  | null
+
 interface TabSessionPayload {
   id: string
   url: string
   title: string
   createdAt: number
   lastActiveAt: number
+  color: TabColorPayload
+}
+
+const COLOR_HEX: Record<NonNullable<TabColorPayload>, string> = {
+  red: '#e74c3c',
+  orange: '#e67e22',
+  yellow: '#f1c40f',
+  green: '#2ecc71',
+  blue: '#4a9eff',
+  purple: '#9b59b6',
+  gray: '#95a5a6'
 }
 
 interface TabListSnapshot {
@@ -98,16 +119,22 @@ export default function TabBar(): JSX.Element {
   return (
     <div className="tab-bar">
       <div className="tab-bar-list">
-        {snapshot.tabs.map((t, idx) => (
+        {snapshot.tabs.map((t, idx) => {
+          const isActive = snapshot.activeId === t.id
+          const colorHex = t.color ? COLOR_HEX[t.color] : null
+          // 활성 + color → color, 활성 + no color → 파란 강조, 비활성 + color → color, 비활성 + no color → transparent
+          const borderTopColor = colorHex ?? (isActive ? '#4a9eff' : 'transparent')
+          return (
           <div
             key={t.id}
-            className={`tab-item ${snapshot.activeId === t.id ? 'active' : ''} ${
+            className={`tab-item ${isActive ? 'active' : ''} ${
               draggingId === t.id ? 'dragging' : ''
             } ${dropTargetIdx === idx && draggingId && draggingId !== t.id ? 'drop-target' : ''}`}
             onClick={() => void handleSwitch(t.id)}
             onContextMenu={(e) => handleContextMenu(e, t.id)}
             title={t.url}
             draggable
+            style={{ borderTopColor }}
             onDragStart={(e) => handleDragStart(e, t.id)}
             onDragOver={(e) => handleDragOver(e, idx)}
             onDragLeave={handleDragLeave}
@@ -127,7 +154,8 @@ export default function TabBar(): JSX.Element {
               ×
             </button>
           </div>
-        ))}
+          )
+        })}
       </div>
       <button
         type="button"

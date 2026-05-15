@@ -8,12 +8,34 @@
 import { promises as fs } from 'node:fs'
 import { dirname, join } from 'node:path'
 
+export type PersistedTabColor =
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'blue'
+  | 'purple'
+  | 'gray'
+  | null
+
+const VALID_COLORS: ReadonlySet<string> = new Set([
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'purple',
+  'gray'
+])
+
 export interface PersistedTabSession {
   id: string
   url: string
   title: string
   createdAt: number
   lastActiveAt: number
+  /** Sprint 011 M2 — 누락 시 null fallback (호환) */
+  color: PersistedTabColor
 }
 
 export interface PersistedTabState {
@@ -34,18 +56,32 @@ export class TabStateStore {
       if (parsed.policyVersion !== TAB_STATE_POLICY_VERSION) {
         return this.empty()
       }
-      const tabs = Array.isArray(parsed.tabs)
-        ? parsed.tabs.filter(
-            (t): t is PersistedTabSession =>
-              typeof t === 'object' &&
-              t !== null &&
-              typeof (t as PersistedTabSession).id === 'string' &&
-              typeof (t as PersistedTabSession).url === 'string' &&
-              typeof (t as PersistedTabSession).title === 'string' &&
-              typeof (t as PersistedTabSession).createdAt === 'number' &&
-              typeof (t as PersistedTabSession).lastActiveAt === 'number'
-          )
-        : []
+      const rawTabs = Array.isArray(parsed.tabs) ? (parsed.tabs as unknown[]) : []
+      const tabs: PersistedTabSession[] = []
+      for (const item of rawTabs) {
+        if (typeof item !== 'object' || item === null) continue
+        const t = item as Record<string, unknown>
+        if (
+          typeof t.id !== 'string' ||
+          typeof t.url !== 'string' ||
+          typeof t.title !== 'string' ||
+          typeof t.createdAt !== 'number' ||
+          typeof t.lastActiveAt !== 'number'
+        ) {
+          continue
+        }
+        tabs.push({
+          id: t.id,
+          url: t.url,
+          title: t.title,
+          createdAt: t.createdAt,
+          lastActiveAt: t.lastActiveAt,
+          color:
+            typeof t.color === 'string' && VALID_COLORS.has(t.color)
+              ? (t.color as PersistedTabColor)
+              : null
+        })
+      }
       const activeId =
         typeof parsed.activeId === 'string' && tabs.some((t) => t.id === parsed.activeId)
           ? parsed.activeId
