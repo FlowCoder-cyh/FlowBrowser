@@ -64,6 +64,9 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   })
   const [chunksExpanded, setChunksExpanded] = useState(false)
   const [displayMode, setDisplayMode] = useState<DisplayMode>('panel')
+  // Sprint 014 M3-8 핫픽스 — listener closure의 stale displayMode 회피 (의존성 재실행 미스 안전망)
+  const displayModeRef = useRef<DisplayMode>('panel')
+  displayModeRef.current = displayMode
   const [defaultLanguage, setDefaultLanguage] = useState('ko')
   const [sourceLanguage, setSourceLanguage] = useState('auto')
   const [defaultProviderId, setDefaultProviderId] = useState('openai')
@@ -169,9 +172,9 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         setStoppedReason(p.stoppedReason)
       }
       // 자동 render (replace / overlay 모드)
-      if (displayMode !== 'panel' && renderQueueRef.current.length > 0) {
+      if (displayModeRef.current !== 'panel' && renderQueueRef.current.length > 0) {
         void window.translateApi.render({
-          mode: displayMode,
+          mode: displayModeRef.current,
           selectorPreset: 'paragraph',
           instructions: renderQueueRef.current
         })
@@ -244,9 +247,9 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       if (!isCurrentTab(p)) return
       setBusy(false)
       setStoppedReason(p.stoppedReason)
-      if (displayMode !== 'panel' && renderQueueRef.current.length > 0) {
+      if (displayModeRef.current !== 'panel' && renderQueueRef.current.length > 0) {
         void window.translateApi.render({
-          mode: displayMode,
+          mode: displayModeRef.current,
           selectorPreset: 'page',
           instructions: renderQueueRef.current
         })

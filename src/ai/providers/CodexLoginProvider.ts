@@ -106,6 +106,7 @@ export class CodexLoginProvider implements ProviderAdapter {
         headers: this.buildHeaders(token.accessToken, identity.accountId),
         body: JSON.stringify({
           model: DEFAULT_MODEL,
+          instructions: 'Respond with the word ok.',
           input: 'ping',
           stream: false
         })
@@ -132,10 +133,11 @@ export class CodexLoginProvider implements ProviderAdapter {
   async translate(input: TranslationInput): Promise<TranslationOutput> {
     const startedAt = Date.now()
     const model = this.resolveModel(input.modelHint)
-    const messages = [
-      { role: 'system' as const, content: buildSystemPrompt(input) },
-      { role: 'user' as const, content: buildUserPrompt(input) }
-    ]
+    // Sprint 014 M3-8 핫픽스: Responses API는 system prompt를 instructions 필드로,
+    // user prompt만 input으로 받는다. 기존엔 [system+user]를 input 배열로 보내
+    // "Instructions are required" 400 발생.
+    const instructions = buildSystemPrompt(input)
+    const userContent = buildUserPrompt(input)
 
     let token = await this.ensureFreshToken()
     let identity = resolveCodexAuthIdentity(token.accessToken)
@@ -147,7 +149,13 @@ export class CodexLoginProvider implements ProviderAdapter {
       )
     }
 
-    let res = await this.callResponses(token.accessToken, identity.accountId, model, messages)
+    let res = await this.callResponses(
+      token.accessToken,
+      identity.accountId,
+      model,
+      instructions,
+      userContent
+    )
 
     // 401/403 시 refresh 1회 시도 후 재호출
     if (res.status === 401 || res.status === 403) {
@@ -159,7 +167,13 @@ export class CodexLoginProvider implements ProviderAdapter {
         if (!identity.accountId) {
           throw new Error('refresh 후 account_id 추출 실패')
         }
-        res = await this.callResponses(token.accessToken, identity.accountId, model, messages)
+        res = await this.callResponses(
+          token.accessToken,
+          identity.accountId,
+          model,
+          instructions,
+          userContent
+        )
       } catch (err) {
         throw new ProviderError(
           `Codex Login 인증 만료: ${err instanceof Error ? err.message : String(err)}`,
@@ -242,14 +256,16 @@ export class CodexLoginProvider implements ProviderAdapter {
     accessToken: string,
     accountId: string,
     model: string,
-    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+    instructions: string,
+    userInput: string
   ): Promise<Response> {
     return this.fetchImpl(`${CODEX_RESPONSES_BASE_URL}/responses`, {
       method: 'POST',
       headers: this.buildHeaders(accessToken, accountId),
       body: JSON.stringify({
         model,
-        input: messages,
+        instructions,
+        input: userInput,
         stream: false
       })
     })
