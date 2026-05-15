@@ -116,11 +116,14 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     expect(opts.headers['OAI-Product-Sku']).toBe('codex')
     const body = JSON.parse(opts.body)
     expect(body.model).toBe('gpt-5.5')
-    // Sprint 014 M3-8: instructions(system prompt) + input(user prompt) 분리
+    // Sprint 014 M3-8/9: instructions(system prompt) + input(list, Responses API 표준)
     expect(typeof body.instructions).toBe('string')
     expect(body.instructions.length).toBeGreaterThan(0)
-    expect(typeof body.input).toBe('string')
-    expect(body.input.length).toBeGreaterThan(0)
+    expect(Array.isArray(body.input)).toBe(true)
+    expect(body.input[0].type).toBe('message')
+    expect(body.input[0].role).toBe('user')
+    expect(body.input[0].content[0].type).toBe('input_text')
+    expect(typeof body.input[0].content[0].text).toBe('string')
     expect(body.stream).toBe(false)
   })
 
