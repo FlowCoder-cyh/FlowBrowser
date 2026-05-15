@@ -448,6 +448,125 @@ body {
   font-size: 12px;
 }
 
+.glossary-panel .glossary-meta {
+  font-size: 11px;
+  color: #777;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  margin-left: 8px;
+  font-weight: normal;
+}
+
+.gloss-add {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.5fr auto;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.gloss-add input {
+  height: 30px;
+  padding: 0 10px;
+  background: #0e0e0e;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 12px;
+}
+
+.gloss-error {
+  margin-top: 6px;
+  color: #ffaaaa;
+  font-size: 11px;
+}
+
+.gloss-filter {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: #aaa;
+}
+
+.gloss-filter select {
+  height: 26px;
+  background: #0e0e0e;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 12px;
+  padding: 0 8px;
+}
+
+.gloss-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+
+.gloss-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr auto auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px dashed #2a2a2a;
+  font-size: 12px;
+}
+
+.gloss-row.inactive {
+  opacity: 0.5;
+}
+
+.gloss-source {
+  color: #e0e0e0;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+}
+
+.gloss-arrow {
+  color: #777;
+}
+
+.gloss-target {
+  color: #88ccff;
+}
+
+.gloss-domain {
+  font-size: 10px;
+  color: #999;
+  background: #1a2a3a;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.gloss-desc {
+  font-size: 11px;
+  color: #777;
+  font-style: italic;
+}
+
+.gloss-empty {
+  color: #777;
+  font-size: 12px;
+  padding: 12px 8px;
+}
+
+.gloss-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.gloss-import-result {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: #1a2a3a;
+  color: #aaccff;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
 .settings-message {
   padding: 8px 12px;
   border-radius: 4px;

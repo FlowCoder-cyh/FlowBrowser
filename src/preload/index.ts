@@ -108,6 +108,55 @@ const cacheApi = {
     ipcRenderer.invoke('cache:invalidate-glossary', version)
 }
 
+interface GlossaryTermPayload {
+  id: string
+  sourceTerm: string
+  targetTerm: string
+  description: string
+  domain: string
+  isActive: boolean
+  version: string
+  createdAt: number
+  updatedAt: number
+}
+
+interface GlossaryExportPayload {
+  policyVersion: number
+  currentVersion: string
+  terms: GlossaryTermPayload[]
+}
+
+const glossaryApi = {
+  list: (): Promise<GlossaryTermPayload[]> => ipcRenderer.invoke('glossary:list'),
+  version: (): Promise<string> => ipcRenderer.invoke('glossary:version'),
+  add: (args: {
+    sourceTerm: string
+    targetTerm: string
+    description?: string
+    domain?: string
+    isActive?: boolean
+  }): Promise<{ ok: boolean; error?: string; term?: GlossaryTermPayload }> =>
+    ipcRenderer.invoke('glossary:add', args),
+  update: (args: {
+    id: string
+    patch: Partial<{
+      sourceTerm: string
+      targetTerm: string
+      description: string
+      domain: string
+      isActive: boolean
+    }>
+  }): Promise<{ ok: boolean; term?: GlossaryTermPayload }> =>
+    ipcRenderer.invoke('glossary:update', args),
+  remove: (id: string): Promise<boolean> => ipcRenderer.invoke('glossary:remove', id),
+  clear: (): Promise<void> => ipcRenderer.invoke('glossary:clear'),
+  exportTerms: (): Promise<GlossaryExportPayload> => ipcRenderer.invoke('glossary:export'),
+  importTerms: (
+    raw: unknown
+  ): Promise<{ ok: boolean; accepted: number; rejected: number; error?: string }> =>
+    ipcRenderer.invoke('glossary:import', raw)
+}
+
 interface TranslateRequest {
   providerType: string
   input: {
@@ -369,6 +418,7 @@ contextBridge.exposeInMainWorld('credentialApi', credentialApi)
 contextBridge.exposeInMainWorld('privacyApi', privacyApi)
 contextBridge.exposeInMainWorld('usageApi', usageApi)
 contextBridge.exposeInMainWorld('cacheApi', cacheApi)
+contextBridge.exposeInMainWorld('glossaryApi', glossaryApi)
 contextBridge.exposeInMainWorld('translateApi', translateApi)
 contextBridge.exposeInMainWorld('popupApi', popupApi)
 
@@ -378,5 +428,6 @@ export type CredentialApi = typeof credentialApi
 export type PrivacyApi = typeof privacyApi
 export type UsageApi = typeof usageApi
 export type CacheApi = typeof cacheApi
+export type GlossaryApi = typeof glossaryApi
 export type TranslateApi = typeof translateApi
 export type PopupApi = typeof popupApi

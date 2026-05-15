@@ -185,11 +185,13 @@ export function buildSystemPrompt(input: TranslationInput): string {
 
 /**
  * Sprint 004 M2/M3 — user prompt 분기. 단위 테스트가 직접 호출한다.
+ * Sprint 005 M2 — context.surroundingText에 glossary 블록이 들어오면 prompt에 포함.
  */
 export function buildUserPrompt(input: TranslationInput): string {
   const ctxLines: string[] = []
   if (input.context?.url) ctxLines.push(`URL: ${input.context.url}`)
   if (input.context?.title) ctxLines.push(`Page title: ${input.context.title}`)
+  if (input.context?.surroundingText) ctxLines.push(input.context.surroundingText)
   const ctx = ctxLines.length > 0 ? `Context:\n${ctxLines.join('\n')}\n\n` : ''
   if (input.requestType === 'explanation') {
     return `${ctx}Explain the following ${input.sourceLanguage} text in ${input.targetLanguage}:\n\n${input.sourceText}`
