@@ -7,7 +7,9 @@ import {
   executeTranslateRequest,
   scanWebContentsFields,
   extractWebContentsParagraphs,
-  extractWebContentsPageNodes
+  extractWebContentsPageNodes,
+  persistPageResult,
+  pageResultLookup
 } from './services'
 
 let mainWindow: BrowserWindow | null = null
@@ -202,6 +204,63 @@ ipcMain.handle(
   }
 )
 
+/**
+ * Sprint 006 M3 — 페이지 캐시 복원. 현재 페이지 URL + 노드 추출 + signature 비교 후 render.
+ */
+ipcMain.handle(
+  'pageResult:restore-current',
+  async (
+    _event,
+    args: {
+      targetLanguage: string
+      providerType: string
+      mode: 'replace' | 'overlay'
+    }
+  ): Promise<{
+    ok: boolean
+    applied?: number
+    missing?: number
+    reason?: 'no-hit' | 'signature-mismatch' | 'browser-not-ready' | 'no-nodes' | string
+  }> => {
+    if (!browserView) return { ok: false, reason: 'browser-not-ready' }
+    const url = browserView.webContents.getURL()
+    const webContentsId = browserView.webContents.id
+    const bundle = await extractWebContentsPageNodes(webContentsId)
+    if (bundle.nodes.length === 0) return { ok: false, reason: 'no-nodes' }
+    const { nodesSignatureFromTexts } = await import('../storage/PageResultStore')
+    const signature = nodesSignatureFromTexts(bundle.nodes)
+    const entry = await pageResultLookup({
+      url,
+      targetLanguage: args.targetLanguage,
+      providerType: args.providerType,
+      nodesSignature: signature
+    })
+    if (!entry) {
+      const entryAny = await pageResultLookup({
+        url,
+        targetLanguage: args.targetLanguage,
+        providerType: args.providerType
+      })
+      return entryAny
+        ? { ok: false, reason: 'signature-mismatch' }
+        : { ok: false, reason: 'no-hit' }
+    }
+    try {
+      const { renderTranslationsScript } = await import('../perception/TranslationRenderer')
+      const result = (await browserView.webContents.executeJavaScript(
+        renderTranslationsScript({
+          mode: args.mode,
+          selectorPreset: entry.selectorPreset,
+          instructions: entry.instructions
+        })
+      )) as { applied: number; missing: number }
+      return { ok: true, applied: result.applied, missing: result.missing }
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : String(err) }
+    }
+  }
+)
+
 ipcMain.handle(
   'translate:render-restore',
   async (): Promise<{ ok: boolean; restored?: number; overlays?: number; reason?: string }> => {
@@ -380,6 +439,7 @@ ipcMain.handle(
     let blocked = 0
     let failed = 0
     let stoppedReason: 'aborted' | 'page_wide_block' | null = null
+    const persistInstructions: Array<{ id: string; translatedText: string }> = []
 
     for (const node of bundle.nodes) {
       if (!mainWindow) break
@@ -406,6 +466,7 @@ ipcMain.handle(
 
       if (result.ok && result.output) {
         completed++
+        persistInstructions.push({ id: node.id, translatedText: result.output.translatedText })
       } else if (result.decision === 'blocked') {
         blocked++
       } else {
@@ -448,6 +509,18 @@ ipcMain.handle(
       failed,
       stoppedReason
     })
+
+    // Sprint 006 M3 — 정상 완료(미차단/미취소)일 때만 페이지 결과 영속.
+    if (stoppedReason === null && persistInstructions.length > 0) {
+      await persistPageResult({
+        url,
+        targetLanguage: args.targetLanguage,
+        providerType: args.providerType,
+        selectorPreset: 'page',
+        nodes: bundle.nodes,
+        instructions: persistInstructions
+      })
+    }
     return { ok: true, total: bundle.nodes.length, chunks: bundle.chunks.length }
   }
 )

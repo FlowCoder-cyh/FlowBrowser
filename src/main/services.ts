@@ -29,11 +29,14 @@ import {
   TranslationCache,
   GlossaryStore,
   UserSettingStore,
+  PageResultStore,
   defaultCredentialsPath,
   defaultUsageLogPath,
   defaultTranslationCachePath,
   defaultGlossaryPath,
   defaultUserSettingPath,
+  defaultPageResultPath,
+  nodesSignatureFromTexts,
   formatGlossaryContext,
   type CredentialRecord,
   type CredentialProviderType,
@@ -67,6 +70,7 @@ let usageLog!: UsageLog
 let translationCache!: TranslationCache
 let glossaryStore!: GlossaryStore
 let userSettingStore!: UserSettingStore
+let pageResultStore!: PageResultStore
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 
 let consentStatePath!: string
@@ -99,6 +103,9 @@ export async function initServices(): Promise<void> {
   userSettingStore = new UserSettingStore(defaultUserSettingPath(userDataDir))
   await userSettingStore.load()
 
+  pageResultStore = new PageResultStore(defaultPageResultPath(userDataDir))
+  await pageResultStore.load()
+
   registerConsentIpc()
   registerCredentialIpc()
   registerPrivacyIpc()
@@ -107,6 +114,77 @@ export async function initServices(): Promise<void> {
   registerCacheIpc()
   registerGlossaryIpc()
   registerUserSettingIpc()
+  registerPageResultIpc()
+}
+
+function registerPageResultIpc(): void {
+  ipcMain.handle('pageResult:stats', () => pageResultStore.stats())
+  ipcMain.handle('pageResult:clear', async (): Promise<void> => pageResultStore.clearAll())
+  ipcMain.handle(
+    'pageResult:lookup',
+    async (
+      _event,
+      args: {
+        url: string
+        targetLanguage: string
+        providerType: string
+        glossaryVersion?: string
+        nodesSignature?: string
+      }
+    ) => pageResultStore.lookup(args)
+  )
+  ipcMain.handle(
+    'pageResult:store',
+    async (
+      _event,
+      args: {
+        url: string
+        targetLanguage: string
+        providerType: string
+        glossaryVersion?: string
+        nodesSignature: string
+        selectorPreset: 'paragraph' | 'page'
+        instructions: Array<{ id: string; translatedText: string }>
+      }
+    ) => pageResultStore.store(args)
+  )
+}
+
+/**
+ * Sprint 006 M3 — 페이지 번역 결과 누적 저장 (선택 헬퍼). main/index.ts 사용.
+ */
+export async function persistPageResult(args: {
+  url: string
+  targetLanguage: string
+  providerType: string
+  selectorPreset: 'paragraph' | 'page'
+  nodes: Array<{ id: string; text: string }>
+  instructions: Array<{ id: string; translatedText: string }>
+}): Promise<void> {
+  if (args.instructions.length === 0) return
+  const nodesSignature = nodesSignatureFromTexts(args.nodes)
+  await pageResultStore.store({
+    url: args.url,
+    targetLanguage: args.targetLanguage,
+    providerType: args.providerType,
+    glossaryVersion: glossaryStore.getVersion(),
+    nodesSignature,
+    selectorPreset: args.selectorPreset,
+    instructions: args.instructions
+  })
+}
+
+export async function pageResultLookup(args: {
+  url: string
+  targetLanguage: string
+  providerType: string
+  glossaryVersion?: string
+  nodesSignature?: string
+}): Promise<import('../storage/PageResultStore').PageResultEntry | null> {
+  return pageResultStore.lookup({
+    ...args,
+    glossaryVersion: args.glossaryVersion ?? glossaryStore.getVersion()
+  })
 }
 
 function registerUserSettingIpc(): void {

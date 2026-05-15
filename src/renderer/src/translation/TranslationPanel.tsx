@@ -61,15 +61,29 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   })
   const [chunksExpanded, setChunksExpanded] = useState(false)
   const [displayMode, setDisplayMode] = useState<DisplayMode>('panel')
+  const [restoreHint, setRestoreHint] = useState<{ url: string; count: number } | null>(null)
+  const [restoreResult, setRestoreResult] = useState<string | null>(null)
   // 진행 중 누적 instruction (paragraph/page mode일 때 replace/overlay로 자동 렌더)
   const renderQueueRef = useRef<Array<{ id: string; translatedText: string }>>([])
   const rowsRef = useRef<Map<string, NodeRow>>(new Map())
 
   useEffect(() => {
     void window.userSettingApi.get().then((s) => setDisplayMode(s.translationMode))
-    // Navigation 시 자동 restore
-    const offNav = window.browserApi.onNavigated(() => {
+    // Navigation 시 자동 restore + 페이지 캐시 hit 알림
+    const offNav = window.browserApi.onNavigated((p) => {
       void window.translateApi.renderRestore()
+      setRestoreHint(null)
+      if (p.url) {
+        void window.pageResultApi
+          .lookup({
+            url: p.url,
+            targetLanguage: 'ko',
+            providerType: 'openai'
+          })
+          .then((entry) => {
+            if (entry) setRestoreHint({ url: p.url, count: entry.instructions.length })
+          })
+      }
     })
 
     const offStart = window.translateApi.onParagraphsStart((p) => {
@@ -308,6 +322,25 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     await window.translateApi.renderRestore()
   }
 
+  async function handleRestoreFromCache(): Promise<void> {
+    setRestoreResult('복원 중…')
+    const result = await window.pageResultApi.restoreCurrent({
+      targetLanguage: 'ko',
+      providerType: 'openai',
+      mode: displayMode === 'panel' ? 'overlay' : displayMode
+    })
+    if (result.ok) {
+      setRestoreResult(`복원 완료: ${result.applied}건 적용, ${result.missing}건 누락`)
+      setRestoreHint(null)
+    } else if (result.reason === 'signature-mismatch') {
+      setRestoreResult('페이지가 변경되어 복원할 수 없습니다.')
+    } else if (result.reason === 'no-hit') {
+      setRestoreResult('저장된 번역이 없습니다.')
+    } else {
+      setRestoreResult(`복원 실패: ${result.reason ?? '알 수 없음'}`)
+    }
+  }
+
   async function handleStartSummary(): Promise<void> {
     setBusy(true)
     setError(null)
@@ -384,6 +417,22 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
           </button>
         )}
       </div>
+
+      {restoreHint && (
+        <div className="panel-restore-hint">
+          이 페이지에 저장된 번역이 있습니다 ({restoreHint.count}개 노드).
+          <button
+            type="button"
+            className="panel-btn"
+            onClick={() => void handleRestoreFromCache()}
+            disabled={busy}
+          >
+            복원
+          </button>
+        </div>
+      )}
+
+      {restoreResult && <div className="panel-restore-result">{restoreResult}</div>}
 
       {error && <div className="panel-error">{error}</div>}
 

@@ -28,3 +28,16 @@ export type {
 
 export { UserSettingStore, defaultUserSettingPath } from './UserSettingStore'
 export type { UserSettingState, TranslationMode } from './UserSettingStore'
+
+export {
+  PageResultStore,
+  defaultPageResultPath,
+  normalizePageUrl,
+  nodesSignatureFromTexts
+} from './PageResultStore'
+export type {
+  PageResultEntry,
+  PageResultInstruction,
+  PageResultLookupKey,
+  PageResultStoreOptions
+} from './PageResultStore'
