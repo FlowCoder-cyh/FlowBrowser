@@ -41,3 +41,10 @@ export type {
   PageResultLookupKey,
   PageResultStoreOptions
 } from './PageResultStore'
+
+export {
+  TabStateStore,
+  defaultTabStatePath,
+  TAB_STATE_POLICY_VERSION
+} from './TabStateStore'
+export type { PersistedTabSession, PersistedTabState } from './TabStateStore'

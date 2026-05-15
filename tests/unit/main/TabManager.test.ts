@@ -193,4 +193,47 @@ describe('TabManager', () => {
       expect(tm.list().map((t) => t.id)).toEqual([a.id, c.id, d.id])
     })
   })
+
+  // Sprint 009 M3 — restore
+  describe('restore (Sprint 009 M3)', () => {
+    it('외부 상태 import — 기존 상태 모두 제거, emit 1회', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      tm.open('b.com')
+      const handler = vi.fn()
+      tm.subscribe(handler)
+      handler.mockClear()
+      tm.restore({
+        tabs: [
+          { id: 'r1', url: 'r1.com', title: 'R1', createdAt: 1, lastActiveAt: 2 },
+          { id: 'r2', url: 'r2.com', title: 'R2', createdAt: 3, lastActiveAt: 4 }
+        ],
+        activeId: 'r2'
+      })
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(tm.size()).toBe(2)
+      expect(tm.getActiveId()).toBe('r2')
+      expect(tm.list().map((t) => t.id)).toEqual(['r1', 'r2'])
+    })
+
+    it('activeId가 tabs에 없으면 마지막 탭으로 fallback', () => {
+      const tm = new TabManager()
+      tm.restore({
+        tabs: [
+          { id: 'r1', url: 'r1.com', title: '', createdAt: 1, lastActiveAt: 2 },
+          { id: 'r2', url: 'r2.com', title: '', createdAt: 3, lastActiveAt: 4 }
+        ],
+        activeId: 'missing'
+      })
+      expect(tm.getActiveId()).toBe('r2')
+    })
+
+    it('빈 tabs 복원 → activeId null', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      tm.restore({ tabs: [], activeId: null })
+      expect(tm.size()).toBe(0)
+      expect(tm.getActiveId()).toBeNull()
+    })
+  })
 })
