@@ -53,6 +53,16 @@ const credentialApi = {
     ipcRenderer.invoke('credential:validate', providerType)
 }
 
+interface DomainRule {
+  pattern: string
+  type: 'blacklist' | 'whitelist'
+}
+
+interface DomainPolicyExportPayload {
+  policyVersion: number
+  userRules: DomainRule[]
+}
+
 const privacyApi = {
   scanPage: (
     webContentsId: number
@@ -60,12 +70,21 @@ const privacyApi = {
     ipcRenderer.invoke('privacy:scan-page', webContentsId),
   approve: (domain: string): Promise<{ token: string }> =>
     ipcRenderer.invoke('privacy:approve', domain),
-  addRule: (rule: { pattern: string; type: 'blacklist' | 'whitelist' }): Promise<void> =>
+  addRule: (rule: DomainRule): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('privacy:add-rule', rule),
-  removeRule: (args: { pattern: string; type: 'blacklist' | 'whitelist' }): Promise<void> =>
+  removeRule: (args: DomainRule): Promise<void> =>
     ipcRenderer.invoke('privacy:remove-rule', args),
-  getRules: (): Promise<{ userRules: Array<{ pattern: string; type: string }> }> =>
+  getRules: (): Promise<{ userRules: DomainRule[] }> =>
     ipcRenderer.invoke('privacy:get-rules'),
+  setRules: (rules: DomainRule[]): Promise<{ accepted: number; rejected: number }> =>
+    ipcRenderer.invoke('privacy:set-rules', rules),
+  exportPolicy: (): Promise<DomainPolicyExportPayload> =>
+    ipcRenderer.invoke('privacy:export-policy'),
+  importPolicy: (
+    raw: unknown
+  ): Promise<{ ok: boolean; accepted: number; rejected: number; error?: string }> =>
+    ipcRenderer.invoke('privacy:import-policy', raw),
+  clearPolicy: (): Promise<void> => ipcRenderer.invoke('privacy:clear-policy'),
   blockedStats: (): Promise<{
     byDomain: Record<string, number>
     byReason: Record<string, number>
