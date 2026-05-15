@@ -457,14 +457,15 @@ function destroyTabView(tabId: string): void {
  * 비활성 view는 분리해 화면에서 숨김.
  */
 /**
- * Sprint 012 M1 — 활성 탭 변경 직전 현재 active view 캡처.
- * NativeImage → resize → dataURL → ThumbnailStore 저장.
- * 실패는 silent (로그만).
+ * Sprint 012 M1 — 지정 tabId의 view 캡처 후 ThumbnailStore 저장.
+ * NativeImage → resize → dataURL → ThumbnailStore 저장. 실패는 silent.
+ *
+ * 핫픽스 (WI-S012M1-1): tabManager.getActiveId() 의존 제거 — caller가 호출 시점의
+ * 직전 활성 view tabId를 직접 결정. setActiveTabView 진입 시점에 browserView 변수가
+ * 이전 활성 view를 가리키는 점을 활용해 tabId 역조회.
  */
-async function captureActiveTabThumbnail(): Promise<void> {
-  const prevId = tabManager.getActiveId()
-  if (!prevId) return
-  const view = tabViews.get(prevId)
+async function captureTabThumbnail(prevTabId: string): Promise<void> {
+  const view = tabViews.get(prevTabId)
   if (!view) return
   try {
     const image = await view.webContents.capturePage()
@@ -477,7 +478,7 @@ async function captureActiveTabThumbnail(): Promise<void> {
       width: size.width,
       height: size.height
     }
-    thumbnailStore.set(prevId, entry)
+    thumbnailStore.set(prevTabId, entry)
   } catch {
     // capturePage 실패는 silent — 로그 노이즈 회피
   }
@@ -487,10 +488,17 @@ function setActiveTabView(tabId: string): void {
   if (!mainWindow) return
   const next = tabViews.get(tabId)
   if (!next) return
-  // Sprint 012 M1 — 실제 탭 전환일 때만 이전 view 캡처 (fire-and-forget)
-  const prevId = tabManager.getActiveId()
-  if (prevId !== null && prevId !== tabId && tabViews.has(prevId)) {
-    void captureActiveTabThumbnail()
+  // Sprint 012 M1 핫픽스 — 진입 시점 browserView 변수가 이전 활성 view를 가리킴
+  // (syncBrowserViewRef는 본 함수 마지막에서 호출되어 새 view로 갱신됨).
+  // 이전 view의 tabId를 역조회하여 captureTabThumbnail 호출 — caller에서 tabManager
+  // 상태가 이미 변경됐을 수 있어 tabManager.getActiveId() 의존 불가.
+  if (browserView && browserView !== next) {
+    for (const [otherId, view] of tabViews.entries()) {
+      if (view === browserView) {
+        void captureTabThumbnail(otherId)
+        break
+      }
+    }
   }
   // 기존 활성 view 분리
   for (const [otherId, view] of tabViews.entries()) {
