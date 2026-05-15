@@ -1,6 +1,6 @@
-# FlowBrowser AI PRD v0.3.6 — 목차
+# FlowBrowser AI PRD v0.3.7 — 목차
 
-본 문서는 FlowBrowser AI 제품 요구사항 명세(PRD)의 **v0.3.6** 버전이며, 13개 섹션 파일로 분할되어 있다.
+본 문서는 FlowBrowser AI 제품 요구사항 명세(PRD)의 **v0.3.7** 버전이며, 13개 섹션 파일로 분할되어 있다.
 v0.2 통합본은 [archive/flowbrowser_ai_prd_crud_v0.2.md](../../archive/flowbrowser_ai_prd_crud_v0.2.md)에 보관되며, v0.3.x 통합본은 작성하지 않고 분할 SSOT로 운영한다.
 
 ## 섹션 구성
@@ -23,9 +23,9 @@ v0.2 통합본은 [archive/flowbrowser_ai_prd_crud_v0.2.md](../../archive/flowbr
 
 ## 현재 상태
 
-**Phase 1 진행 중 — Sprint 001~008 완료**
+**Phase 1 진행 중 — Sprint 001~009 완료**
 
-Phase 0 5종 Spike + Phase 1 Sprint 001~008 완료. v0.3.6에서는 Sprint 008 (다중 탭 / TabManager + TabBar + 활성 탭 라우팅) 실측 반영.
+Phase 0 5종 Spike + Phase 1 Sprint 001~009 완료. v0.3.7에서는 Sprint 009 (Glossary flaky 핫픽스 + sourceTabId 가드 + 탭 영속) 실측 반영.
 Spike 5 (사용자 인터뷰) 실제 진행은 사용자 직접 작업으로 코드 작업과 병렬 진행 가능.
 
 ## 버전 이력
@@ -40,4 +40,5 @@ Spike 5 (사용자 인터뷰) 실제 진행은 사용자 직접 작업으로 코
 | v0.3.3 | 2026-05-15 | Sprint 005 실측 반영 (캐시 키 확장 / 용어집 + invalidation / 요약 폭주 보호) |
 | v0.3.4 | 2026-05-15 | Sprint 006 실측 반영 (Navigation 동기화 / 표시 모드 3종 / 페이지 캐시) |
 | v0.3.5 | 2026-05-15 | Sprint 007 실측 반영 (UserSetting 잔여 4 필드 / 요약 메타 수치 / PageCachePanel / tsconfig·빌드 보강) |
-| **v0.3.6** | **2026-05-15** | **Sprint 008 실측 반영 (다중 탭 / TabManager + TabBar + 활성 탭 라우팅), 현재** |
+| v0.3.6 | 2026-05-15 | Sprint 008 실측 반영 (다중 탭 / TabManager + TabBar + 활성 탭 라우팅) |
+| **v0.3.7** | **2026-05-15** | **Sprint 009 실측 반영 (Glossary flaky 핫픽스 + sourceTabId 가드 + 탭 영속), 현재** |

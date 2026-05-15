@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~008 종료, **Sprint 009 정의 완료 / M1 대기**
-- **Sprint**: **009 정의 완료** (Sprint 008 종합 Pass 17/0/0)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~009 종료
+- **Sprint**: **009 종료** (M4 종합 evaluator 진행 중)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: v0.3.6 (2026-05-15) — Sprint 009 M4에서 v0.3.7 패치 예정
-- **최근 갱신**: 2026-05-15 (Sprint 009 정의 작성, contracts/sprint-009.md)
+- **PRD 버전**: **v0.3.7** (2026-05-15, Sprint 009 실측 반영)
+- **최근 갱신**: 2026-05-15 (Sprint 009 M4 PRD 패치 + Sprint 종료)
 
 ## 현재 작업
 
@@ -56,14 +56,20 @@
 - PRD v0.3.5 발행
 - commit-check CI 모든 PR success
 
-### Sprint 008 진행 (2026-05-15)
+### Sprint 008 결과 (PR #45~#49 머지)
 
-- 산출물: `.flowset/contracts/sprint-008.md`
-- M1 (PR #46): TabManager 코어 + 다중 WebContentsView + 5 IPC + tab:list-update broadcast + 13 tests. evaluator Pass 5 (가드5+자검4+PRD1=15) / 0 / 0.
-- M2 (PR #47): TabBar UI + URL Bar 동기화 + 컨텍스트 메뉴 탭별. evaluator Pass 9 / 0 / 0.
-- M3 (PR #48): 마지막 탭 close 시 새 탭 자동 open + 탭별 흐름 라우팅 회귀 검증 + 4 tests. evaluator Pass 8 / 0 / 0.
-- M4: PRD v0.3.6 패치 + Sprint 종합 evaluator 진행 중
-- 누적 단위 테스트: 200 → 217 (+17 신규)
+- 누적 단위 테스트: 200 → 217 (+17)
+- Sprint 종합 evaluator: Pass 17 / 0 / 0
+- PRD v0.3.6 발행
+
+### Sprint 009 진행 (2026-05-15)
+
+- 산출물: `.flowset/contracts/sprint-009.md`
+- M1 (PR #51): GlossaryStore bumpVersion counter 핫픽스 + 회귀 테스트 2. evaluator: 10/10 flaky 해소 (PR auto-merge로 직접 검증).
+- M2 (PR #52): sourceTabId 가드 (3 IPC × 13 이벤트) + TranslationPanel isCurrentTab. evaluator Pass 8/1/0.
+- M3 (PR #53): TabStateStore + TabManager.restore + initializeTabs + 자동 저장(debounce 200ms) + 10 tests. evaluator Pass 14/0/0.
+- M4: PRD v0.3.7 패치 + Sprint 종합 evaluator 진행 중
+- 누적 단위 테스트: 217 → 229 (+12 신규)
 - 모든 자동 검증 (lint/typecheck/test/build) PASS
 
 ## 활성 Spike (5종)
