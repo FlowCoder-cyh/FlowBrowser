@@ -96,7 +96,9 @@ export class CodexLoginProvider implements ProviderAdapter {
           tool_choice: 'auto',
           parallel_tool_calls: true,
           store: false,
-          stream: true
+          stream: true,
+          reasoning: { effort: 'low', summary: null },
+          include: []
         })
       })
       if (res.status === 401 || res.status === 403) {
@@ -268,7 +270,12 @@ export class CodexLoginProvider implements ProviderAdapter {
         tool_choice: 'auto',
         parallel_tool_calls: true,
         store: false,
-        stream: true
+        stream: true,
+        // Sprint 014 M3-12: gpt-5.5는 reasoning 모델. effort='low'로 응답 속도 개선
+        // (Hermes _effort_clamp = {"minimal": "low"} — low가 최소). 번역 use case는
+        // 깊은 추론 불필요.
+        reasoning: { effort: 'low', summary: null },
+        include: []
       })
     })
   }

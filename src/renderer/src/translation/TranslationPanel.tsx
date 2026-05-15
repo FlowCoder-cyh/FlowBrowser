@@ -97,7 +97,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       if (ext.sourceLanguage) setSourceLanguage(ext.sourceLanguage)
       if (ext.defaultProviderId) setDefaultProviderId(ext.defaultProviderId)
     })
-    // Navigation 시 자동 restore + 페이지 캐시 hit 알림
+    // Navigation 시 자동 restore + 페이지 캐시 hit 알림 + 자동 번역 (replace/overlay 모드)
     const offNav = window.browserApi.onNavigated((p) => {
       void window.translateApi.renderRestore()
       setRestoreHint(null)
@@ -109,7 +109,25 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
             providerType: defaultProviderId
           })
           .then((entry) => {
-            if (entry) setRestoreHint({ url: p.url, count: entry.instructions.length })
+            if (entry) {
+              // 캐시 hit → 자동 복원 (별도 호출 불필요)
+              setRestoreHint({ url: p.url, count: entry.instructions.length })
+              return
+            }
+            // Sprint 014 M3-12: 캐시 miss + displayMode replace/overlay면 자동 paragraphs 시작.
+            // panel 모드는 사용자 명시 액션 대기 (UX 의도).
+            // busy 상태는 ref로 직접 검사 (의존성 제외 — eslint-disable로 처리)
+            if (displayModeRef.current !== 'panel') {
+              void window.translateApi
+                .paragraphs({
+                  providerType: defaultProviderId,
+                  sourceLanguage,
+                  targetLanguage: defaultLanguage
+                })
+                .catch(() => {
+                  // 호출 실패는 silent (사용자가 패널에서 수동 재시도 가능)
+                })
+            }
           })
       }
     })
