@@ -6,6 +6,12 @@ interface NavigateResult {
   error?: string
 }
 
+interface NavStatePayload {
+  url: string
+  canGoBack: boolean
+  canGoForward: boolean
+}
+
 const browserApi = {
   navigate: (url: string): Promise<NavigateResult> => ipcRenderer.invoke('navigate', url),
   goBack: (): Promise<boolean> => ipcRenderer.invoke('go-back'),
@@ -13,7 +19,13 @@ const browserApi = {
   reload: (): Promise<boolean> => ipcRenderer.invoke('reload'),
   getCurrentUrl: (): Promise<string> => ipcRenderer.invoke('get-current-url'),
   getViewId: (): Promise<number | null> => ipcRenderer.invoke('browser:get-view-id'),
-  setPanelOpen: (open: boolean): Promise<void> => ipcRenderer.invoke('panel:set-open', open)
+  setPanelOpen: (open: boolean): Promise<void> => ipcRenderer.invoke('panel:set-open', open),
+  navState: (): Promise<NavStatePayload> => ipcRenderer.invoke('browser:nav-state'),
+  onNavigated: (handler: (p: NavStatePayload) => void): (() => void) => {
+    const listener = (_e: unknown, p: NavStatePayload): void => handler(p)
+    ipcRenderer.on('browser:navigated', listener)
+    return () => ipcRenderer.removeListener('browser:navigated', listener)
+  }
 }
 
 interface ConsentState {
@@ -338,6 +350,18 @@ const translateApi = {
     reason?: string
     blockReason?: string
   }> => ipcRenderer.invoke('translate:summarize-page', args),
+  render: (payload: {
+    mode: 'replace' | 'overlay'
+    selectorPreset: 'paragraph' | 'page'
+    instructions: Array<{ id: string; translatedText: string }>
+  }): Promise<{ ok: boolean; applied?: number; missing?: number; reason?: string }> =>
+    ipcRenderer.invoke('translate:render', payload),
+  renderRestore: (): Promise<{
+    ok: boolean
+    restored?: number
+    overlays?: number
+    reason?: string
+  }> => ipcRenderer.invoke('translate:render-restore'),
   onSummaryStart: (handler: (p: SummaryStartPayload) => void): (() => void) => {
     const listener = (_e: unknown, p: SummaryStartPayload): void => handler(p)
     ipcRenderer.on('translate:summary-start', listener)
