@@ -59,33 +59,42 @@ function makeTokenAccess(initial: TokenBundle): {
   }
 }
 
+/**
+ * Sprint 014 M3-11: ChatGPT 백엔드는 SSE streaming 강제. response body는
+ * event: ... / data: {...} 형식 텍스트 스트림.
+ */
+function sseResponse(events: string[]): Response {
+  const body = events.join('\n') + '\n'
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(body))
+      controller.close()
+    }
+  })
+  return new Response(stream, {
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream' }
+  })
+}
+
 function responsesJson(text: string, model = 'gpt-5.5'): Response {
-  return new Response(
-    JSON.stringify({
-      id: 'resp_x',
-      model,
-      output: [
-        {
-          type: 'message',
-          content: [{ type: 'output_text', text }]
-        }
-      ],
-      usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 }
-    }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } }
-  )
+  return sseResponse([
+    `event: response.output_text.delta`,
+    `data: {"type":"response.output_text.delta","delta":${JSON.stringify(text)}}`,
+    ``,
+    `event: response.completed`,
+    `data: {"type":"response.completed","response":{"model":${JSON.stringify(model)},"output":[{"type":"message","content":[{"type":"output_text","text":${JSON.stringify(text)}}]}],"usage":{"input_tokens":10,"output_tokens":5}}}`,
+    ``
+  ])
 }
 
 function responsesJsonNewFormat(text: string): Response {
-  return new Response(
-    JSON.stringify({
-      id: 'resp_y',
-      model: 'gpt-5.5',
-      output_text: text,
-      usage: { input_tokens: 8, output_tokens: 3 }
-    }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } }
-  )
+  return sseResponse([
+    `event: response.completed`,
+    `data: {"type":"response.completed","response":{"model":"gpt-5.5","output_text":${JSON.stringify(text)},"usage":{"input_tokens":8,"output_tokens":3}}}`,
+    ``
+  ])
 }
 
 function emptyResp(status: number): Response {
@@ -128,7 +137,8 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     expect(Array.isArray(body.tools)).toBe(true)
     expect(body.tool_choice).toBe('auto')
     expect(body.parallel_tool_calls).toBe(true)
-    expect(body.stream).toBe(false)
+    // Sprint 014 M3-11: ChatGPT 백엔드 stream: true 강제
+    expect(body.stream).toBe(true)
   })
 
   it('신규 형식 (output_text) 응답 파싱', async () => {

@@ -22,6 +22,7 @@ import {
   type DeviceCodeFlowOptions
 } from '../codex/DeviceCodeFlow'
 import { resolveCodexAuthIdentity } from '../codex/JwtDecoder'
+import { accumulateResponsesStream } from '../codex/SseStreamParser'
 import { buildSystemPrompt, buildUserPrompt } from './OpenAIApiKeyProvider'
 
 const CODEX_RESPONSES_BASE_URL = 'https://chatgpt.com/backend-api/codex'
@@ -30,29 +31,6 @@ const CODEX_RESPONSES_BASE_URL = 'https://chatgpt.com/backend-api/codex'
 // 사용자 보고 400: "The 'gpt-5' model is not supported when using Codex with a ChatGPT account."
 const DEFAULT_MODEL = 'gpt-5.5'
 const AVAILABLE_MODELS: ReadonlyArray<string> = ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.2']
-
-interface ResponsesApiOutputContent {
-  type?: string
-  text?: string
-}
-
-interface ResponsesApiOutputItem {
-  type?: string
-  content?: ResponsesApiOutputContent[]
-}
-
-interface ResponsesApiResponse {
-  id?: string
-  model?: string
-  output?: ResponsesApiOutputItem[]
-  /** 신규 형식 일부 (output_text 직접 노출) */
-  output_text?: string
-  usage?: {
-    input_tokens?: number
-    output_tokens?: number
-    total_tokens?: number
-  }
-}
 
 export interface CodexTokenAccess {
   get(): TokenBundle
@@ -118,7 +96,7 @@ export class CodexLoginProvider implements ProviderAdapter {
           tool_choice: 'auto',
           parallel_tool_calls: true,
           store: false,
-          stream: false
+          stream: true
         })
       })
       if (res.status === 401 || res.status === 403) {
@@ -215,18 +193,19 @@ export class CodexLoginProvider implements ProviderAdapter {
       )
     }
 
-    const data = (await res.json()) as ResponsesApiResponse
-    const text = extractOutputText(data)
-    if (!text) {
+    // Sprint 014 M3-11: SSE 스트림 파싱 (ChatGPT 백엔드는 stream: true 강제)
+    if (!res.body) {
+      throw new ProviderError('Codex Login 응답 body가 비어 있습니다.', 'server_error', true)
+    }
+    const accumulated = await accumulateResponsesStream(res.body)
+    if (!accumulated.text) {
       throw new ProviderError('Codex Login 응답에 결과가 없습니다.', 'server_error', true)
     }
-    const inputTokens = data.usage?.input_tokens ?? 0
-    const outputTokens = data.usage?.output_tokens ?? 0
     return {
-      translatedText: text,
-      modelUsed: data.model ?? model,
-      inputTokens,
-      outputTokens,
+      translatedText: accumulated.text,
+      modelUsed: accumulated.model ?? model,
+      inputTokens: accumulated.inputTokens ?? 0,
+      outputTokens: accumulated.outputTokens ?? 0,
       // ChatGPT 구독 한도 내 호출은 별도 비용 청구 없음으로 추정 (Phase 1 PoC #1 측정 후 확정)
       estimatedCostUsd: 0,
       durationMs: Date.now() - startedAt
@@ -289,7 +268,7 @@ export class CodexLoginProvider implements ProviderAdapter {
         tool_choice: 'auto',
         parallel_tool_calls: true,
         store: false,
-        stream: false
+        stream: true
       })
     })
   }
@@ -300,25 +279,3 @@ export class CodexLoginProvider implements ProviderAdapter {
   }
 }
 
-/**
- * Responses API 응답에서 텍스트 추출.
- * 형식 (1): { output_text: "..." } — 신규 단순 형식
- * 형식 (2): { output: [{ type: "message", content: [{ type: "output_text", text: "..." }] }] }
- */
-function extractOutputText(data: ResponsesApiResponse): string {
-  if (typeof data.output_text === 'string' && data.output_text.trim().length > 0) {
-    return data.output_text.trim()
-  }
-  if (Array.isArray(data.output)) {
-    const parts: string[] = []
-    for (const item of data.output) {
-      if (item.type && item.type !== 'message') continue
-      if (!Array.isArray(item.content)) continue
-      for (const c of item.content) {
-        if (typeof c.text === 'string') parts.push(c.text)
-      }
-    }
-    return parts.join('').trim()
-  }
-  return ''
-}
