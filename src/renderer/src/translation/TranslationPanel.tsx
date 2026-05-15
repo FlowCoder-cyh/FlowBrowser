@@ -66,6 +66,10 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   const [defaultLanguage, setDefaultLanguage] = useState('ko')
   const [sourceLanguage, setSourceLanguage] = useState('auto')
   const [defaultProviderId, setDefaultProviderId] = useState('openai')
+  // Sprint 009 M2 — 활성 탭 추적 (sourceTabId 가드)
+  const [activeTabId, setActiveTabId] = useState<string | null>(null)
+  const activeTabIdRef = useRef<string | null>(null)
+  activeTabIdRef.current = activeTabId
   const [restoreHint, setRestoreHint] = useState<{ url: string; count: number } | null>(null)
   const [restoreResult, setRestoreResult] = useState<string | null>(null)
   // 진행 중 누적 instruction (paragraph/page mode일 때 replace/overlay로 자동 렌더)
@@ -73,6 +77,10 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   const rowsRef = useRef<Map<string, NodeRow>>(new Map())
 
   useEffect(() => {
+    // Sprint 009 M2 — 활성 탭 ID 추적
+    void window.tabApi.list().then((snap) => setActiveTabId(snap.activeId))
+    const offTabUpdate = window.tabApi.onListUpdate((snap) => setActiveTabId(snap.activeId))
+
     void window.userSettingApi.get().then((s) => {
       setDisplayMode(s.translationMode)
       const ext = s as {
@@ -102,7 +110,14 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       }
     })
 
+    // Sprint 009 M2 — sourceTabId 가드 헬퍼
+    const isCurrentTab = (p: { sourceTabId?: string | null }): boolean => {
+      if (p.sourceTabId == null) return true
+      return p.sourceTabId === activeTabIdRef.current
+    }
+
     const offStart = window.translateApi.onParagraphsStart((p) => {
+      if (!isCurrentTab(p)) return
       const initial: NodeRow[] = p.paragraphs.map((para) => ({
         id: para.id,
         tag: para.tag,
@@ -121,6 +136,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
 
     const offProgress = window.translateApi.onParagraphProgress((p) => {
+      if (!isCurrentTab(p)) return
       const map = rowsRef.current
       const row = map.get(p.id)
       if (row) {
@@ -148,6 +164,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
 
     const offDone = window.translateApi.onParagraphsDone((p) => {
+      if (!isCurrentTab(p)) return
       setBusy(false)
       if (p.stoppedReason) {
         setStoppedReason(p.stoppedReason)
@@ -162,16 +179,19 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       }
     })
 
-    const offParagraphsAborted = window.translateApi.onParagraphsAborted(() => {
+    const offParagraphsAborted = window.translateApi.onParagraphsAborted((p) => {
+      if (!isCurrentTab(p)) return
       setStoppedReason('aborted')
     })
 
     const offParagraphsError = window.translateApi.onParagraphsError((p) => {
+      if (!isCurrentTab(p)) return
       setError(p.reason)
       setBusy(false)
     })
 
     const offPageStart = window.translateApi.onPageStart((p) => {
+      if (!isCurrentTab(p)) return
       const initial: NodeRow[] = p.nodes.map((node) => ({
         id: node.id,
         tag: node.tag,
@@ -190,6 +210,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
 
     const offPageProgress = window.translateApi.onPageProgress((p) => {
+      if (!isCurrentTab(p)) return
       const map = rowsRef.current
       const row = map.get(p.id)
       if (row) {
@@ -221,6 +242,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
 
     const offPageDone = window.translateApi.onPageDone((p) => {
+      if (!isCurrentTab(p)) return
       setBusy(false)
       setStoppedReason(p.stoppedReason)
       if (displayMode !== 'panel' && renderQueueRef.current.length > 0) {
@@ -232,16 +254,19 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       }
     })
 
-    const offPageAborted = window.translateApi.onPageAborted(() => {
+    const offPageAborted = window.translateApi.onPageAborted((p) => {
+      if (!isCurrentTab(p)) return
       setStoppedReason('aborted')
     })
 
     const offPageError = window.translateApi.onPageError((p) => {
+      if (!isCurrentTab(p)) return
       setError(p.reason)
       setBusy(false)
     })
 
     const offSummaryStart = window.translateApi.onSummaryStart((p) => {
+      if (!isCurrentTab(p)) return
       setSummary({
         status: 'loading',
         summary: null,
@@ -253,6 +278,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
 
     const offSummaryDone = window.translateApi.onSummaryDone((p) => {
+      if (!isCurrentTab(p)) return
       setSummary({
         status: 'done',
         summary: p.summary,
@@ -268,6 +294,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
 
     const offSummaryError = window.translateApi.onSummaryError((p) => {
+      if (!isCurrentTab(p)) return
       setSummary((prev) => ({
         ...prev,
         status: 'error',
@@ -277,6 +304,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
 
     return () => {
+      offTabUpdate()
       offNav()
       offStart()
       offProgress()
