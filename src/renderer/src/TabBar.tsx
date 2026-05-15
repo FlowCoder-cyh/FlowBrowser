@@ -90,6 +90,11 @@ export default function TabBar(): JSX.Element {
     setDropTargetIdx(null)
   }
 
+  function handleContextMenu(e: React.MouseEvent, id: string): void {
+    e.preventDefault()
+    void window.tabApi.showContextMenu(id)
+  }
+
   return (
     <div className="tab-bar">
       <div className="tab-bar-list">
@@ -100,6 +105,7 @@ export default function TabBar(): JSX.Element {
               draggingId === t.id ? 'dragging' : ''
             } ${dropTargetIdx === idx && draggingId && draggingId !== t.id ? 'drop-target' : ''}`}
             onClick={() => void handleSwitch(t.id)}
+            onContextMenu={(e) => handleContextMenu(e, t.id)}
             title={t.url}
             draggable
             onDragStart={(e) => handleDragStart(e, t.id)}

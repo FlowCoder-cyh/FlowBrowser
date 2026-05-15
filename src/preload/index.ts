@@ -33,6 +33,14 @@ const tabApi = {
   active: (): Promise<TabSessionPayload | null> => ipcRenderer.invoke('tab:active'),
   reorder: (id: string, newIndex: number): Promise<boolean> =>
     ipcRenderer.invoke('tab:reorder', id, newIndex),
+  closeOthers: (keepId: string): Promise<boolean> =>
+    ipcRenderer.invoke('tab:close-others', keepId),
+  closeRight: (fromId: string): Promise<boolean> =>
+    ipcRenderer.invoke('tab:close-right', fromId),
+  duplicate: (id: string): Promise<TabSessionPayload | null> =>
+    ipcRenderer.invoke('tab:duplicate', id),
+  showContextMenu: (tabId: string): Promise<void> =>
+    ipcRenderer.invoke('tab:show-context-menu', { tabId }),
   onListUpdate: (handler: (snapshot: TabListSnapshot) => void): (() => void) => {
     const listener = (_e: unknown, snap: TabListSnapshot): void => handler(snap)
     ipcRenderer.on('tab:list-update', listener)

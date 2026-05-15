@@ -261,6 +261,123 @@ describe('TabManager', () => {
     })
   })
 
+  // Sprint 010 M2 — closeOthers / closeRight / duplicate
+  describe('closeOthers (Sprint 010 M2)', () => {
+    it('기본: keepId 외 모두 close, keepId 활성', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      const c = tm.open('c.com')
+      tm.switch(c.id)
+      const result = tm.closeOthers(b.id)
+      expect(result.ok).toBe(true)
+      expect(result.closed.sort()).toEqual([a.id, c.id].sort())
+      expect(tm.size()).toBe(1)
+      expect(tm.getActiveId()).toBe(b.id)
+      expect(tm.list().map((t) => t.id)).toEqual([b.id])
+    })
+
+    it('keepId 존재하지 않음 → false, 변동 없음', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      tm.open('b.com')
+      const before = tm.size()
+      const result = tm.closeOthers('nope')
+      expect(result.ok).toBe(false)
+      expect(result.closed).toEqual([])
+      expect(tm.size()).toBe(before)
+    })
+
+    it('단일 탭: closed 빈 배열, emit skip', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const handler = vi.fn()
+      tm.subscribe(handler)
+      handler.mockClear()
+      const result = tm.closeOthers(a.id)
+      expect(result.ok).toBe(true)
+      expect(result.closed).toEqual([])
+      expect(tm.size()).toBe(1)
+      expect(handler).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('closeRight (Sprint 010 M2)', () => {
+    it('오른쪽 다수 close, fromId 활성 보존', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      const c = tm.open('c.com')
+      const d = tm.open('d.com')
+      tm.switch(b.id)
+      const result = tm.closeRight(b.id)
+      expect(result.ok).toBe(true)
+      expect(result.closed).toEqual([c.id, d.id])
+      expect(tm.size()).toBe(2)
+      expect(tm.list().map((t) => t.id)).toEqual([a.id, b.id])
+      expect(tm.getActiveId()).toBe(b.id)
+    })
+
+    it('가장 오른쪽 fromId → 닫을 게 없음 (ok, closed=[])', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      const b = tm.open('b.com')
+      const result = tm.closeRight(b.id)
+      expect(result.ok).toBe(true)
+      expect(result.closed).toEqual([])
+      expect(tm.size()).toBe(2)
+    })
+
+    it('존재하지 않는 fromId → false', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      const result = tm.closeRight('nope')
+      expect(result.ok).toBe(false)
+    })
+
+    it('활성 탭이 오른쪽에 있었으면 fromId가 활성으로 전환', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      tm.open('c.com')
+      tm.switch(a.id) // 우선 a 활성
+      tm.switch(tm.list()[2].id) // c 활성
+      tm.closeRight(a.id) // b, c close → a 활성
+      expect(tm.getActiveId()).toBe(a.id)
+      expect(tm.size()).toBe(1)
+      expect(b.id).toBeDefined() // b는 닫혔지만 ref는 살아있음
+    })
+  })
+
+  describe('duplicate (Sprint 010 M2)', () => {
+    it('동일 url로 새 탭 생성 + 활성 전환', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      tm.open('b.com')
+      const dup = tm.duplicate(a.id)
+      expect(dup).not.toBeNull()
+      expect(dup?.url).toBe('a.com')
+      expect(dup?.id).not.toBe(a.id)
+      expect(tm.size()).toBe(3)
+      expect(tm.getActiveId()).toBe(dup?.id)
+    })
+
+    it('존재하지 않는 id → null, 변동 없음', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      const before = tm.size()
+      expect(tm.duplicate('nope')).toBeNull()
+      expect(tm.size()).toBe(before)
+    })
+
+    it('about:blank 복제 — about:blank로 신규', () => {
+      const tm = new TabManager()
+      const a = tm.open() // about:blank
+      const dup = tm.duplicate(a.id)
+      expect(dup?.url).toBe('about:blank')
+    })
+  })
+
   // Sprint 009 M3 — restore
   describe('restore (Sprint 009 M3)', () => {
     it('외부 상태 import — 기존 상태 모두 제거, emit 1회', () => {
