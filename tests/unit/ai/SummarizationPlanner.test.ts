@@ -5,7 +5,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   planChunks,
-  summarizeChunks
+  summarizeChunks,
+  SummarizationAbortedError
 } from '../../../src/ai/SummarizationPlanner'
 import type { PageNodeBundle } from '../../../src/perception/PageNodeExtractor'
 
@@ -189,5 +190,40 @@ describe('summarizeChunks', () => {
     expect(order[3]).toBe('end-B')
     expect(order[4]).toBe('start-C')
     expect(order[5]).toBe('end-C')
+  })
+
+  // Sprint 011 M1 — abort
+  describe('abort (Sprint 011 M1)', () => {
+    it('시작 직후 abort — 어떤 청크도 처리되지 않음', async () => {
+      const summarize = vi.fn().mockResolvedValue('S')
+      let aborted = true // 시작부터 true
+      await expect(
+        summarizeChunks(['A', 'B', 'C'], summarize, { abortCheck: () => aborted })
+      ).rejects.toThrow(SummarizationAbortedError)
+      expect(summarize).not.toHaveBeenCalled()
+      // suppress unused warning
+      aborted = false
+    })
+
+    it('중간 abort — 일부 청크 처리 후 throw', async () => {
+      const summarize = vi.fn().mockResolvedValue('S')
+      let aborted = false
+      let calls = 0
+      const result = summarizeChunks(['A', 'B', 'C'], summarize, {
+        abortCheck: () => {
+          calls++
+          if (calls === 3) aborted = true
+          return aborted
+        }
+      })
+      await expect(result).rejects.toThrow(SummarizationAbortedError)
+      expect(summarize).toHaveBeenCalledTimes(2)
+    })
+
+    it('abortCheck 없이 정상 흐름 회귀', async () => {
+      const summarize = vi.fn().mockResolvedValue('S')
+      const r = await summarizeChunks(['A'], summarize) // options 미전달 정상 동작
+      expect(r.summary).toBe('S')
+    })
   })
 })

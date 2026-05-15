@@ -302,6 +302,17 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       setBusy(false)
     })
 
+    // Sprint 011 M1 — summary aborted listener (cancel 버튼 또는 cancelOnTabSwitch)
+    const offSummaryAborted = window.translateApi.onSummaryAborted((p) => {
+      if (!isCurrentTab(p)) return
+      setSummary((prev) => ({
+        ...prev,
+        status: 'idle',
+        reason: '요약이 취소되었습니다.'
+      }))
+      setBusy(false)
+    })
+
     return () => {
       offTabUpdate()
       offNav()
@@ -318,6 +329,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       offSummaryStart()
       offSummaryDone()
       offSummaryError()
+      offSummaryAborted()
     }
   }, [displayMode, defaultLanguage, sourceLanguage, defaultProviderId])
 
@@ -360,6 +372,9 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       await window.translateApi.abortPage()
     } else if (mode === 'paragraph') {
       await window.translateApi.abortParagraphs()
+    } else if (mode === 'summary') {
+      // Sprint 011 M1 — summary abort
+      await window.translateApi.abortSummarize()
     }
   }
 
@@ -445,7 +460,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         >
           {busy && mode === 'summary' ? '요약 중…' : '페이지 요약'}
         </button>
-        {busy && (mode === 'page' || mode === 'paragraph') && (
+        {busy && (mode === 'page' || mode === 'paragraph' || mode === 'summary') && (
           <button type="button" className="panel-btn danger" onClick={() => void handleAbort()}>
             취소
           </button>
