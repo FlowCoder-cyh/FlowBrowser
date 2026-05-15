@@ -87,6 +87,19 @@ AI 브라우저는 사용자가 보는 페이지를 외부 Provider로 전송할
 
 (정규 운영 시 사용자 피드백 기반 갱신)
 
+### privacyFilterEnabled 안전 정책 (v0.3.5 / Sprint 007 M1)
+
+UserSetting `privacyFilterEnabled = false` 시:
+
+- **우회 허용**: 도메인 블랙리스트 / 사용자 도메인 차단 (`new DomainFilter()` 빈 인스턴스로 교체)
+- **우회 절대 금지** (G-004 안전 정책 무력화 불가):
+  - password 입력 필드 감지
+  - 카드 입력 필드 감지 (Payment Request / 카드 패턴 hint)
+  - 본문 카드 번호 패턴 (`detectCardPatternInText`)
+  - 전역 동의 (consent)
+
+구현: `services.ts` `executeTranslateRequest`에서 `manualApprovalToken`을 의도적으로 드롭 → `evaluatePrivacy` 내부 `hasApproval=false` → password/card 차단 분기는 항상 작동.
+
 ### BlockReason enum + pageWideBlock (v0.3.1 / Sprint 003 M1)
 
 evaluatePrivacy 반환 구조에 차단 사유를 enum으로 도입.

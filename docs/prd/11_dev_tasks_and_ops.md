@@ -10,6 +10,8 @@
 - 기본 Navigation 구현 (v0.3.4 Sprint 006 M1: canGoBack/canGoForward broadcast + UrlBar 버튼 disabled 동기화)
 - Translation Panel 구현 (v0.3.3 Sprint 005 M3: chunkSummaries 펼치기 토글 + PATH_LABELS 한국어 / v0.3.4 Sprint 006 M2/M3: mode 분기 + 자동 render + 페이지 캐시 restoreHint 배너)
 - DisplayModePanel UI (v0.3.4 Sprint 006 M2): translationMode 3종 (panel/replace/overlay) 라디오
+- GeneralPanel UI (v0.3.5 Sprint 007 M1): 언어 / Provider / Privacy 토글 + 안전 정책 안내
+- PageCachePanel UI (v0.3.5 Sprint 007 M2): 페이지 캐시 count + 모두 삭제
 - Subtitle Overlay 구현
 - Settings Page 구현 (v0.3.3 Sprint 005 M2: GlossaryPanel 추가)
 - GlossaryPanel UI (v0.3.3 Sprint 005 M2): 4 필드 폼 + 검증 + 활성 토글 + 도메인 필터 + JSON import/export
@@ -63,7 +65,7 @@
 - ProviderCredential OS Keychain 위임 구현 (Electron safeStorage)
 - TranslationCache 저장 (복합 키 6요소: sourceHash | lang × 2 | provider | **requestType** | glossaryVersion, TTL, LRU. v0.3.3 Sprint 005 M1 requestType 추가)
 - SubtitleSegment 저장 (sourceType 포함)
-- UserSettingStore 구현 (v0.3.4 Sprint 006 M2): PRD §12.1 translationMode 우선 영속 (panel/replace/overlay)
+- UserSettingStore 구현 (v0.3.4 Sprint 006 M2 + v0.3.5 Sprint 007 M1): PRD §12.1 translationMode + defaultLanguage/sourceLanguage/defaultProviderId/privacyFilterEnabled 영속
 - UsageLog 저장
 - GlossaryStore 구현 (v0.3.3 Sprint 005 M2): PRD §12.7 1:1, JSON 영속, version 자동 갱신, getActiveForDomain 최대 50개, formatGlossaryContext, validateTerm 5종, GLOSSARY_POLICY_VERSION import/export
 - PageResultStore 구현 (v0.3.4 Sprint 006 M3): PRD §12.10 1:1, 페이지 URL 정규화 + nodesSignature(sha256) + TTL 30일 + LRU 500MB, translate:page 정상 완료 시 자동 영속, restoreCurrent IPC + signature mismatch 검증
