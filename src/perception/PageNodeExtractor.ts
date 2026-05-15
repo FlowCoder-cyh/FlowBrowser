@@ -60,11 +60,36 @@ export function extractPageNodesBrowser(): {
   const result: Array<{ id: string; text: string; tag: string }> = []
   const seen = new Set<string>()
   let idCounter = 0
+  // Sprint 014 M3-13: style/script/noscript/template 자식 노드 제외하고 텍스트 추출.
+  // 기존 (innerText || textContent)는 일부 페이지의 inline <style> 자식 CSS 텍스트를
+  // 포함해 LLM에 CSS 코드가 전송되는 문제 발생.
+  const extractCleanText = (root: Element): string => {
+    const parts: string[] = []
+    const walk = (n: Node): void => {
+      if (n.nodeType === 3) {
+        parts.push(n.nodeValue || '')
+        return
+      }
+      if (n.nodeType !== 1) return
+      const tag = ((n as Element).tagName || '').toLowerCase()
+      if (tag === 'style' || tag === 'script' || tag === 'noscript' || tag === 'template') return
+      n.childNodes.forEach(walk)
+    }
+    root.childNodes.forEach(walk)
+    return parts.join(' ')
+  }
+  // CSS 규칙 패턴 (중괄호 + 콜론) 다수 포함 시 노이즈로 판단
+  const isCssLike = (text: string): boolean => {
+    const braceCount = (text.match(/\{/g) || []).length
+    const colonCount = (text.match(/:/g) || []).length
+    return braceCount >= 2 || (braceCount >= 1 && colonCount >= 3)
+  }
   nodes.forEach((node) => {
     const el = node as HTMLElement
-    const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
+    const text = extractCleanText(el).replace(/\s+/g, ' ').trim()
     if (text.length < 8) return
     if (text.length > 5000) return
+    if (isCssLike(text)) return
     if (seen.has(text)) return
     seen.add(text)
     const tag = el.tagName.toLowerCase()
