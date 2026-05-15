@@ -51,6 +51,20 @@ function createMainWindow(): void {
 
   WebContentsRegistry.register(browserView.webContents)
 
+  // Sprint 006 M1 — Navigation history 동기화 broadcast
+  const broadcastNav = (): void => {
+    if (!mainWindow || !browserView) return
+    const wc = browserView.webContents
+    mainWindow.webContents.send('browser:navigated', {
+      url: wc.getURL(),
+      canGoBack: wc.navigationHistory.canGoBack(),
+      canGoForward: wc.navigationHistory.canGoForward()
+    })
+  }
+  browserView.webContents.on('did-navigate', broadcastNav)
+  browserView.webContents.on('did-navigate-in-page', broadcastNav)
+  browserView.webContents.on('did-finish-load', broadcastNav)
+
   browserView.webContents.on('context-menu', (_event, params) => {
     if (!mainWindow || !browserView) return
     const selectionText = (params.selectionText ?? '').trim()
@@ -152,6 +166,57 @@ ipcMain.handle('get-current-url', (): string => {
 ipcMain.handle('browser:get-view-id', (): number | null => {
   return browserView?.webContents.id ?? null
 })
+
+ipcMain.handle(
+  'browser:nav-state',
+  (): { url: string; canGoBack: boolean; canGoForward: boolean } => {
+    if (!browserView) return { url: '', canGoBack: false, canGoForward: false }
+    const wc = browserView.webContents
+    return {
+      url: wc.getURL(),
+      canGoBack: wc.navigationHistory.canGoBack(),
+      canGoForward: wc.navigationHistory.canGoForward()
+    }
+  }
+)
+
+/**
+ * Sprint 006 M1/M2 — 외부 페이지에 번역 결과 렌더링 / 복원.
+ */
+ipcMain.handle(
+  'translate:render',
+  async (
+    _event,
+    payload: import('../perception/TranslationRenderer').RenderPayload
+  ): Promise<{ ok: boolean; applied?: number; missing?: number; reason?: string }> => {
+    if (!browserView) return { ok: false, reason: 'browser-view-not-ready' }
+    try {
+      const { renderTranslationsScript } = await import('../perception/TranslationRenderer')
+      const result = (await browserView.webContents.executeJavaScript(
+        renderTranslationsScript(payload)
+      )) as { applied: number; missing: number }
+      return { ok: true, applied: result.applied, missing: result.missing }
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : String(err) }
+    }
+  }
+)
+
+ipcMain.handle(
+  'translate:render-restore',
+  async (): Promise<{ ok: boolean; restored?: number; overlays?: number; reason?: string }> => {
+    if (!browserView) return { ok: false, reason: 'browser-view-not-ready' }
+    try {
+      const { restoreOriginalsScript } = await import('../perception/TranslationRenderer')
+      const result = (await browserView.webContents.executeJavaScript(
+        restoreOriginalsScript()
+      )) as { restored: number; overlays: number }
+      return { ok: true, restored: result.restored, overlays: result.overlays }
+    } catch (err) {
+      return { ok: false, reason: err instanceof Error ? err.message : String(err) }
+    }
+  }
+)
 
 /**
  * Sprint 004 M1 / S004-T02 — paragraph abort 일관성.

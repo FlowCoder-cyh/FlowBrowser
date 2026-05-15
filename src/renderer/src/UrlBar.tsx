@@ -24,10 +24,19 @@ export default function UrlBar({
   const [currentUrl, setCurrentUrl] = useState(DEFAULT_URL)
   const [displayUrl, setDisplayUrl] = useState(DEFAULT_URL)
   const [busy, setBusy] = useState(false)
+  const [canGoBack, setCanGoBack] = useState(false)
+  const [canGoForward, setCanGoForward] = useState(false)
 
   useEffect(() => {
     void navigate(DEFAULT_URL)
-     
+    const off = window.browserApi.onNavigated((p) => {
+      setCurrentUrl(p.url)
+      setDisplayUrl(p.url)
+      setCanGoBack(p.canGoBack)
+      setCanGoForward(p.canGoForward)
+    })
+    return off
+
   }, [])
 
   async function navigate(target: string): Promise<void> {
@@ -57,11 +66,13 @@ export default function UrlBar({
   }
 
   async function refreshUrl(): Promise<void> {
-    const url = await window.browserApi.getCurrentUrl()
-    if (url) {
-      setCurrentUrl(url)
-      setDisplayUrl(url)
+    const state = await window.browserApi.navState()
+    if (state.url) {
+      setCurrentUrl(state.url)
+      setDisplayUrl(state.url)
     }
+    setCanGoBack(state.canGoBack)
+    setCanGoForward(state.canGoForward)
   }
 
   return (
@@ -72,6 +83,7 @@ export default function UrlBar({
         onClick={() => {
           void window.browserApi.goBack().then(() => refreshUrl())
         }}
+        disabled={!canGoBack}
         title="뒤로"
         aria-label="뒤로"
       >
@@ -83,6 +95,7 @@ export default function UrlBar({
         onClick={() => {
           void window.browserApi.goForward().then(() => refreshUrl())
         }}
+        disabled={!canGoForward}
         title="앞으로"
         aria-label="앞으로"
       >
