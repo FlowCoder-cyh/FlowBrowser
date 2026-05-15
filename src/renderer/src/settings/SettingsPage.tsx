@@ -3,6 +3,7 @@ import UsagePanel from './UsagePanel'
 import DomainPolicyPanel from './DomainPolicyPanel'
 import GlossaryPanel from './GlossaryPanel'
 import DisplayModePanel from './DisplayModePanel'
+import GeneralPanel from './GeneralPanel'
 
 interface CredentialRecord {
   id: string
@@ -149,6 +150,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
         )}
       </section>
 
+      <GeneralPanel />
       <DisplayModePanel />
       <DomainPolicyPanel />
       <GlossaryPanel />

@@ -10,13 +10,28 @@ import { dirname, join } from 'node:path'
 
 export type TranslationMode = 'panel' | 'replace' | 'overlay'
 
+/**
+ * Sprint 007 M1 — PRD §12.1 잔여 필드 확장.
+ * subtitleMode / ttsEnabled / syncMode 등 Phase 2~4 필드는 해당 Phase 진입 시 추가.
+ */
 export interface UserSettingState {
   translationMode: TranslationMode
-  // PRD §12.1의 나머지 필드는 추후 Sprint에서 점진 추가.
+  defaultLanguage: string
+  sourceLanguage: string
+  defaultProviderId: string
+  privacyFilterEnabled: boolean
 }
 
 const DEFAULTS: UserSettingState = {
-  translationMode: 'panel'
+  translationMode: 'panel',
+  defaultLanguage: 'ko',
+  sourceLanguage: 'auto',
+  defaultProviderId: 'openai',
+  privacyFilterEnabled: true
+}
+
+function isNonEmptyString(v: unknown): v is string {
+  return typeof v === 'string' && v.trim().length > 0
 }
 
 export class UserSettingStore {
@@ -32,7 +47,20 @@ export class UserSettingStore {
       const mode = parsed.translationMode
       this.state = {
         translationMode:
-          mode === 'panel' || mode === 'replace' || mode === 'overlay' ? mode : 'panel'
+          mode === 'panel' || mode === 'replace' || mode === 'overlay' ? mode : 'panel',
+        defaultLanguage: isNonEmptyString(parsed.defaultLanguage)
+          ? parsed.defaultLanguage.trim()
+          : DEFAULTS.defaultLanguage,
+        sourceLanguage: isNonEmptyString(parsed.sourceLanguage)
+          ? parsed.sourceLanguage.trim()
+          : DEFAULTS.sourceLanguage,
+        defaultProviderId: isNonEmptyString(parsed.defaultProviderId)
+          ? parsed.defaultProviderId.trim()
+          : DEFAULTS.defaultProviderId,
+        privacyFilterEnabled:
+          typeof parsed.privacyFilterEnabled === 'boolean'
+            ? parsed.privacyFilterEnabled
+            : DEFAULTS.privacyFilterEnabled
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -51,12 +79,36 @@ export class UserSettingStore {
 
   async update(patch: Partial<UserSettingState>): Promise<UserSettingState> {
     this.ensureLoaded()
-    if (patch.translationMode) {
+    if (patch.translationMode !== undefined) {
       const m = patch.translationMode
       if (m !== 'panel' && m !== 'replace' && m !== 'overlay') {
         throw new Error(`invalid translationMode: ${m}`)
       }
       this.state.translationMode = m
+    }
+    if (patch.defaultLanguage !== undefined) {
+      if (!isNonEmptyString(patch.defaultLanguage)) {
+        throw new Error('invalid defaultLanguage')
+      }
+      this.state.defaultLanguage = patch.defaultLanguage.trim()
+    }
+    if (patch.sourceLanguage !== undefined) {
+      if (!isNonEmptyString(patch.sourceLanguage)) {
+        throw new Error('invalid sourceLanguage')
+      }
+      this.state.sourceLanguage = patch.sourceLanguage.trim()
+    }
+    if (patch.defaultProviderId !== undefined) {
+      if (!isNonEmptyString(patch.defaultProviderId)) {
+        throw new Error('invalid defaultProviderId')
+      }
+      this.state.defaultProviderId = patch.defaultProviderId.trim()
+    }
+    if (patch.privacyFilterEnabled !== undefined) {
+      if (typeof patch.privacyFilterEnabled !== 'boolean') {
+        throw new Error('invalid privacyFilterEnabled')
+      }
+      this.state.privacyFilterEnabled = patch.privacyFilterEnabled
     }
     await this.persist()
     return this.getState()

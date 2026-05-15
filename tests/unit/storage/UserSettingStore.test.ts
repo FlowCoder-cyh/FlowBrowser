@@ -68,4 +68,89 @@ describe('UserSettingStore', () => {
       expect(s.translationMode).toBe(m)
     }
   })
+
+  // Sprint 007 M1 — UserSetting 잔여 4 필드
+  describe('extended fields (Sprint 007 M1)', () => {
+    it('default values for new fields when file missing', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      const s = store.getState()
+      expect(s.defaultLanguage).toBe('ko')
+      expect(s.sourceLanguage).toBe('auto')
+      expect(s.defaultProviderId).toBe('openai')
+      expect(s.privacyFilterEnabled).toBe(true)
+    })
+
+    it('update persists all 4 new fields', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      const s = await store.update({
+        defaultLanguage: 'ja',
+        sourceLanguage: 'en',
+        defaultProviderId: 'codex',
+        privacyFilterEnabled: false
+      })
+      expect(s.defaultLanguage).toBe('ja')
+      expect(s.sourceLanguage).toBe('en')
+      expect(s.defaultProviderId).toBe('codex')
+      expect(s.privacyFilterEnabled).toBe(false)
+
+      const reloaded = new UserSettingStore(path)
+      await reloaded.load()
+      expect(reloaded.getState().defaultLanguage).toBe('ja')
+      expect(reloaded.getState().privacyFilterEnabled).toBe(false)
+    })
+
+    it('rejects empty string for language / provider fields', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await expect(store.update({ defaultLanguage: '' })).rejects.toThrow('invalid defaultLanguage')
+      await expect(store.update({ sourceLanguage: '   ' })).rejects.toThrow('invalid sourceLanguage')
+      await expect(store.update({ defaultProviderId: '' })).rejects.toThrow(
+        'invalid defaultProviderId'
+      )
+    })
+
+    it('rejects non-boolean privacyFilterEnabled', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await expect(
+        // @ts-expect-error invalid type for test
+        store.update({ privacyFilterEnabled: 'yes' })
+      ).rejects.toThrow('invalid privacyFilterEnabled')
+    })
+
+    it('disk fallback when new fields missing or wrong types', async () => {
+      await fs.writeFile(
+        path,
+        JSON.stringify({
+          translationMode: 'replace',
+          defaultLanguage: '   ', // whitespace → fallback
+          // sourceLanguage 누락 → fallback
+          defaultProviderId: 42, // wrong type → fallback
+          privacyFilterEnabled: 'true' // wrong type → fallback
+        })
+      )
+      const store = new UserSettingStore(path)
+      await store.load()
+      const s = store.getState()
+      expect(s.translationMode).toBe('replace')
+      expect(s.defaultLanguage).toBe('ko') // 기본값 fallback
+      expect(s.sourceLanguage).toBe('auto')
+      expect(s.defaultProviderId).toBe('openai')
+      expect(s.privacyFilterEnabled).toBe(true)
+    })
+
+    it('partial update preserves other fields', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await store.update({ defaultLanguage: 'ja' })
+      await store.update({ privacyFilterEnabled: false })
+      const s = store.getState()
+      expect(s.defaultLanguage).toBe('ja')
+      expect(s.privacyFilterEnabled).toBe(false)
+      expect(s.sourceLanguage).toBe('auto') // 변경 없음
+      expect(s.translationMode).toBe('panel') // 변경 없음
+    })
+  })
 })
