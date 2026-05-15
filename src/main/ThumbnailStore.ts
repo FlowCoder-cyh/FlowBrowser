@@ -67,4 +67,26 @@ export class ThumbnailStore {
   size(): number {
     return this.items.size
   }
+
+  /**
+   * Sprint 013 M2 — 디스크에서 일괄 로드. touchOrder 순서 보존 (배열 순서 = 오래된→최신).
+   * 한계 초과 시 가장 오래된 자동 제거.
+   */
+  bulkLoad(items: Array<{ tabId: string; entry: ThumbnailEntry }>): void {
+    for (const item of items) {
+      this.set(item.tabId, item.entry)
+    }
+  }
+
+  /**
+   * Sprint 013 M2 — 디스크 영속용 스냅샷. touchOrder 순서로 반환.
+   */
+  entries(): Array<{ tabId: string; entry: ThumbnailEntry }> {
+    return this.touchOrder
+      .map((tabId) => {
+        const e = this.items.get(tabId)
+        return e ? { tabId, entry: { ...e } } : null
+      })
+      .filter((x): x is { tabId: string; entry: ThumbnailEntry } => x !== null)
+  }
 }

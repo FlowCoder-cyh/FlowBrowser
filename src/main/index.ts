@@ -27,6 +27,7 @@ import {
 } from '../ai/SummarizationPlanner'
 import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
 import { ThumbnailStore, type ThumbnailEntry } from './ThumbnailStore'
+import { ThumbnailDiskStore, defaultThumbnailsPath } from './ThumbnailDiskStore'
 import { ClosedTabHistory } from './ClosedTabHistory'
 
 let mainWindow: BrowserWindow | null = null
@@ -35,6 +36,10 @@ const tabViews = new Map<string, WebContentsView>()
 // Sprint 012 M1 — 탭 미리보기 (hover thumbnail) 메모리 LRU
 const thumbnailStore = new ThumbnailStore(50)
 const THUMBNAIL_RESIZE_WIDTH = 300
+// Sprint 013 M2 — 디스크 영속 (debounced 500ms write-through)
+let thumbnailDiskStore: ThumbnailDiskStore | null = null
+let thumbnailSaveTimer: NodeJS.Timeout | null = null
+const THUMBNAIL_SAVE_DEBOUNCE_MS = 500
 // Sprint 013 M1 — 닫은 탭 히스토리 (Ctrl+Shift+T)
 const closedTabHistory = new ClosedTabHistory(20)
 // Sprint 008 M1 — 활성 탭 view 캐시. setActiveTabView/close에서 자동 갱신.
@@ -161,7 +166,9 @@ async function createMainWindow(): Promise<void> {
     }
     tabViews.clear()
     browserView = null
-    // Sprint 012 M1 — 미리보기 메모리 정리
+    // Sprint 013 M2 — 종료 시 디스크 강제 flush (재시작 후 복원)
+    flushThumbnailSave()
+    // Sprint 012 M1 — 메모리만 정리 (디스크는 유지 → 재시작 후 복원)
     thumbnailStore.clear()
   })
 }
@@ -491,7 +498,8 @@ function destroyTabView(tabId: string): void {
   if (!view) return
   tabViews.delete(tabId)
   // Sprint 012 M1 — 탭 close 시 ThumbnailStore에서도 자동 제거
-  thumbnailStore.remove(tabId)
+  // Sprint 013 M2 — 디스크에서도 동기 제거 (debounced save로 반영)
+  if (thumbnailStore.remove(tabId)) scheduleThumbnailSave()
   if (mainWindow) {
     try {
       mainWindow.contentView.removeChildView(view)
@@ -533,9 +541,48 @@ async function captureTabThumbnail(prevTabId: string): Promise<void> {
       height: size.height
     }
     thumbnailStore.set(prevTabId, entry)
+    scheduleThumbnailSave()
   } catch {
     // capturePage 실패는 silent — 로그 노이즈 회피
   }
+}
+
+/**
+ * Sprint 013 M2 — 디스크 영속 debounced 500ms.
+ */
+function scheduleThumbnailSave(): void {
+  if (!thumbnailDiskStore) return
+  if (thumbnailSaveTimer) clearTimeout(thumbnailSaveTimer)
+  thumbnailSaveTimer = setTimeout(() => {
+    thumbnailSaveTimer = null
+    if (!thumbnailDiskStore) return
+    void thumbnailDiskStore.save(thumbnailStore.entries()).catch(() => {
+      // IO 실패 silent
+    })
+  }, THUMBNAIL_SAVE_DEBOUNCE_MS)
+}
+
+async function initializeThumbnailStore(): Promise<void> {
+  thumbnailDiskStore = new ThumbnailDiskStore(defaultThumbnailsPath(app.getPath('userData')))
+  try {
+    const items = await thumbnailDiskStore.load()
+    if (items.length > 0) {
+      thumbnailStore.bulkLoad(items)
+    }
+  } catch {
+    // load 실패 silent
+  }
+}
+
+function flushThumbnailSave(): void {
+  if (!thumbnailDiskStore) return
+  if (thumbnailSaveTimer) {
+    clearTimeout(thumbnailSaveTimer)
+    thumbnailSaveTimer = null
+  }
+  void thumbnailDiskStore.save(thumbnailStore.entries()).catch(() => {
+    // 종료 중 IO 실패는 silent
+  })
 }
 
 function setActiveTabView(tabId: string): void {
@@ -1283,6 +1330,8 @@ function installApplicationMenu(): void {
 app.whenReady().then(async () => {
   await initServices()
   rebuildAllProviders()
+  // Sprint 013 M2 — 디스크 영속 ThumbnailStore 복원
+  await initializeThumbnailStore()
   installApplicationMenu()
   await createMainWindow()
 

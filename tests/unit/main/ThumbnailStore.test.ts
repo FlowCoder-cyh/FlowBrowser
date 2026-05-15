@@ -86,4 +86,31 @@ describe('ThumbnailStore', () => {
   it('maxItems < 1 → throw', () => {
     expect(() => new ThumbnailStore(0)).toThrow()
   })
+
+  // Sprint 013 M2 — bulkLoad / entries
+  describe('bulkLoad / entries (Sprint 013 M2)', () => {
+    it('bulkLoad → entries 순서 보존 (touchOrder)', () => {
+      const s = new ThumbnailStore(10)
+      s.bulkLoad([
+        { tabId: 'a', entry: entry('A') },
+        { tabId: 'b', entry: entry('B') },
+        { tabId: 'c', entry: entry('C') }
+      ])
+      const out = s.entries()
+      expect(out.map((x) => x.tabId)).toEqual(['a', 'b', 'c'])
+    })
+
+    it('bulkLoad 한계 초과 시 가장 오래된 제거', () => {
+      const s = new ThumbnailStore(2)
+      s.bulkLoad([
+        { tabId: 'a', entry: entry('A') },
+        { tabId: 'b', entry: entry('B') },
+        { tabId: 'c', entry: entry('C') }
+      ])
+      // a 자동 제거
+      expect(s.size()).toBe(2)
+      expect(s.get('a')).toBeNull()
+      expect(s.entries().map((x) => x.tabId)).toEqual(['b', 'c'])
+    })
+  })
 })
