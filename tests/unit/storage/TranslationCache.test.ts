@@ -72,7 +72,8 @@ describe('TranslationCache', () => {
         sourceText: 'hello',
         sourceLanguage: 'en',
         targetLanguage: 'ko',
-        providerType: 'anthropic'
+        providerType: 'anthropic',
+        requestType: 'selection'
       })
       expect(k1.composite).not.toBe(k2.composite)
     })
