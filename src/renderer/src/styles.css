@@ -71,6 +71,15 @@ body {
   border-top-color: #4a9eff;
 }
 
+.tab-item.dragging {
+  opacity: 0.5;
+}
+
+.tab-item.drop-target {
+  background: #3a3a3a;
+  box-shadow: inset 2px 0 0 #4a9eff;
+}
+
 .tab-label {
   flex: 1;
   overflow: hidden;

@@ -194,6 +194,73 @@ describe('TabManager', () => {
     })
   })
 
+  // Sprint 010 M1 — reorder
+  describe('reorder (Sprint 010 M1)', () => {
+    it('정상 이동: 0 → 2', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      const c = tm.open('c.com')
+      expect(tm.reorder(a.id, 2)).toBe(true)
+      expect(tm.list().map((t) => t.id)).toEqual([b.id, c.id, a.id])
+    })
+
+    it('같은 위치 → no-op (true, emit skip)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      tm.open('b.com')
+      const handler = vi.fn()
+      tm.subscribe(handler)
+      handler.mockClear()
+      expect(tm.reorder(a.id, 0)).toBe(true)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('음수 newIndex → 0으로 clamp', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      tm.open('b.com')
+      const c = tm.open('c.com')
+      expect(tm.reorder(c.id, -5)).toBe(true)
+      expect(tm.list().map((t) => t.url)).toEqual(['c.com', 'a.com', 'b.com'])
+    })
+
+    it('length 초과 newIndex → length-1로 clamp', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      tm.open('b.com')
+      tm.open('c.com')
+      expect(tm.reorder(a.id, 99)).toBe(true)
+      expect(tm.list().map((t) => t.url)).toEqual(['b.com', 'c.com', 'a.com'])
+    })
+
+    it('존재하지 않는 id → false, 변동 없음', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      tm.open('b.com')
+      const before = tm.list().map((t) => t.id)
+      expect(tm.reorder('nope', 0)).toBe(false)
+      expect(tm.list().map((t) => t.id)).toEqual(before)
+    })
+
+    it('활성 탭 및 메타데이터(url/title/timestamps) 보존', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      tm.updateTitle(a.id, 'Title A')
+      tm.switch(a.id)
+      const aBefore = tm.list().find((t) => t.id === a.id)
+      expect(tm.reorder(a.id, 1)).toBe(true)
+      expect(tm.getActiveId()).toBe(a.id) // 활성 보존
+      const aAfter = tm.list().find((t) => t.id === a.id)
+      expect(aAfter?.url).toBe(aBefore?.url)
+      expect(aAfter?.title).toBe('Title A')
+      expect(aAfter?.createdAt).toBe(aBefore?.createdAt)
+      expect(aAfter?.lastActiveAt).toBe(aBefore?.lastActiveAt)
+      expect(tm.list().map((t) => t.id)).toEqual([b.id, a.id])
+    })
+  })
+
   // Sprint 009 M3 — restore
   describe('restore (Sprint 009 M3)', () => {
     it('외부 상태 import — 기존 상태 모두 제거, emit 1회', () => {
