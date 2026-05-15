@@ -253,6 +253,7 @@ interface UserSettingPayload {
   defaultProviderId?: string
   privacyFilterEnabled?: boolean
   cancelOnTabSwitch?: boolean
+  onboardingShown?: boolean
 }
 
 const userSettingApi = {
