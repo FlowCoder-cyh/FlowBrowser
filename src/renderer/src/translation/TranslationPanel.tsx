@@ -97,39 +97,72 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       if (ext.sourceLanguage) setSourceLanguage(ext.sourceLanguage)
       if (ext.defaultProviderId) setDefaultProviderId(ext.defaultProviderId)
     })
-    // Navigation 시 자동 restore + 페이지 캐시 hit 알림 + 자동 번역 (replace/overlay 모드)
+    // Navigation 시: state 초기화 + 자동 restore + 캐시 hit 알림 + 자동 번역 (replace/overlay 모드, debounced)
+    // Sprint 014 M3-14: 연속 navigate (뒤로가기/링크 클릭/URL 입력) 대응
+    //   - 이전 페이지 호출은 main의 did-start-navigation 핸들러에서 abort됨
+    //   - TranslationPanel state 초기화: rows / progress / renderQueue / error 등
+    //   - 자동 paragraphs 호출은 800ms debounce (빠른 연속 navigate 시 마지막만)
+    let autoTranslateTimer: number | null = null
     const offNav = window.browserApi.onNavigated((p) => {
-      void window.translateApi.renderRestore()
+      // 1) state 초기화 (이전 페이지 결과 잔여 제거)
+      setRows([])
+      rowsRef.current = new Map()
+      renderQueueRef.current = []
+      setProgress(null)
+      setError(null)
+      setPageWideMessage(null)
+      setStoppedReason(null)
+      setBusy(false)
       setRestoreHint(null)
-      if (p.url) {
-        void window.pageResultApi
-          .lookup({
-            url: p.url,
-            targetLanguage: defaultLanguage,
-            providerType: defaultProviderId
-          })
-          .then((entry) => {
-            if (entry) {
-              // 캐시 hit → 자동 복원 (별도 호출 불필요)
-              setRestoreHint({ url: p.url, count: entry.instructions.length })
-              return
-            }
-            // Sprint 014 M3-12: 캐시 miss + displayMode replace/overlay면 자동 paragraphs 시작.
-            // panel 모드는 사용자 명시 액션 대기 (UX 의도).
-            // busy 상태는 ref로 직접 검사 (의존성 제외 — eslint-disable로 처리)
-            if (displayModeRef.current !== 'panel') {
-              void window.translateApi
-                .paragraphs({
-                  providerType: defaultProviderId,
-                  sourceLanguage,
-                  targetLanguage: defaultLanguage
-                })
-                .catch(() => {
-                  // 호출 실패는 silent (사용자가 패널에서 수동 재시도 가능)
-                })
-            }
-          })
+      setRestoreResult(null)
+      setSummary({
+        status: 'idle',
+        summary: null,
+        chunkSummaries: [],
+        combined: false,
+        chunks: 0,
+        reason: null
+      })
+
+      // 2) 외부 페이지 원문 복원 시도 (Sprint 006 M3 패턴 유지)
+      void window.translateApi.renderRestore()
+
+      // 3) 이전 debounce 타이머 cancel
+      if (autoTranslateTimer !== null) {
+        window.clearTimeout(autoTranslateTimer)
+        autoTranslateTimer = null
       }
+
+      if (!p.url) return
+
+      // 4) 페이지 캐시 lookup → hit이면 복원 힌트만 표시 (자동 번역 X)
+      // miss + replace/overlay 모드면 debounce 후 paragraphs 자동 호출
+      void window.pageResultApi
+        .lookup({
+          url: p.url,
+          targetLanguage: defaultLanguage,
+          providerType: defaultProviderId
+        })
+        .then((entry) => {
+          if (entry) {
+            setRestoreHint({ url: p.url, count: entry.instructions.length })
+            return
+          }
+          if (displayModeRef.current === 'panel') return
+          // 800ms debounce — 빠른 연속 navigate 시 마지막만 실행
+          autoTranslateTimer = window.setTimeout(() => {
+            autoTranslateTimer = null
+            void window.translateApi
+              .paragraphs({
+                providerType: defaultProviderId,
+                sourceLanguage,
+                targetLanguage: defaultLanguage
+              })
+              .catch(() => {
+                // 호출 실패 silent (사용자 수동 재시도 가능)
+              })
+          }, 800)
+        })
     })
 
     // Sprint 009 M2 — sourceTabId 가드 헬퍼 (Sprint 010 M3에서 순수 함수 tabGuard.ts로 추출)
@@ -335,6 +368,11 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     })
 
     return () => {
+      // Sprint 014 M3-14: 자동 번역 debounce 타이머 정리
+      if (autoTranslateTimer !== null) {
+        window.clearTimeout(autoTranslateTimer)
+        autoTranslateTimer = null
+      }
       offTabUpdate()
       offNav()
       offStart()

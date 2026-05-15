@@ -446,6 +446,16 @@ function createTabView(tabId: string, url: string): WebContentsView {
     // TabManager url/title 동기화
     tabManager.updateUrl(tabId, wc.getURL())
   }
+  // Sprint 014 M3-14: 같은 탭 페이지 이동 시 진행 중 paragraphs/page/summarize 즉시 abort.
+  // 같은 탭 내에서 사용자가 뒤로가기 / 다른 URL 입력 / 링크 클릭 등으로 navigate하면
+  // 이전 페이지 호출이 무의미해짐 + ChatGPT 한도 낭비.
+  const abortInFlightOnNavigate = (): void => {
+    if (tabManager.getActiveId() !== tabId) return
+    paragraphsAborted = true
+    pageTranslateAborted = true
+    summarizeAborted = true
+  }
+  view.webContents.on('did-start-navigation', abortInFlightOnNavigate)
   view.webContents.on('did-navigate', broadcastNav)
   view.webContents.on('did-navigate-in-page', broadcastNav)
   view.webContents.on('did-finish-load', broadcastNav)
