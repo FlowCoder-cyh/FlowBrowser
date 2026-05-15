@@ -9,7 +9,7 @@
 - 목차: [docs/prd/README.md](../docs/prd/README.md)
 - 통합본 (인쇄/공유용): [archive/flowbrowser_ai_prd_crud_v0.2.md](../archive/flowbrowser_ai_prd_crud_v0.2.md)
 - 변경 이력: [docs/prd/00_change_history.md](../docs/prd/00_change_history.md)
-- 현재 버전: **v0.3.9** (2026-05-15, Sprint 011 실측 반영)
+- 현재 버전: **v0.3.10** (2026-05-15, Sprint 012 실측 반영)
 
 ## 한 줄 정의
 
