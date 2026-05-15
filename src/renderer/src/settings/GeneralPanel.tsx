@@ -24,8 +24,9 @@ const SOURCE_LANGUAGES: Array<{ value: string; label: string }> = [
 ]
 
 const PROVIDERS: Array<{ value: string; label: string }> = [
-  { value: 'openai', label: 'OpenAI API Key' }
-  // 향후 codex / anthropic / gemini 추가
+  { value: 'openai', label: 'OpenAI API Key' },
+  { value: 'codex', label: 'Codex Login (Experimental)' }
+  // 향후 anthropic / gemini 추가
 ]
 
 export default function GeneralPanel(): JSX.Element {

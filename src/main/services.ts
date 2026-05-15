@@ -837,6 +837,15 @@ async function pollCodexLoop(flow: DeviceCodeFlow, deviceAuthId: string, userCod
           secret: JSON.stringify(tokens)
         })
         rebuildProvider('codex')
+        // Sprint 014 M3-5 핫픽스 — 로그인 성공 시 defaultProviderId 자동 'codex' 전환.
+        // openai credential이 없을 때만 자동 전환 (있으면 사용자 명시 선택 유지).
+        try {
+          if (!credentialsStore.has('openai')) {
+            await userSettingStore.update({ defaultProviderId: 'codex' })
+          }
+        } catch {
+          // 자동 전환 실패는 로그인 자체엔 영향 없음
+        }
         codexLoginSession = { status: 'success' }
       } catch (err) {
         codexLoginSession = {
