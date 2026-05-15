@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~007 종료, **Sprint 008 정의 완료 / M1 대기**
-- **Sprint**: **008 정의 완료** (Sprint 007 종합 Pass 17/0/0)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001~008 종료
+- **Sprint**: **008 종료** (M4 종합 evaluator 진행 중)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: v0.3.5 (2026-05-15) — Sprint 008 M4에서 v0.3.6 패치 예정
-- **최근 갱신**: 2026-05-15 (Sprint 008 정의 작성, contracts/sprint-008.md)
+- **PRD 버전**: **v0.3.6** (2026-05-15, Sprint 008 실측 반영)
+- **최근 갱신**: 2026-05-15 (Sprint 008 M4 PRD 패치 + Sprint 종료)
 
 ## 현재 작업
 
@@ -49,16 +49,22 @@
 - Sprint 종합 evaluator: Pass 8 / 0 / 0
 - PRD v0.3.4 발행
 
-### Sprint 007 진행 (2026-05-15)
+### Sprint 007 결과 (PR #40~#44 머지)
 
-- 산출물: `.flowset/contracts/sprint-007.md`
-- M1 (PR #41): UserSetting 4 필드 (defaultLanguage/sourceLanguage/defaultProviderId/privacyFilterEnabled) + GeneralPanel UI + 5종 흐름 적용. evaluator Pass 11/0/0.
-- M2 (PR #42): 요약 메타 수치 (combinedInputChars / combineCharLimit) + PageCachePanel UI. evaluator Pass 8/0/0.
-- M3 (PR #43): tsconfig include 확장 + dynamic import 5건 → 정적 (out/main 단일 chunk). evaluator Pass 10/0/0.
-- M4: PRD v0.3.5 패치 + Sprint 종합 evaluator 진행 중
-- 누적 단위 테스트: 192 → 200 (+8 신규)
+- 누적 단위 테스트: 192 → 200 (+8)
+- Sprint 종합 evaluator: Pass 17 / 0 / 0
+- PRD v0.3.5 발행
+- commit-check CI 모든 PR success
+
+### Sprint 008 진행 (2026-05-15)
+
+- 산출물: `.flowset/contracts/sprint-008.md`
+- M1 (PR #46): TabManager 코어 + 다중 WebContentsView + 5 IPC + tab:list-update broadcast + 13 tests. evaluator Pass 5 (가드5+자검4+PRD1=15) / 0 / 0.
+- M2 (PR #47): TabBar UI + URL Bar 동기화 + 컨텍스트 메뉴 탭별. evaluator Pass 9 / 0 / 0.
+- M3 (PR #48): 마지막 탭 close 시 새 탭 자동 open + 탭별 흐름 라우팅 회귀 검증 + 4 tests. evaluator Pass 8 / 0 / 0.
+- M4: PRD v0.3.6 패치 + Sprint 종합 evaluator 진행 중
+- 누적 단위 테스트: 200 → 217 (+17 신규)
 - 모든 자동 검증 (lint/typecheck/test/build) PASS
-- **commit-check CI 모든 PR 성공** (Sprint 003~006 NNN 위반 패턴 완전 해소)
 
 ## 활성 Spike (5종)
 

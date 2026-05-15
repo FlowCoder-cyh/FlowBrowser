@@ -10,7 +10,7 @@
 | 페이지 로드 | Chromium WebView/BrowserView로 웹페이지 표시 | P0 |
 | 뒤로가기/앞으로가기 | 기본 탐색 기능 — Sprint 006 M1: did-navigate broadcast + canGoBack/canGoForward 동기화로 UrlBar 버튼 disabled 자동 반영 | P1 |
 | 새로고침 | 현재 페이지 새로고침 — Sprint 006 M1 동일 흐름 | P1 |
-| 탭 관리 | 복수 탭 열기/닫기 | P2 |
+| 탭 관리 | 복수 탭 열기/닫기 — Sprint 008: TabManager(순수 모델) + 다중 WebContentsView(탭별 1개) + TabBar UI(가로 스크롤 + 활성 강조 + 닫기 X + 신규 +) + 5 IPC(list/open/close/switch/active) + tab:list-update broadcast. 마지막 탭 close 시 새 빈 탭 자동 open. 활성 탭만 mainWindow.contentView에 add, 비활성은 remove. 모든 IPC(paragraphs/page/summarize/render/restoreHint)는 활성 탭 view 자동 라우팅. | P2 |
 | 히스토리 | 방문 기록 저장 | P2 |
 | 북마크 | 자주 쓰는 사이트 저장 | P3 |
 

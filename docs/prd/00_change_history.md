@@ -7,6 +7,20 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.9 v0.3.6 변경 이력 (2026-05-15) — Sprint 008 실측 반영
+
+Phase 1 Sprint 008 산출물을 PRD에 반영한 패치. PRD §9.1 탭 관리 P2 구현 완료.
+
+v0.3.5 대비 주요 변경:
+
+1. **§9.1 탭 관리 P2 구현 완료**: TabManager (PRD §11 신규) + 다중 WebContentsView + 탭바 UI + 활성 탭 라우팅. 5종 IPC (`tab:list / open / close / switch / active`) + `tab:list-update` broadcast. 마지막 탭 close 시 새 빈 탭 자동 open.
+2. **§11 TabManager + 다중 WebContentsView 아키텍처**: 각 탭당 view 1개 사전 생성, 활성 view만 `mainWindow.contentView.addChildView`, 비활성은 remove. WebContentsRegistry는 탭별 등록 유지. 메모리는 `destroyTabView()` + `mainWindow.on('closed')`에서 명시 `webContents.close()`.
+3. **§11.1 탭별 흐름 자동 라우팅**: `browserView` 변수가 `setActiveTabView`/`syncBrowserViewRef`로 활성 탭 view를 항상 가리킴 → paragraphs/page/summarize-page/render/restoreHint 모든 IPC 흐름이 별도 분기 없이 활성 탭 기준 작동.
+4. **§9.1 Navigation broadcast 활성 탭 라우팅**: `did-navigate / did-finish-load / page-title-updated` 이벤트는 활성 탭일 때만 `browser:navigated` 송신 → UrlBar 자동 동기화 (탭 전환 시 즉시 갱신).
+5. **§19 UI/모듈 등록**: TabManager / TabBar.tsx / 다중 view 관리 / 5 IPC + broadcast 신규 등록.
+
+본 패치는 Sprint 008 M1~M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.8 v0.3.5 변경 이력 (2026-05-15) — Sprint 007 실측 반영
 
 Phase 1 Sprint 007 산출물을 PRD에 반영한 패치 (누적 정리 Sprint).
