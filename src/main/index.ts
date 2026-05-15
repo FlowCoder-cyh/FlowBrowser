@@ -27,6 +27,7 @@ import {
 } from '../ai/SummarizationPlanner'
 import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
 import { ThumbnailStore, type ThumbnailEntry } from './ThumbnailStore'
+import { ClosedTabHistory } from './ClosedTabHistory'
 
 let mainWindow: BrowserWindow | null = null
 const tabManager = new TabManager()
@@ -34,6 +35,8 @@ const tabViews = new Map<string, WebContentsView>()
 // Sprint 012 M1 — 탭 미리보기 (hover thumbnail) 메모리 LRU
 const thumbnailStore = new ThumbnailStore(50)
 const THUMBNAIL_RESIZE_WIDTH = 300
+// Sprint 013 M1 — 닫은 탭 히스토리 (Ctrl+Shift+T)
+const closedTabHistory = new ClosedTabHistory(20)
 // Sprint 008 M1 — 활성 탭 view 캐시. setActiveTabView/close에서 자동 갱신.
 // 기존 단일 browserView 변수 호환 유지 (대부분의 IPC handler는 활성 탭 사용).
 let browserView: WebContentsView | null = null
@@ -173,7 +176,23 @@ ipcMain.handle('tab:open', (_event, url?: string): TabSession => {
   return session
 })
 
+/**
+ * Sprint 013 M1 — 닫는 탭 정보를 히스토리에 push. about:blank 빈 탭은 제외.
+ */
+function pushClosedTabIfMeaningful(tabId: string): void {
+  const session = tabManager.list().find((t) => t.id === tabId)
+  if (!session) return
+  if (!session.url || session.url === 'about:blank') return
+  closedTabHistory.push({
+    url: session.url,
+    title: session.title,
+    color: session.color,
+    pinned: session.pinned
+  })
+}
+
 ipcMain.handle('tab:close', (_event, id: string): boolean => {
+  pushClosedTabIfMeaningful(id)
   const removed = tabManager.close(id)
   if (removed) destroyTabView(id)
   // Sprint 008 M3 — 마지막 탭 close 시 새 빈 탭 자동 open (일반 브라우저 UX).
@@ -216,17 +235,34 @@ ipcMain.handle('tab:reorder', (_event, id: string, newIndex: number): boolean =>
 })
 
 // Sprint 010 M2 — 탭 컨텍스트 메뉴 동작.
+// Sprint 013 M1 — 닫히는 탭은 ClosedTabHistory에 push (about:blank 제외).
 ipcMain.handle('tab:close-others', (_event, keepId: string): boolean => {
+  // closeOthers 호출 전 push 대상 결정 (호출 후 list에서 사라지므로)
+  const toPush = tabManager.list().filter((t) => t.id !== keepId && !t.pinned)
   const result = tabManager.closeOthers(keepId)
   if (!result.ok) return false
+  for (const t of toPush) {
+    if (t.url && t.url !== 'about:blank') {
+      closedTabHistory.push({ url: t.url, title: t.title, color: t.color, pinned: t.pinned })
+    }
+  }
   for (const id of result.closed) destroyTabView(id)
   setActiveTabView(keepId)
   return true
 })
 
 ipcMain.handle('tab:close-right', (_event, fromId: string): boolean => {
+  const list = tabManager.list()
+  const fromIdx = list.findIndex((t) => t.id === fromId)
+  const toPush =
+    fromIdx >= 0 ? list.slice(fromIdx + 1).filter((t) => !t.pinned) : []
   const result = tabManager.closeRight(fromId)
   if (!result.ok) return false
+  for (const t of toPush) {
+    if (t.url && t.url !== 'about:blank') {
+      closedTabHistory.push({ url: t.url, title: t.title, color: t.color, pinned: t.pinned })
+    }
+  }
   for (const id of result.closed) destroyTabView(id)
   const active = tabManager.getActiveId()
   if (active) setActiveTabView(active)
@@ -255,6 +291,24 @@ ipcMain.handle('tab:set-pinned', (_event, id: string, pinned: boolean): boolean 
 ipcMain.handle('tab:get-thumbnail', (_event, id: string): ThumbnailEntry | null => {
   return thumbnailStore.get(id)
 })
+
+// Sprint 013 M1 — 닫은 탭 복원. 비어 있으면 null.
+function reopenLastClosedTab(): TabSession | null {
+  const entry = closedTabHistory.pop()
+  if (!entry) return null
+  const session = tabManager.open(entry.url)
+  if (entry.color) tabManager.setColor(session.id, entry.color)
+  if (entry.pinned) tabManager.setPinned(session.id, true)
+  createTabView(session.id, session.url)
+  setActiveTabView(session.id)
+  return tabManager.list().find((t) => t.id === session.id) ?? session
+}
+
+ipcMain.handle('tab:reopen', (): TabSession | null => {
+  return reopenLastClosedTab()
+})
+
+ipcMain.handle('tab:reopen-size', (): number => closedTabHistory.size())
 
 // Sprint 010 M2 — TabBar 우클릭 시 OS 네이티브 컨텍스트 메뉴 popup.
 ipcMain.handle(
@@ -1177,6 +1231,8 @@ function installApplicationMenu(): void {
           click: () => {
             const activeId = tabManager.getActiveId()
             if (!activeId) return
+            // Sprint 013 M1 — 닫는 탭 히스토리 push (about:blank 제외)
+            pushClosedTabIfMeaningful(activeId)
             const removed = tabManager.close(activeId)
             if (removed) destroyTabView(activeId)
             let active = tabManager.getActiveId()
@@ -1186,6 +1242,13 @@ function installApplicationMenu(): void {
               active = fresh.id
             }
             setActiveTabView(active)
+          }
+        },
+        {
+          label: '닫은 탭 다시 열기',
+          accelerator: 'CommandOrControl+Shift+T',
+          click: () => {
+            reopenLastClosedTab()
           }
         },
         { type: 'separator' },
