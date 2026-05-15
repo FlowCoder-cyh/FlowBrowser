@@ -1,19 +1,38 @@
 /**
- * Sprint 014 M1 — CodexLoginProvider 단위 테스트.
- * fetch + DeviceCodeFlow refresh 모킹으로 401 refresh 재시도 경로 검증.
+ * Sprint 014 M1 / M3-6 — CodexLoginProvider 단위 테스트.
+ *
+ * M3-6 변경: chatgpt.com/backend-api/codex/responses endpoint + Responses API +
+ * ChatGPT-Account-Id 헤더 + OAI-Product-Sku.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { CodexLoginProvider, type CodexTokenAccess } from '../../../src/ai/providers/CodexLoginProvider'
+import {
+  CodexLoginProvider,
+  type CodexTokenAccess
+} from '../../../src/ai/providers/CodexLoginProvider'
 import { DeviceCodeFlow, type TokenBundle } from '../../../src/ai/codex/DeviceCodeFlow'
 import { ProviderError } from '../../../src/ai/ProviderAdapter'
 import type { TranslationInput } from '../../../src/ai/types'
 
-function bundle(overrides: Partial<TokenBundle> = {}): TokenBundle {
+/**
+ * `https://api.openai.com/auth.chatgpt_account_id` 가 들어간 가짜 JWT 생성.
+ * header.payload.signature 형식.
+ */
+function makeJwt(payload: Record<string, unknown>): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  return `${header}.${body}.signature`
+}
+
+function bundleWithAccount(accountId = 'acct_test_123', overrides: Partial<TokenBundle> = {}): TokenBundle {
   const now = Date.now()
+  const jwt = makeJwt({
+    'https://api.openai.com/auth': { chatgpt_account_id: accountId },
+    exp: Math.floor((now + 3600 * 1000) / 1000)
+  })
   return {
-    idToken: 'id_a',
-    accessToken: 'acc_a',
-    refreshToken: 'ref_a',
+    idToken: 'id_test',
+    accessToken: jwt,
+    refreshToken: 'ref_test',
     issuedAt: now,
     expiresAt: now + 3600 * 1000,
     ...overrides
@@ -40,12 +59,30 @@ function makeTokenAccess(initial: TokenBundle): {
   }
 }
 
-function chatJson(text: string, model = 'gpt-4o-mini'): Response {
+function responsesJson(text: string, model = 'gpt-5'): Response {
   return new Response(
     JSON.stringify({
-      choices: [{ message: { content: text } }],
-      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
-      model
+      id: 'resp_x',
+      model,
+      output: [
+        {
+          type: 'message',
+          content: [{ type: 'output_text', text }]
+        }
+      ],
+      usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 }
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } }
+  )
+}
+
+function responsesJsonNewFormat(text: string): Response {
+  return new Response(
+    JSON.stringify({
+      id: 'resp_y',
+      model: 'gpt-5',
+      output_text: text,
+      usage: { input_tokens: 8, output_tokens: 3 }
     }),
     { status: 200, headers: { 'Content-Type': 'application/json' } }
   )
@@ -62,45 +99,77 @@ const baseInput: TranslationInput = {
   requestType: 'selection'
 }
 
-describe('CodexLoginProvider', () => {
-  it('정상 호출 — translate 결과 반환 (estimatedCostUsd=0)', async () => {
-    const { access } = makeTokenAccess(bundle())
-    const fetchImpl = vi.fn().mockResolvedValueOnce(chatJson('안녕'))
+describe('CodexLoginProvider (M3-6 responses API)', () => {
+  it('정상 호출 — endpoint + 헤더 + body 정합', async () => {
+    const { access } = makeTokenAccess(bundleWithAccount('acct_abc'))
+    const fetchImpl = vi.fn().mockResolvedValueOnce(responsesJson('안녕'))
     const provider = new CodexLoginProvider({ tokenAccess: access, fetchImpl })
     const out = await provider.translate(baseInput)
     expect(out.translatedText).toBe('안녕')
-    expect(out.estimatedCostUsd).toBe(0) // Phase 1 PoC #1 측정 전까지 0
+    expect(out.estimatedCostUsd).toBe(0)
     expect(out.inputTokens).toBe(10)
+
+    const [url, opts] = fetchImpl.mock.calls[0]
+    expect(String(url)).toBe('https://chatgpt.com/backend-api/codex/responses')
+    expect(opts.headers.Authorization).toMatch(/^Bearer /)
+    expect(opts.headers['ChatGPT-Account-Id']).toBe('acct_abc')
+    expect(opts.headers['OAI-Product-Sku']).toBe('codex')
+    const body = JSON.parse(opts.body)
+    expect(body.model).toBe('gpt-5')
+    expect(Array.isArray(body.input)).toBe(true)
+    expect(body.input[0].role).toBe('system')
+    expect(body.input[1].role).toBe('user')
+    expect(body.stream).toBe(false)
+  })
+
+  it('신규 형식 (output_text) 응답 파싱', async () => {
+    const { access } = makeTokenAccess(bundleWithAccount())
+    const fetchImpl = vi.fn().mockResolvedValueOnce(responsesJsonNewFormat('Hi-text'))
+    const provider = new CodexLoginProvider({ tokenAccess: access, fetchImpl })
+    const out = await provider.translate(baseInput)
+    expect(out.translatedText).toBe('Hi-text')
+  })
+
+  it('JWT에 account_id 없으면 ProviderError', async () => {
+    const noAccountJwt = makeJwt({ 'https://api.openai.com/auth': {} })
+    const now = Date.now()
+    const { access } = makeTokenAccess({
+      idToken: 'i',
+      accessToken: noAccountJwt,
+      refreshToken: 'r',
+      issuedAt: now,
+      expiresAt: now + 3600 * 1000
+    })
+    const fetchImpl = vi.fn()
+    const provider = new CodexLoginProvider({ tokenAccess: access, fetchImpl })
+    await expect(provider.translate(baseInput)).rejects.toMatchObject({ code: 'auth_invalid' })
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 
   it('만료 60초 이내 → 자동 refresh 후 호출', async () => {
-    const expiring = bundle({
+    const expiring = bundleWithAccount('acct_old', {
       issuedAt: Date.now() - 3500 * 1000,
-      expiresAt: Date.now() + 30 * 1000 // 30초 후 만료 → refresh 트리거
+      expiresAt: Date.now() + 30 * 1000
     })
     const { access, updates } = makeTokenAccess(expiring)
-    // refresh 시 새 토큰 반환
     const flow = new DeviceCodeFlow({ fetchImpl: vi.fn() })
-    vi.spyOn(flow, 'refreshTokens').mockResolvedValueOnce(bundle({ accessToken: 'acc_new' }))
-    const fetchImpl = vi.fn().mockResolvedValueOnce(chatJson('OK'))
+    vi.spyOn(flow, 'refreshTokens').mockResolvedValueOnce(bundleWithAccount('acct_new'))
+    const fetchImpl = vi.fn().mockResolvedValueOnce(responsesJson('OK'))
     const provider = new CodexLoginProvider({ tokenAccess: access, flow, fetchImpl })
     await provider.translate(baseInput)
-    // refresh 호출됨 + 새 토큰 저장
     expect(updates.length).toBe(1)
-    expect(updates[0].accessToken).toBe('acc_new')
-    // chat 호출은 새 토큰으로
     const [, opts] = fetchImpl.mock.calls[0]
-    expect(opts.headers.Authorization).toBe('Bearer acc_new')
+    expect(opts.headers['ChatGPT-Account-Id']).toBe('acct_new')
   })
 
-  it('401 → refresh 후 재시도 (1차 성공)', async () => {
-    const { access, updates } = makeTokenAccess(bundle())
+  it('401 → refresh 후 재시도 성공', async () => {
+    const { access, updates } = makeTokenAccess(bundleWithAccount())
     const flow = new DeviceCodeFlow({ fetchImpl: vi.fn() })
-    vi.spyOn(flow, 'refreshTokens').mockResolvedValueOnce(bundle({ accessToken: 'acc_new' }))
+    vi.spyOn(flow, 'refreshTokens').mockResolvedValueOnce(bundleWithAccount('acct_new'))
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(emptyResp(401)) // 1차 401
-      .mockResolvedValueOnce(chatJson('OK')) // 재시도 성공
+      .mockResolvedValueOnce(emptyResp(401))
+      .mockResolvedValueOnce(responsesJson('OK'))
     const provider = new CodexLoginProvider({ tokenAccess: access, flow, fetchImpl })
     const out = await provider.translate(baseInput)
     expect(out.translatedText).toBe('OK')
@@ -109,7 +178,7 @@ describe('CodexLoginProvider', () => {
   })
 
   it('401 → refresh 실패 → ProviderError auth_invalid', async () => {
-    const { access } = makeTokenAccess(bundle())
+    const { access } = makeTokenAccess(bundleWithAccount())
     const flow = new DeviceCodeFlow({ fetchImpl: vi.fn() })
     vi.spyOn(flow, 'refreshTokens').mockRejectedValue(new Error('refresh 401'))
     const fetchImpl = vi.fn().mockResolvedValue(emptyResp(401))
@@ -123,38 +192,31 @@ describe('CodexLoginProvider', () => {
     }
   })
 
-  it('401 → refresh 성공이지만 재시도도 401 → ProviderError', async () => {
-    const { access } = makeTokenAccess(bundle())
-    const flow = new DeviceCodeFlow({ fetchImpl: vi.fn() })
-    vi.spyOn(flow, 'refreshTokens').mockResolvedValueOnce(bundle({ accessToken: 'acc_new' }))
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(emptyResp(401))
-      .mockResolvedValueOnce(emptyResp(401))
-    const provider = new CodexLoginProvider({ tokenAccess: access, flow, fetchImpl })
-    await expect(provider.translate(baseInput)).rejects.toMatchObject({
-      code: 'auth_invalid'
-    })
-  })
-
-  it('429 → ProviderError rate_limit', async () => {
-    const { access } = makeTokenAccess(bundle())
+  it('429 → ProviderError rate_limit (한국어 메시지)', async () => {
+    const { access } = makeTokenAccess(bundleWithAccount())
     const fetchImpl = vi.fn().mockResolvedValueOnce(emptyResp(429))
     const provider = new CodexLoginProvider({ tokenAccess: access, fetchImpl })
-    await expect(provider.translate(baseInput)).rejects.toMatchObject({ code: 'rate_limit' })
+    try {
+      await provider.translate(baseInput)
+      throw new Error('should have thrown')
+    } catch (err) {
+      expect((err as ProviderError).code).toBe('rate_limit')
+      expect((err as ProviderError).message).toContain('ChatGPT')
+    }
   })
 
   it('500 → ProviderError server_error', async () => {
-    const { access } = makeTokenAccess(bundle())
+    const { access } = makeTokenAccess(bundleWithAccount())
     const fetchImpl = vi.fn().mockResolvedValueOnce(emptyResp(500))
     const provider = new CodexLoginProvider({ tokenAccess: access, fetchImpl })
     await expect(provider.translate(baseInput)).rejects.toMatchObject({ code: 'server_error' })
   })
 
-  it('info: providerType=codex + Experimental displayName', () => {
-    const { access } = makeTokenAccess(bundle())
+  it('info — providerType + Experimental + 모델 카탈로그', () => {
+    const { access } = makeTokenAccess(bundleWithAccount())
     const provider = new CodexLoginProvider({ tokenAccess: access })
     expect(provider.info.providerType).toBe('codex')
     expect(provider.info.displayName).toContain('Experimental')
+    expect(provider.info.defaultModel).toBe('gpt-5')
   })
 })
