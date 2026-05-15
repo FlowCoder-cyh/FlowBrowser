@@ -154,6 +154,44 @@ describe('UserSettingStore', () => {
     })
   })
 
+  // Sprint 014 M3 — onboardingShown
+  describe('onboardingShown (Sprint 014 M3)', () => {
+    it('기본값 false', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().onboardingShown).toBe(false)
+    })
+
+    it('update + persist', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      const s = await store.update({ onboardingShown: true })
+      expect(s.onboardingShown).toBe(true)
+      const reloaded = new UserSettingStore(path)
+      await reloaded.load()
+      expect(reloaded.getState().onboardingShown).toBe(true)
+    })
+
+    it('비-boolean 값 거부', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await expect(
+        // @ts-expect-error invalid type for test
+        store.update({ onboardingShown: 'yes' })
+      ).rejects.toThrow('invalid onboardingShown')
+    })
+
+    it('기존 파일에 onboardingShown 누락 → false fallback', async () => {
+      await fs.writeFile(
+        path,
+        JSON.stringify({ translationMode: 'panel' }) // 옛 형식
+      )
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().onboardingShown).toBe(false)
+    })
+  })
+
   // Sprint 010 M3 — cancelOnTabSwitch
   describe('cancelOnTabSwitch (Sprint 010 M3)', () => {
     it('기본값 false', async () => {

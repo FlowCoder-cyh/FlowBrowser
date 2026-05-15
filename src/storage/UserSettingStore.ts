@@ -22,6 +22,8 @@ export interface UserSettingState {
   privacyFilterEnabled: boolean
   /** Sprint 010 M3 — 탭 전환 시 진행 중 paragraphs/page 작업 자동 abort. 기본 false (호환). */
   cancelOnTabSwitch: boolean
+  /** Sprint 014 M3 — 첫 실행 OnboardingTour 표시 여부. 한 번이라도 닫으면 true (영속). */
+  onboardingShown: boolean
 }
 
 const DEFAULTS: UserSettingState = {
@@ -30,7 +32,8 @@ const DEFAULTS: UserSettingState = {
   sourceLanguage: 'auto',
   defaultProviderId: 'openai',
   privacyFilterEnabled: true,
-  cancelOnTabSwitch: false
+  cancelOnTabSwitch: false,
+  onboardingShown: false
 }
 
 function isNonEmptyString(v: unknown): v is string {
@@ -67,7 +70,11 @@ export class UserSettingStore {
         cancelOnTabSwitch:
           typeof parsed.cancelOnTabSwitch === 'boolean'
             ? parsed.cancelOnTabSwitch
-            : DEFAULTS.cancelOnTabSwitch
+            : DEFAULTS.cancelOnTabSwitch,
+        onboardingShown:
+          typeof parsed.onboardingShown === 'boolean'
+            ? parsed.onboardingShown
+            : DEFAULTS.onboardingShown
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -122,6 +129,12 @@ export class UserSettingStore {
         throw new Error('invalid cancelOnTabSwitch')
       }
       this.state.cancelOnTabSwitch = patch.cancelOnTabSwitch
+    }
+    if (patch.onboardingShown !== undefined) {
+      if (typeof patch.onboardingShown !== 'boolean') {
+        throw new Error('invalid onboardingShown')
+      }
+      this.state.onboardingShown = patch.onboardingShown
     }
     await this.persist()
     return this.getState()

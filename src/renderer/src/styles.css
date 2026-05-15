@@ -1516,3 +1516,183 @@ body {
   letter-spacing: 4px;
   flex: 1;
 }
+
+/* Sprint 014 M3 — OnboardingTour */
+.onboarding-tour {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.onboarding-card {
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  max-width: 640px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 28px 32px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+.onboarding-title {
+  color: #e0e0e0;
+  font-size: 22px;
+  margin: 0 0 6px 0;
+}
+
+.onboarding-subtitle {
+  color: #999;
+  font-size: 13px;
+  margin: 0 0 24px 0;
+}
+
+.onboarding-section {
+  margin: 20px 0;
+}
+
+.onboarding-section-title {
+  color: #4a9eff;
+  font-size: 15px;
+  margin: 0 0 8px 0;
+}
+
+.onboarding-muted {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 12px 0;
+}
+
+.onboarding-provider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.onboarding-provider-card {
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 14px;
+  position: relative;
+}
+
+.onboarding-provider-card.recommended {
+  border-color: #4a9eff;
+}
+
+.onboarding-provider-card h3 {
+  color: #e0e0e0;
+  font-size: 14px;
+  margin: 0 0 6px 0;
+}
+
+.onboarding-provider-card p {
+  color: #aaa;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 8px 0;
+}
+
+.onboarding-badge {
+  display: inline-block;
+  background: #1a3a5a;
+  color: #4a9eff;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.onboarding-btn {
+  display: inline-block;
+  padding: 8px 14px;
+  border: 1px solid #4a4a4a;
+  border-radius: 4px;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.onboarding-btn:hover {
+  background: #3a3a3a;
+}
+
+.onboarding-btn.primary {
+  background: #4a9eff;
+  border-color: #4a9eff;
+  color: #fff;
+}
+
+.onboarding-btn.primary:hover {
+  background: #3a8eff;
+}
+
+.onboarding-url-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.onboarding-url-item {
+  margin: 8px 0;
+}
+
+.onboarding-url-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: #e0e0e0;
+}
+
+.onboarding-url-button:hover {
+  background: #3a3a3a;
+  border-color: #4a9eff;
+}
+
+.onboarding-url-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.onboarding-url-desc {
+  display: block;
+  font-size: 11px;
+  color: #999;
+}
+
+.onboarding-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #2a2a2a;
+}
+
+.onboarding-checkbox {
+  color: #999;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
