@@ -8,12 +8,13 @@
 - BrowserWindow / BrowserView 구성 (WebContentsView 우선 검토)
 - URL Bar 구현
 - 기본 Navigation 구현 (v0.3.4 Sprint 006 M1: canGoBack/canGoForward broadcast + UrlBar 버튼 disabled 동기화)
-- TabBar UI (v0.3.6 Sprint 008 M2): 가로 스크롤 + 활성 강조 + 닫기 X + 신규 + 버튼
-- TabManager (v0.3.6 Sprint 008 M1 + v0.3.7 Sprint 009 M3): 순수 모델 (TabSession + open/close/switch/list/snapshot + subscribe broadcast 콜백 + **restore** v0.3.7 추가) + 다중 WebContentsView 사전 생성/활성 view만 add/remove/cleanup + 5 IPC + tab:list-update broadcast
+- TabBar UI (v0.3.6 Sprint 008 M2 + v0.3.8 Sprint 010 M1/M2): 가로 스크롤 + 활성 강조 + 닫기 X + 신규 + 버튼 + **HTML5 DnD 드래그/순서 변경** (v0.3.8) + **우클릭 OS 네이티브 컨텍스트 메뉴** (v0.3.8 — 탭 닫기 / 다른 탭 닫기 / 오른쪽 탭 닫기 / 탭 복제 + disabled 분기)
+- TabManager (v0.3.6 Sprint 008 M1 + v0.3.7 Sprint 009 M3 + v0.3.8 Sprint 010 M1/M2): 순수 모델 (TabSession + open/close/switch/list/snapshot + subscribe broadcast 콜백 + **restore** v0.3.7 + **reorder / closeOthers / closeRight / duplicate** v0.3.8) + 다중 WebContentsView 사전 생성/활성 view만 add/remove/cleanup + 9 IPC (tab:list/open/close/switch/active + reorder/close-others/close-right/duplicate + show-context-menu) + tab:list-update broadcast
 - TabStateStore (v0.3.7 Sprint 009 M3): tabs.json policyVersion=1 영속 + load/save/clear + 손상 fallback. main initializeTabs가 startup 시 복원, mainWindow close 시 강제 flush, subscribe debounced 200ms 자동 저장
+- tabGuard.ts (v0.3.8 Sprint 010 M3): isCurrentTab(activeTabId, sourceTabId) 순수 함수 — null/undefined 둘 다 보수적 true. TranslationPanel이 inline 함수 대신 import 사용 (Sprint 009 M2 G-006 Partial 후속 해소)
 - Translation Panel 구현 (v0.3.3 Sprint 005 M3: chunkSummaries 펼치기 토글 + PATH_LABELS 한국어 / v0.3.4 Sprint 006 M2/M3: mode 분기 + 자동 render + 페이지 캐시 restoreHint 배너)
 - DisplayModePanel UI (v0.3.4 Sprint 006 M2): translationMode 3종 (panel/replace/overlay) 라디오
-- GeneralPanel UI (v0.3.5 Sprint 007 M1): 언어 / Provider / Privacy 토글 + 안전 정책 안내
+- GeneralPanel UI (v0.3.5 Sprint 007 M1 + v0.3.8 Sprint 010 M3): 언어 / Provider / Privacy 토글 + 안전 정책 안내 + **cancelOnTabSwitch 토글** (v0.3.8 — 탭 전환 시 진행 작업 자동 취소)
 - PageCachePanel UI (v0.3.5 Sprint 007 M2): 페이지 캐시 count + 모두 삭제
 - Subtitle Overlay 구현
 - Settings Page 구현 (v0.3.3 Sprint 005 M2: GlossaryPanel 추가)
