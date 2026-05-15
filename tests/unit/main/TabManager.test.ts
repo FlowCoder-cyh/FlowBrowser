@@ -194,6 +194,54 @@ describe('TabManager', () => {
     })
   })
 
+  // Sprint 012 M3 — cycleActiveTabId
+  describe('cycleActiveTabId (Sprint 012 M3)', () => {
+    it('next: 마지막 탭이 아니면 다음 id', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      tm.switch(a.id)
+      expect(tm.cycleActiveTabId('next')).toBe(b.id)
+    })
+
+    it('prev: 첫 탭이 아니면 이전 id', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      const b = tm.open('b.com')
+      const c = tm.open('c.com')
+      tm.switch(c.id)
+      expect(tm.cycleActiveTabId('prev')).toBe(b.id)
+    })
+
+    it('next 마지막에서 wrap → 첫 탭', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      tm.switch(b.id)
+      expect(tm.cycleActiveTabId('next')).toBe(a.id)
+    })
+
+    it('prev 첫에서 wrap → 마지막 탭', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const b = tm.open('b.com')
+      tm.switch(a.id)
+      expect(tm.cycleActiveTabId('prev')).toBe(b.id)
+    })
+
+    it('단일 탭 → 같은 id 반환', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      expect(tm.cycleActiveTabId('next')).toBe(a.id)
+      expect(tm.cycleActiveTabId('prev')).toBe(a.id)
+    })
+
+    it('탭 0개 또는 activeId null → null', () => {
+      const tm = new TabManager()
+      expect(tm.cycleActiveTabId('next')).toBeNull()
+    })
+  })
+
   // Sprint 010 M1 — reorder
   describe('reorder (Sprint 010 M1)', () => {
     it('정상 이동: 0 → 2', () => {
