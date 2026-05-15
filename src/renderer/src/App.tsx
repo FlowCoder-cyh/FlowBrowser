@@ -27,6 +27,13 @@ export default function App(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Sprint 014 M3-2 핫픽스 — stage 변경 시 main에 WebContentsView 가시성 알림
+  // browser stage일 때만 view 노출, 그 외(consent/settings/loading)는 화면 밖으로 숨김
+  useEffect(() => {
+    if (stage === 'loading') return
+    void window.browserApi.setViewVisible(stage === 'browser')
+  }, [stage])
+
   async function boot(): Promise<void> {
     const state = await window.consentApi.get()
     if (!state.globalConsented) {
