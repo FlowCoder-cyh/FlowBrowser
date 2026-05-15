@@ -39,11 +39,20 @@
 
 - Provider Adapter Interface 설계
 - OpenAI API Provider 구현
+- `buildSystemPrompt` / `buildUserPrompt` 외부 export 함수 (v0.3.2 Sprint 004 M2): requestType 7종 분기 (selection / paragraph / page / subtitle / tts_script / explanation / summary), 단위 테스트 직접 매트릭스 검증
+- SummarizationPlanner (v0.3.2 Sprint 004 M3): planChunks + summarizeChunks pure 함수, mock provider 단위 테스트 가능 의존성 주입 구조
 - Codex Login Provider 실험 구현 (Spike 1 통과 시)
 - Translation Engine 구현
-- Summary Engine 구현
+- Summary Engine 구현 (v0.3.2 Sprint 004 M3): 선택 영역은 `translate:request` 통합 IPC, 페이지는 `translate:summarize-page` 전용 IPC + 청크 분할/통합 흐름
+- Explanation Engine 구현 (v0.3.2 Sprint 004 M2): 컨텍스트 메뉴 "쉽게 설명" + `translate:request(requestType='explanation')` 통합 IPC
 - TTS Engine 구현 (v0.3 Spike 4): OpenAI gpt-4o-mini-tts (MVP 기본) + ElevenLabs Flash v2.5 (고급) + Kokoro-82M (프라이버시). ~~Coqui XTTS-v2~~ 영구 제외 (비상용 라이선스 + 회사 폐업).
 - STT Engine — **Phase 5 별도 작업** (Spike 3 가용성 통과: Win10+ / macOS 13+ 추가 설치 불필요). STT API 선정 (Whisper / Google STT / Deepgram / 로컬) 별도.
+
+### IPC 채널 정책 (v0.3.2 Sprint 004 명문화)
+
+- **선택 영역 단위** (`selection / explanation / summary`): 통합 IPC `translate:request` + 컨텍스트 메뉴 진입 + `translation:popup-show / popup-result` 이벤트 + `mode: 'translation' | 'explanation' | 'summary'` 페이로드 분기. 별도 IPC 미신설.
+- **페이지 단위** (`translate:paragraphs / translate:page / translate:summarize-page`): 각 흐름이 청크/노드 분할이 필요해 전용 IPC. 진행/완료/오류/취소 별도 이벤트 채널 (`*-start / *-progress / *-done / *-aborted / *-error`). abort IPC (`translate:paragraphs-abort / translate:page-abort`) 별도 노출.
+- 사유: 단일 호출 vs 다회 호출 + 사용자 취소 vs 즉시 응답의 UX 차이가 본질적이라 통합 시 페이로드 복잡도가 분리 시보다 큼. Sprint 003 M2 evaluator §D + Sprint 004 M2 Partial 직접 해소.
 
 ## 19.5 Storage Layer
 

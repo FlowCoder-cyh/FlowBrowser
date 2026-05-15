@@ -93,6 +93,12 @@
 - 단위 테스트로 LRU trim 직접 측정 (Sprint 003 M1 신규 3 tests)
 - `lastAccessedAt`은 `lookup()` 시 갱신 → hit 항목 우선 생존
 
+### 캐시 우회 (v0.3.2 / Sprint 004 M2/M3)
+
+- `requestType === 'explanation' | 'summary'`는 lookup/store 모두 스킵
+- 사유: 캐시 키에 requestType이 포함되지 않아 동일 sourceText + 다른 requestType이 충돌. 우회로 충돌 회피.
+- 캐시 키 확장 (requestType 포함)은 Sprint 005 이후 별도 검토.
+
 ## 12.5 VideoSession (v0.2 보강)
 
 | 필드 | 타입 | 설명 |
@@ -174,6 +180,18 @@
 - BM 설계용 단가/비용 시뮬레이션
 - 실패 패턴 분석 (안정성 개선)
 - 외부 전송 감사 로그 (10.3)
+
+### feature 매핑 (v0.3.2 Sprint 004 M2/M3)
+
+`featureFromRequestType()` 함수로 RequestType → Feature 매핑:
+
+| RequestType | Feature |
+|---|---|
+| `selection / paragraph / page / subtitle / tts_script` | `translation` |
+| `explanation` | `explanation` |
+| `summary` | `summary` |
+
+UsagePanel은 byFeature를 동적 렌더링 (5종 enum 변동 시 UI 자동 반영).
 
 ---
 

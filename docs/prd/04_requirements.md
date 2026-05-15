@@ -23,8 +23,8 @@
 | 문단 번역 | 페이지 문단 단위 번역 (9개 블록 선택자 ParagraphExtractor) | P0 |
 | 페이지 전체 번역 | 전체 페이지 번역 — Sprint 003 M2: 16종 블록 선택자 PageNodeExtractor + 4000자 청크 + abort 지원 + pageWideBlock=true 시 즉시 중단 | P1 |
 | 원문/번역 토글 | 원문과 번역 표시 방식 변경 | P1 |
-| 쉬운 설명 | 어려운 문장을 쉽게 설명 | P1 |
-| 요약 | 선택 영역/페이지 요약 | P1 |
+| 쉬운 설명 | 어려운 문장을 쉽게 설명 — Sprint 004 M2: 컨텍스트 메뉴 "쉽게 설명" + system prompt 분기 (tutor / unpack jargon) + popup mode 표시. 캐시 우회 | P1 |
+| 요약 | 선택 영역/페이지 요약 — Sprint 004 M3: 선택 영역은 컨텍스트 메뉴 통합 흐름, 페이지는 `translate:summarize-page` 전용 IPC + SummarizationPlanner (청크 분할 → 통합 요약) | P1 |
 | 용어집 적용 | 사용자 정의 용어 반영 | P2 |
 
 ## 9.3 YouTube/영상 기능

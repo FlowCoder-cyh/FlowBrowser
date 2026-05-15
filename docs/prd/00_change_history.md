@@ -7,6 +7,21 @@
 이 문서는 **AI 네이티브 브라우저 / 콘텐츠 번역·더빙 브라우저** 아이디어를 제품 기획 수준으로 정리한 PRD다.
 핵심 목적은 기존 크롬/엣지 위에 AI를 얹는 방식이 아니라, 처음부터 AI 접목을 전제로 한 브라우저형 제품을 설계하는 것이다.
 
+## 0.5 v0.3.2 변경 이력 (2026-05-15) — Sprint 004 실측 반영
+
+Phase 1 Sprint 004 산출물을 PRD에 반영한 패치. 본격 변경 없이 실측·정책 명문화.
+
+v0.3.1 대비 주요 변경:
+
+1. **§9.2**: 쉬운 설명 / 요약 P1 — Sprint 004 M2/M3에서 RequestType `'explanation' | 'summary'` 추가, OpenAIApiKeyProvider system prompt 분기 (tutor / summarizer), 컨텍스트 메뉴 "쉽게 설명" / "이 부분 요약" 항목 추가. 페이지 요약은 청크 분할 + 통합 요약 흐름 (SummarizationPlanner pure 함수, mock 단위 테스트로 회귀 보장).
+2. **§9.6 / §11.1 IPC 정책 명문화**: 선택 영역 흐름 (`selection / explanation / summary`)은 통합 IPC `translate:request` + 컨텍스트 메뉴 통합 + popup mode 분기. 페이지 단위 흐름 (`page` 번역 / `summarize-page` 요약)은 청크 분할이 필요해 전용 IPC + 진행/완료/오류/취소 별도 이벤트 채널. Sprint 003 M2 evaluator §D + Sprint 004 M2 Partial 해소.
+3. **§9.6 IPC 채널 분리 (Sprint 004 M1)**: `translate:page-aborted` / `translate:page-error` / `translate:paragraphs-aborted` / `translate:paragraphs-error` 4종 신규 이벤트로 분리. 기존 `translate:*-done`은 정상 완료/page_wide_block 시점에 `stoppedReason` 필드와 함께 송신 (호환 유지). `translate:paragraphs-abort` IPC 신설.
+4. **§12.4 캐시 정책 보강**: explanation/summary는 캐시 우회 (캐시 키에 requestType 미포함 → 충돌 회피). cache 키 확장은 Sprint 005 이후 별도 검토.
+5. **§12.8 UsageLog feature 매핑**: requestType → feature 매핑 함수 (`featureFromRequestType`) 도입. explanation/summary는 별도 feature로 기록, UsagePanel byFeature 동적 표시.
+6. **§19.2 / §19.4**: SummarizationPlanner / OpenAIApiKeyProvider buildSystemPrompt/buildUserPrompt export / "쉽게 설명" / "이 부분 요약" 컨텍스트 메뉴 항목 신규 등록.
+
+본 패치는 Sprint 004 M1~M3 evaluator 결과를 입력으로 작성됨.
+
 ## 0.4 v0.3.1 변경 이력 (2026-05-15) — Sprint 002·003 실측 반영
 
 Phase 1 Sprint 002·003 산출물을 PRD에 반영한 패치. 본격 변경 없이 실측·정책 명문화.

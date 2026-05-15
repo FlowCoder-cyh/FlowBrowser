@@ -1,6 +1,6 @@
-# FlowBrowser AI PRD v0.3.1 — 목차
+# FlowBrowser AI PRD v0.3.2 — 목차
 
-본 문서는 FlowBrowser AI 제품 요구사항 명세(PRD)의 **v0.3.1** 버전이며, 13개 섹션 파일로 분할되어 있다.
+본 문서는 FlowBrowser AI 제품 요구사항 명세(PRD)의 **v0.3.2** 버전이며, 13개 섹션 파일로 분할되어 있다.
 v0.2 통합본은 [archive/flowbrowser_ai_prd_crud_v0.2.md](../../archive/flowbrowser_ai_prd_crud_v0.2.md)에 보관되며, v0.3.x 통합본은 작성하지 않고 분할 SSOT로 운영한다.
 
 ## 섹션 구성
@@ -23,9 +23,9 @@ v0.2 통합본은 [archive/flowbrowser_ai_prd_crud_v0.2.md](../../archive/flowbr
 
 ## 현재 상태
 
-**Phase 1 진행 중 — Sprint 001·002·003 완료**
+**Phase 1 진행 중 — Sprint 001·002·003·004 완료**
 
-Phase 0 5종 Spike + Phase 1 Sprint 001 (Electron 셸 + Privacy + Provider + 선택 영역 번역) + Sprint 002 (TranslationCache + 문단 번역 + 우측 패널 + UsageLog UI + ESLint) + Sprint 003 (LRU trim 테스트 + BlockReason enum + 페이지 전체 번역 + 도메인 정책 UI) 완료. 본 v0.3.1에 반영됨.
+Phase 0 5종 Spike + Phase 1 Sprint 001~004 완료. v0.3.2에서는 Sprint 004 (IPC 채널 분리 / paragraph abort / 쉬운 설명 / 페이지 요약) 실측 반영.
 Spike 5 (사용자 인터뷰) 실제 진행은 사용자 직접 작업으로 코드 작업과 병렬 진행 가능.
 
 ## 버전 이력
@@ -35,4 +35,5 @@ Spike 5 (사용자 인터뷰) 실제 진행은 사용자 직접 작업으로 코
 | v0.1 | 초안 | [archive/flowbrowser_ai_prd_crud_v0.1.md](../../archive/flowbrowser_ai_prd_crud_v0.1.md) |
 | v0.2 | 2026-05-11 | GPT/Claude 교차 검토 반영 |
 | v0.3 | 2026-05-11 | Phase 0 1차 조사 (5개 Spike) 반영 |
-| **v0.3.1** | **2026-05-15** | **Sprint 002·003 실측 반영 (페이지 전체 번역 / 도메인 정책 UI / BlockReason enum / LRU trim), 현재** |
+| v0.3.1 | 2026-05-15 | Sprint 002·003 실측 반영 (페이지 전체 번역 / 도메인 정책 UI / BlockReason enum / LRU trim) |
+| **v0.3.2** | **2026-05-15** | **Sprint 004 실측 반영 (IPC 채널 분리 / 쉬운 설명 / 페이지 요약 / SummarizationPlanner), 현재** |

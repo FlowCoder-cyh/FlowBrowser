@@ -5,11 +5,11 @@
 
 ## 메타
 
-- **Phase**: **1 (웹 번역 MVP)** — Sprint 001 / 002 / 003 종료, **Sprint 004 정의 완료 / M1 대기**
-- **Sprint**: **004 정의 완료** (Sprint 003 종합 Pass 17/0/0)
+- **Phase**: **1 (웹 번역 MVP)** — Sprint 001 / 002 / 003 / 004 종료
+- **Sprint**: **004 종료** (Sprint 종합 evaluator 대기 → 진행 중 M4)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: v0.3.1 (2026-05-15) — Sprint 004 M4에서 v0.3.2 패치 예정
-- **최근 갱신**: 2026-05-15 (Sprint 004 정의 작성, contracts/sprint-004.md)
+- **PRD 버전**: **v0.3.2** (2026-05-15, Sprint 004 실측 반영)
+- **최근 갱신**: 2026-05-15 (Sprint 004 M4 PRD 패치 + Sprint 종료)
 
 ## 현재 작업
 
@@ -25,14 +25,20 @@
   - UsageLog UI / 차단 통계
   - ESLint + CI lint+typecheck+test+build
 
-### Sprint 003 진행 (2026-05-15)
+### Sprint 003 결과 (PR #20~#24 머지)
 
-- 산출물: `.flowset/contracts/sprint-003.md`
-- M1 (PR #21 머지): LRU trim 3 tests + BlockReason enum + pageWideBlock + reason 문자열 매칭 제거. evaluator Pass 16/1/0.
-- M2 (PR #22 머지): PageNodeExtractor 16종 선택자 + `translate:page` IPC + abort + 페이지 모드 UI + 15 tests. evaluator Pass 10/1/0.
-- M3 (PR #23 머지): DomainPolicyStore + DomainPolicyPanel UI + JSON import/export + 19 tests. evaluator Pass 9/0/0.
-- M4: PRD v0.3.1 패치 + Sprint 종합 evaluator 진행 중
 - 누적 단위 테스트: 70 → 115 (+45 신규)
+- Sprint 종합 evaluator: Pass 17 / 0 / 0
+- PRD v0.3.1 발행
+
+### Sprint 004 진행 (2026-05-15)
+
+- 산출물: `.flowset/contracts/sprint-004.md`
+- M1 (PR #26): IPC 채널 분리 (4종 신규 이벤트) + paragraph abort. evaluator Pass 12/0/0.
+- M2 (PR #27): 쉬운 설명 (requestType 'explanation') + buildSystemPrompt/buildUserPrompt export + 컨텍스트 메뉴 + 11 tests. evaluator Pass 12/1/0.
+- M3 (PR #28): 페이지 요약 (`translate:summarize-page` IPC) + SummarizationPlanner + 9 tests. evaluator Pass 11/1/0.
+- M4: PRD v0.3.2 패치 + Sprint 종합 evaluator 진행 중
+- 누적 단위 테스트: 115 → 135 (+20 신규)
 - 모든 자동 검증 (lint/typecheck/test/build) PASS
 
 ## 활성 Spike (5종)
