@@ -55,8 +55,8 @@ v0.3 → v0.4 방향 전환 배경은 [`00_change_history.md`](./00_change_histo
 ### 운영
 | # | 섹션 | 상태 | 내용 |
 |---|---|---|---|
-| 15 | [비용·저장 (Costs & Storage)](./15_costs_storage.md) | 📝 (b9) | 비용 / 저장 / 임계 |
-| 16 | [로드맵 (Roadmap)](./16_roadmap.md) | 📝 (b9) | Phase 1/2/3 + Sprint 매핑 + 시나리오 cover 매트릭스 |
+| 15 | [비용·저장 (Costs & Storage)](./15_costs_storage.md) | ✅ | 비용 / 저장 / 임계 |
+| 16 | [로드맵 (Roadmap)](./16_roadmap.md) | ✅ | Phase 1/2/3 + Sprint 매핑 + 시나리오 cover 매트릭스 |
 | 17 | [Known Issue 정책 (Known Issues Policy)](./17_known_issues_policy.md) | 📝 (b10) | KI-NNN 정책 + Severity 정의 |
 | 18 | [평가 (Evaluation)](./18_evaluation.md) | 📝 (b10) | 검증 layering + 정량 임계 셋 |
 | 19 | [v0.3 → v0.4 마이그레이션 (Migration)](./19_migration_v03_v04.md) | 📝 (b10) | 모듈 매핑 + 데이터 마이그레이션 + 회귀 셋 |
