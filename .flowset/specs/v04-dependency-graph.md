@@ -58,15 +58,17 @@
 
 소계: services.ts 12개 폐기 (위에 11개 + L242 부근 추가 분기). 정확 카운트는 M2 PR에서 정정.
 
-### A3. 유지 (47개)
+### A3. 유지 (실측 코드 grep 56개, PR b4 §06 정확 매핑)
 
-#### `src/main/index.ts` (15개)
-- `tab:list/open/close/switch/active/reorder/close-others/close-right/duplicate/set-color/set-pinned/get-thumbnail/reopen/reopen-size/show-context-menu` (14개) — PARTIAL: TabManager workspace_id 메타 (T28)
+**카운트 출처**: PR b4 (2026-05-16) 실측 grep `ipcMain.handle(` 결과 — main/index.ts 33개 - 폐기 9개 = **24개**, services.ts 44개 - 폐기 12개 = **32개**. 합 56개.
+
+PR b3.1 시점 "47개" 표기는 본 갱신으로 **56개** 정정 (G-012 SSOT 갱신).
+
+#### `src/main/index.ts` (24개)
+- `tab:list/open/close/switch/active/reorder/close-others/close-right/duplicate/set-color/set-pinned/get-thumbnail/reopen/reopen-size/show-context-menu` (15개) — PARTIAL: TabManager workspace_id 메타 (T28)
 - `panel:set-open` / `app:set-view-visible` / `navigate/go-back/go-forward/reload/get-current-url/browser:get-view-id/browser:nav-state` (9개)
 
-→ 사실 main/index.ts 유지 = 23개 (14 tab + 9 navigation/view). 위에서 14만 카운트한 건 PARTIAL 영향 명시용. 전체 23개 유지.
-
-#### `src/main/services.ts` (24개)
+#### `src/main/services.ts` (32개)
 - `codex:start-login/cancel-login/poll-status/logout/status` (5개)
 - `consent:get/give/revoke` (3개)
 - `credential:save/delete/list/validate` (4개)
