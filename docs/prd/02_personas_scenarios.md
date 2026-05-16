@@ -1,22 +1,203 @@
 # 02. 페르소나·시나리오 (Personas & Scenarios)
 
 > [← PRD 목차](./README.md)
->
-> **📝 stub** — 후속 PR `b2` 에서 본문 작성 예정. 본 파일은 PR b1.1 시점 stub.
 
-## 작성 예정 내용
+## 2.1 페르소나 4종
 
-4개 페르소나 (학술/PM/학습/우연재발견) + 시나리오 4종.
+본 시스템은 4개 페르소나가 **동일 인프라**에서 다르게 활용되도록 설계 (페르소나별 구조 분기 X). 4개 페르소나 모두 워크스페이스 + 자동 인덱싱 + 시간축·의미 검색 + AI 채팅 + 노트 컴포넌트를 공유.
 
-## SSOT 입력 (작성 시 인용)
+| # | 페르소나 | 사용 빈도 | 핵심 가치 |
+|---|---|---|---|
+| P1 | **학술 연구자** (박사과정 / 연구원) | 매일 | 논문 누적 + 시간축 추적 + AI 횡단 분석 |
+| P2 | **PM / 마케터** | 매일 | 경쟁 분석 + 비교 매트릭스 + 결정 지원 |
+| P3 | **학습자** (개발자·디자이너·창작자) | 매일 | 학습 자료 누적 + 시간축 검색 + AI 튜터 |
+| P4 | **지식 노동자** (일반 리서치) | 매일 | 우연한 재발견 + 의미 검색 |
 
-- `.flowset/specs/v04-direction.md` (방향 SSOT)
-- `.flowset/specs/v04-migration-matrix.md` (A1 — 폐기/일반화 매핑)
-- `.flowset/specs/v04-test-classification.md` (A2 — 회귀 셋)
-- `.flowset/specs/v04-data-migration.md` (A3 — 데이터 마이그레이션)
-- `.flowset/specs/v04-dependency-graph.md` (A4 — 의존 그래프)
-- `.flowset/contracts/sprint-015.md` (Sprint 015 contract)
+페르소나별 세부 흐름은 §2.2~§2.5 시나리오 참조. 시나리오 cover 매트릭스 (Phase별 %) 는 [§16 로드맵](./16_roadmap.md) 참조.
 
-## 변경 이력
+## 2.2 시나리오 1 — 학술 리서치 (페르소나 P1)
 
-- 2026-05-16: PR b1.1 — stub 신규 생성 (codex 리뷰 권고: 깨진 링크 처리).
+### 상황
+
+"암 면역치료" 논문 리서치 중. 매일 arxiv / Nature / PubMed 에서 5~10개 페이지 검토. 3주간 누적 178개 페이지.
+
+### 기존 (Chrome + 확장)
+
+- 브라우저 30+ 탭 + 다른 리서치 탭 섞임 → 혼란
+- "지난주 본 IL-2 관련 논문 어디였지?" → 히스토리 검색 (제목 단어만) → 찾기 어려움
+- 다른 프로젝트 (수업 / 일상) 와 같은 환경
+
+### FlowBrowser AI 흐름
+
+```
+[워크스페이스: 📚 암 면역치료]
+  ├─ 탭: arXiv "IL-2 Variant..."
+  ├─ 탭: Nature "CAR-T resistance..."
+  ├─ 탭: PubMed "Checkpoint inhibitor..."
+  ├─ 메모리: 자동 인덱싱 178개 페이지 (3주간)
+  └─ AI 메모 (대화 히스토리): 이전 대화 + 본 페이지 base
+```
+
+1. **자동 인덱싱** (사용자 의식 없음)
+   - 페이지 열기 → DOM 추출 → 제목/저자/요약/본문 → 로컬 SQLite + 임베딩 (OpenAI text-embedding-3-small)
+   - 시간 메타 (visited_at, dwell_ms) + 워크스페이스 ID
+   - 자동 태깅 (topic / entity / metric / domain / freeform)
+
+2. **시간축 검색** (Cmd+K)
+   ```
+   사용자: "지난주에 본 IL-2 관련 논문"
+   → 결과:
+   ① arXiv 2024.xxxx — 5일 전, 12분 머묾
+   ② Nature 2026 — 3일 전
+   ③ Cell Reports — 1주 전
+   ```
+   클릭 시 원본 페이지 (본문 캐시) + 그때 작성한 노트 + 그 페이지에서의 AI 대화 모두 복원.
+
+3. **AI 횡단 질의** (사이드 채팅)
+   ```
+   사용자: "이번 주 본 논문들 CAR-T 저항성 메커니즘 비교 정리"
+   AI: 현 워크스페이스 메모리 retrieval (5개 페이지) → 표 형태 출력
+       (Markdown + JSON 메타: rows/columns/cells/sources)
+   ```
+   각 셀의 출처 = 페이지 링크. 클릭 시 본문 캐시에서 (재 fetch X).
+
+4. **노트 연결**
+   - 페이지 텍스트 선택 → 컨텍스트 메뉴 "노트에 추가"
+   - AI 자동 태그 부여 → 노트 임베딩 → 검색 retrieval 대상
+   - 노트 anchor: page_id + visit_id + workspace_id
+   - "이 메커니즘 어디서 봤더라" → 검색 시 노트 + 페이지 모두 매칭
+
+5. **워크스페이스 전환**
+   - "📚 암 면역치료" → "💻 GraphQL 학습" 전환
+   - 탭 / 메모리 / AI 메모 / 노트 모두 교체
+   - 다른 워크스페이스 노이즈 0
+
+### Phase cover
+
+- **Phase 1만으로 100% cover** (자세한 회귀 셋: [§18 평가](./18_evaluation.md) 참조)
+
+## 2.3 시나리오 2 — 경쟁 제품 분석 (페르소나 P2)
+
+### 상황
+
+새 SaaS 출시 전 경쟁사 5~10개 분석. 2주간 가격 / 기능 / 리뷰 / 도큐먼트 수십 페이지 누적.
+
+### FlowBrowser AI 흐름
+
+```
+[워크스페이스: 🎯 경쟁사 분석]
+```
+
+1. **수집 모드 (1주차)**
+   - 경쟁사 사이트 / Reddit / HN 리뷰 / Twitter / ProductHunt 자유 brows
+   - 자동 인덱싱 + 자동 태깅 (정형 5종: topic / entity / metric / sentiment / domain) — 가격 / 기능 / 평가 자동 추출
+
+2. **분석 단계 (2주차) — AI 채팅 비교 매트릭스**
+   ```
+   사용자: "Linear vs Notion vs Asana 가격/주요기능/약점 표로"
+   AI: 워크스페이스 메모리 retrieval (제품별 page 군집)
+       → 3x4 비교 표 자동 생성 (Markdown + JSON 메타)
+       → 각 셀에 출처 표시 (sources: [{page_id, visit_id}])
+   ```
+
+3. **결정 지원**
+   ```
+   사용자: "어제 본 Reddit 스레드에서 Linear 단점 뭐였지?"
+   AI: 4건 인용 + 원본 thread 링크 (Note + Page 둘 다 retrieval 대상)
+   ```
+
+4. **출력** (Phase 3)
+   - 워크스페이스 요약 → Notion / Markdown / JSON Export
+   - 마이그레이션 spec: [§19](./19_migration_v03_v04.md)
+
+### Phase cover
+
+- **Phase 1 만으로 90% cover** (P3 Export 외부 전송만 미구현). P1 회귀 셋에서 "Export 데이터 생성" 까지 검증 (외부 전송은 Phase 3 위임 mock).
+
+## 2.4 시나리오 3 — 학습 (페르소나 P3)
+
+### 상황
+
+새 기술 (Rust / GraphQL / 디자인 패턴 등) 학습. 튜토리얼 / 공식 docs / Stack Overflow 자유 학습. 3개월 누적 178개 페이지.
+
+### FlowBrowser AI 흐름
+
+```
+[워크스페이스: 💻 Rust 학습]
+  └─ 사용자 수준 설정: "초보" (워크스페이스 settings, Phase 1 직접 선택 / Phase 2 자동 추정)
+```
+
+1. **튜토리얼 + 공식 docs + SO 자유 학습** — 자동 인덱싱
+
+2. **메모리 누적** (3개월 후 178개)
+   - 같은 페이지 여러 번 방문 시 별도 Visit 레코드 (visited_at 단위)
+
+3. **시간 지나 잊었을 때 — 시간순 + 의미 매칭**
+   ```
+   사용자: "Rust lifetime 처음 헷갈렸던 글 어디였지?"
+   AI: 시간순 + 의미 매칭 → 3건 발견
+       (첫 진입 시점 visit + 학습 후 다시 본 시점 visit 모두 식별)
+   ```
+
+4. **AI 튜터 — 사용자 수준 기반**
+   ```
+   사용자: "내가 본 자료들 기준으로 Rust lifetime 다시 설명해줘"
+   AI: 워크스페이스 메모리 retrieval + 사용자 수준 (초보) system prompt 분기
+       → 초보 수준 어휘로 종합·요약 설명
+   ```
+
+### Phase cover
+
+- **Phase 1 만으로 90% cover** (자동 수준 추정 Phase 2 위임, P1은 사용자 직접 선택)
+
+## 2.5 시나리오 4 — 우연한 재발견 (페르소나 P4)
+
+### 상황
+
+6개월 전 본 글이 지금 필요. 제목 기억 안 남.
+
+### 기존 (Chrome 히스토리)
+
+거의 불가능. 히스토리 검색은 제목 단어 매칭만.
+
+### FlowBrowser AI 흐름
+
+```
+사용자 (Cmd+K 검색바): "6개월 전쯤 본 글, 마이크로서비스랑 모놀리스 비교 했었던 거"
+
+자연어 시간 파싱 ("6개월 전쯤") → 시간 범위 (180일 ± 30일)
++ 의미 임베딩 → 워크스페이스 메모리 + 노트 retrieval
++ 정렬 공식: score = 0.85 × cosine_sim + 0.15 × exp(-days_ago / 180)
+
+→ 결과:
+① InfoQ 2025-11 — 6개월 전, 18분 머묾
+② Martin Fowler blog — 8개월 전, 짧게 본 거
+```
+
+### Phase cover
+
+- **Phase 1 만으로 100% cover**
+
+## 2.6 페르소나 ↔ 컴포넌트 매핑
+
+모든 페르소나가 동일 컴포넌트 호출. 페르소나는 사용 패턴이지 구조 분기 아님.
+
+| 컴포넌트 | P1 | P2 | P3 | P4 |
+|---|---|---|---|---|
+| 워크스페이스 | ✓ | ✓ | ✓ | ✓ |
+| 자동 인덱싱 | ✓ | ✓ | ✓ | ✓ |
+| 자동 태깅 (정형 5종) | ✓ | ✓ (핵심) | ✓ | ✓ |
+| 시간축 + 의미 검색 | ✓ (핵심) | ✓ | ✓ | ✓ (핵심) |
+| AI 채팅 retrieval | ✓ (핵심) | ✓ (핵심) | ✓ (핵심) | ✓ |
+| 비교 매트릭스 (출력 schema) | ✓ | ✓ (핵심) | — | — |
+| 노트 + 임베딩 | ✓ (핵심) | ✓ | ✓ | ✓ |
+| 사용자 수준 옵션 | — | — | ✓ (핵심) | — |
+| Export (P3) | — | ✓ (핵심) | — | — |
+
+## 2.7 SSOT 인용
+
+- `.flowset/specs/v04-direction.md` §11 (시나리오 cover 매트릭스)
+- `.flowset/specs/v04-test-classification.md` §E1 (시나리오 회귀 셋 18 케이스 정의)
+- L2618 컨셉 SSOT (이전 세션, 시나리오 1~4 원문)
+
+본 §02 와 SSOT 충돌 시 SSOT 우선 (G-012).

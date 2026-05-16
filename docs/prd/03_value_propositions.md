@@ -1,22 +1,78 @@
 # 03. 가치 제안 (Value Propositions)
 
 > [← PRD 목차](./README.md)
->
-> **📝 stub** — 후속 PR `b2` 에서 본문 작성 예정. 본 파일은 PR b1.1 시점 stub.
 
-## 작성 예정 내용
+본 섹션은 **자체 브라우저로서 정당화되는 영역** 을 명시. Chrome 확장으로 cover 되는 기능은 차별 가치 아님 — 확장이 못 하는 영역에 집중.
 
-Chrome 확장 대비 차별 + 자체 브라우저 정당화.
+## 3.1 자체 브라우저의 4가지 정당화 축
 
-## SSOT 입력 (작성 시 인용)
+| 축 | 핵심 | Chrome 확장 한계 |
+|---|---|---|
+| **A1. 대용량 로컬 인덱스** | 수만 페이지 + 임베딩 영구 저장 (수십 GB까지) | IndexedDB 용량 제약 (보통 ~50% 디스크 / 도메인별 격리 어려움) |
+| **A2. 다중 워크스페이스 격리** | 자체 cookies / cache / storage 분리 (Phase 2+) + 영구 워크스페이스 모델 | 단일 환경만 — 프로젝트 분리 불가 |
+| **A3. 백그라운드 영구 작업** | main process worker가 닫혀도 인덱싱 / 임베딩 / 백그라운드 번역 계속 | service worker 제약 — 비활성 시 종료 |
+| **A4. 시스템 통합** | OS 파일 / 클립보드 / 글로벌 단축키 (Cmd+K) / 시스템 트레이 / 다른 데스크톱 앱 IPC | sandbox 제약 |
 
-- `.flowset/specs/v04-direction.md` (방향 SSOT)
-- `.flowset/specs/v04-migration-matrix.md` (A1 — 폐기/일반화 매핑)
-- `.flowset/specs/v04-test-classification.md` (A2 — 회귀 셋)
-- `.flowset/specs/v04-data-migration.md` (A3 — 데이터 마이그레이션)
-- `.flowset/specs/v04-dependency-graph.md` (A4 — 의존 그래프)
-- `.flowset/contracts/sprint-015.md` (Sprint 015 contract)
+이 4축은 Chrome 확장이 **구조적으로 cover 불가**. 본 시스템의 핵심 차별.
 
-## 변경 이력
+## 3.2 Chrome 확장 대비 매트릭스 (8 항목)
 
-- 2026-05-16: PR b1.1 — stub 신규 생성 (codex 리뷰 권고: 깨진 링크 처리).
+| 영역 | Chrome 확장 (Sider / MaxAI / Glasp / Monica) | FlowBrowser AI |
+|---|---|---|
+| 사이드패널 + 페이지 Q&A | ✅ | ✅ (동등, A4 + A1 결합으로 강화) |
+| 텍스트 선택 → AI 분석 | ✅ | ✅ (노트 + 자동 태그 추가) |
+| **다중 워크스페이스 격리** | ❌ 단일 환경만 | ✅ 자체 cookies/cache/storage 분리 (P2+, A2) |
+| **수만 페이지 임베딩 인덱스** | ❌ IndexedDB 용량 제약 | ✅ SQLite + sqlite-vec (A1) |
+| **백그라운드 영구 인덱싱** | ❌ service worker 제약 | ✅ main process worker (A3) |
+| **워크스페이스 단위 AI 메모리** | ❌ 단일 컨텍스트 | ✅ 격리 + 영구 (A2) |
+| **OS 파일 / 클립보드 / 단축키 / 트레이** | ❌ sandbox | ✅ (A4) |
+| **시간축 정밀 검색 (방문 시간 + 의미)** | ⚠️ 히스토리 API 한계 | ✅ 자연어 시간 + 의미 임베딩 결합 |
+
+## 3.3 ChatGPT 웹 / Perplexity 대비
+
+| 영역 | ChatGPT 웹 / Perplexity | FlowBrowser AI |
+|---|---|---|
+| AI 채팅 | ✅ | ✅ (워크스페이스 메모리 retrieval 추가) |
+| 페이지 컨텍스트 주입 | ⚠️ 단일 페이지 (수동 복붙) | ✅ 다중 페이지 자동 retrieval |
+| 본 페이지 영구 기억 | ❌ | ✅ 모든 페이지 자동 인덱싱 |
+| 프로젝트별 메모리 격리 | ❌ 단일 대화 | ✅ 워크스페이스 단위 |
+| 시간축 검색 | ❌ | ✅ |
+| 출처 인용 (페이지 단위) | ⚠️ 검색 결과 인용만 (Perplexity) | ✅ 사용자가 본 페이지에 인용 |
+
+## 3.4 Recall.ai / Rewind.ai 대비 (메모리 도구)
+
+| 영역 | Recall / Rewind | FlowBrowser AI |
+|---|---|---|
+| 메모리 base | 화면 캡처 + OCR | DOM 추출 (정확) |
+| 검색 정확도 | OCR 오류 누적 | 임베딩 (1k 차원) + content_hash dedupe |
+| 시스템 부담 | 화면 캡처 상시 | DOM 추출 (페이지 열 때만) |
+| 브라우저 통합 | 별도 앱 | 브라우저 내장 — 본 페이지에서 직접 AI 호출 |
+| 워크스페이스 | ❌ | ✅ |
+
+## 3.5 Arc / Arc Search 대비 (AI 브라우저 시장)
+
+| 영역 | Arc / Arc Search | FlowBrowser AI |
+|---|---|---|
+| AI 검색 | ✅ 검색 강화 | ✅ + 워크스페이스 메모리 retrieval |
+| 다중 환경 | 단일 환경 | ✅ 워크스페이스 격리 |
+| 메모리 누적 | 약함 | ✅ 본 페이지 자동 인덱싱 |
+| 시간축 검색 | ❌ | ✅ |
+
+## 3.6 사용자 가치 명제 (한 문장 요약)
+
+> 사용자가 본 모든 페이지를 자동 기억하고, 프로젝트별 환경에서 격리하며, 시간축 + 의미 검색과 AI 채팅으로 횡단 분석할 수 있는 — Chrome 확장이 구조적으로 못 하는 영역에 집중한 자체 브라우저.
+
+## 3.7 정당화의 한계 (정직한 명시)
+
+본 시스템이 **모든** 영역에서 우월하지 않다. 정직한 한계:
+
+- **단순 페이지 Q&A** 만이면 Chrome 확장으로 충분 — 본 시스템 도입 부담 (브라우저 변경) > 효용
+- **브라우저 변경 비용** — Chrome 사용자 ↔ FlowBrowser 전환 시 즐겨찾기 / 확장 / 단축키 학습
+- **데이터 잠금** — 본 시스템의 워크스페이스 메모리 → 다른 도구로 export 가능해야 함 ([§19 마이그레이션](./19_migration_v03_v04.md) Phase 3 Export)
+
+## 3.8 SSOT 인용
+
+- `.flowset/specs/v04-direction.md` §9 (Chrome 확장 대비 차별)
+- L2613 컨셉 SSOT (이전 세션, 자체 브라우저 정당화 5축)
+
+본 §03 와 SSOT 충돌 시 SSOT 우선 (G-012).

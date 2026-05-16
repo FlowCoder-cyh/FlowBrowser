@@ -26,8 +26,8 @@ v0.3 → v0.4 방향 전환 배경은 [`00_change_history.md`](./00_change_histo
 ### 사용자
 | # | 섹션 | 상태 | 내용 |
 |---|---|---|---|
-| 02 | [페르소나·시나리오 (Personas & Scenarios)](./02_personas_scenarios.md) | 📝 (b2) | 4개 페르소나 (학술/PM/학습/우연재발견) + 시나리오 |
-| 03 | [가치 제안 (Value Propositions)](./03_value_propositions.md) | 📝 (b2) | Chrome 확장 대비 차별 + 자체 브라우저 정당화 |
+| 02 | [페르소나·시나리오 (Personas & Scenarios)](./02_personas_scenarios.md) | ✅ | 4개 페르소나 (학술/PM/학습/우연재발견) + 시나리오 |
+| 03 | [가치 제안 (Value Propositions)](./03_value_propositions.md) | ✅ | Chrome 확장 대비 차별 + 자체 브라우저 정당화 |
 
 ### 시스템
 | # | 섹션 | 상태 | 내용 |
