@@ -49,8 +49,8 @@ v0.3 → v0.4 방향 전환 배경은 [`00_change_history.md`](./00_change_histo
 ### 안전·통합
 | # | 섹션 | 상태 | 내용 |
 |---|---|---|---|
-| 13 | [보안·프라이버시 (Security & Privacy)](./13_security_privacy.md) | 📝 (b8) | Privacy Filter + OS Keychain + UA 정체성 |
-| 14 | [백그라운드 번역 (Translation Background)](./14_translation_background.md) | 📝 (b8) | 백그라운드 번역 (P2) + 작업 큐 + 알림 |
+| 13 | [보안·프라이버시 (Security & Privacy)](./13_security_privacy.md) | ✅ | Privacy Filter + OS Keychain + UA 정체성 |
+| 14 | [백그라운드 번역 (Translation Background)](./14_translation_background.md) | ✅ | 백그라운드 번역 (P2) + 작업 큐 + 알림 |
 
 ### 운영
 | # | 섹션 | 상태 | 내용 |
