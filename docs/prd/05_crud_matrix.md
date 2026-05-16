@@ -62,25 +62,26 @@ Renderer 표기 "request C/U/D via IPC" = Renderer 가 IPC 호출만 하고 실�
 
 **카운트**: Renderer ↔ Main 노출 IPC = 3 (indexing - enqueue 제외 status·abort) + 1 (embedding - status) + 1 (tagging:apply) + 2 (search) + 4 (chat) + 5 (note) + 5 (workspace) + 2 (shortcut) + 1 (memory) = **약 24개**. Main 내부 hook (indexing:enqueue, embedding:enqueue) 은 IPC 카운트에서 제외.
 
-### 5.3.2 v0.3 유지 IPC (약 47개, [§06 아키텍처](./06_architecture.md) 본문 정밀 매핑)
+### 5.3.2 v0.3 유지 IPC (56개, [§06 아키텍처](./06_architecture.md) 본문 정밀 매핑)
 
-본 카운트는 v04-dependency-graph A4 §A3 SSOT 인용 (PR b3.1 시점 추정). 실제 코드 grep 카운트 (`src/main/index.ts` 33개 + `src/main/services.ts` 44개 = 77개)와 차이 있음. 일부 IPC ([§19](./19_migration_v03_v04.md) 폐기 21개 + 유지 47개 + Phase 1 신규 24개) 분류 정합은 §06 아키텍처 본문 작성 시 확정.
+**카운트 출처**: PR b4 시점 실측 코드 grep — main/index.ts 33개 - 폐기 9개 = **24개**, services.ts 44개 - 폐기 12개 = **32개**. 합 **56개**. v04-dependency-graph §A3 SSOT 갱신 동반 (PR b3.1 "47개" → b4 "56개").
 
 | 그룹 | 채널 카운트 | 비고 |
 |---|---|---|
-| tab:* | 15 (`list/open/close/switch/active/reorder/close-others/close-right/duplicate/set-color/set-pinned/get-thumbnail/reopen/reopen-size/show-context-menu`) | PARTIAL — TabManager workspace_id 메타 추가 (M6) |
-| panel·app·navigate·browser:* | 9 (`panel:set-open / app:set-view-visible / navigate / go-back / go-forward / reload / get-current-url / browser:get-view-id / browser:nav-state`) | 변경 없음 |
-| codex:* | 5 (`start-login / cancel-login / poll-status / logout / status`) | 변경 없음 |
-| consent:* | 3 (`get / give / revoke`) | 변경 없음 |
-| credential:* | 4 (`save / delete / list / validate`) | 변경 없음 |
-| privacy:* | 7 (`add-rule / remove-rule / get-rules / approve / scan-page / blocked-stats / clear-policy`) | T20 인덱싱 차단 list 확장 |
-| usage:* | 4 (`list / summary / clear-all / purge-older-than`) | 변경 없음 |
-| userSetting:* | 2 (`get / update`) | PARTIAL — schema 변경 (폐기 키 제거) |
+| tab:* (main) | 15 (`list/open/close/switch/active/reorder/close-others/close-right/duplicate/set-color/set-pinned/get-thumbnail/reopen/reopen-size/show-context-menu`) | PARTIAL — TabManager workspace_id 메타 추가 (M6) |
+| panel·app·navigate·browser:* (main) | 9 (`panel:set-open / app:set-view-visible / navigate / go-back / go-forward / reload / get-current-url / browser:get-view-id / browser:nav-state`) | 변경 없음 |
+| codex:* (services) | 5 (`start-login / cancel-login / poll-status / logout / status`) | 변경 없음 |
+| consent:* (services) | 3 (`get / give / revoke`) | 변경 없음 |
+| credential:* (services) | 4 (`save / delete / list / validate`) | 변경 없음 |
+| privacy:* (services) | 7 (`add-rule / remove-rule / get-rules / approve / scan-page / blocked-stats / clear-policy`) | T20 인덱싱 차단 list 확장 |
+| usage:* (services) | 4 (`list / summary / clear-all / purge-older-than`) | 변경 없음 |
+| userSetting:* (services) | 2 (`get / update`) | PARTIAL — schema 변경 (폐기 키 제거) |
+| (services 추가 7개) | 7 (PR b4 §06 본문에서 정확 매핑 — credential·privacy·codex 일부 추가 핸들러 등 multiline IPC 호출) | 차이 7개는 §06 정확 분류 |
 
-소계 49개. SSOT A4 §A3 카운트 (47개) 와 ±2 차이 — 본 차이 원인 확정은 §06 작성 시 코드 grep + 분류 정정.
+소계 = main 24 + services (위 표 25 + 7) = **56개**.
 
-폐기 IPC ([§19 마이그레이션](./19_migration_v03_v04.md) 본문) — 약 21개:
-- main/index.ts: 9개 (`translate:render` 외 8) — A4 §A1 카운트 (10개) 와 미세 차이 (paragraphs/page abort 짝 분류 차이)
+폐기 IPC ([§19 마이그레이션](./19_migration_v03_v04.md) 본문) — 21개:
+- main/index.ts: 9개 (`translate:render / render-restore / paragraphs / paragraphs-abort / page / page-abort / summarize-page / summarize-abort / pageResult:restore-current`)
 - services.ts: 12개 (`cache:* 2 + pageResult:* 2 + glossary:* 7 + translate:request`)
 
 ## 5.4 라이프사이클 다이어그램
