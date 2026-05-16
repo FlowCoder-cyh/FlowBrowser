@@ -56,7 +56,7 @@
 
 | 항목 | 검색 (§09) | AI 채팅 (§10) |
 |---|---|---|
-| top-k | 20 → 정렬 후 10 표시 | 5 (Provider 호출 토큰 한도 고려) |
+| top-k | 20 → 정렬 후 10 표시 | **Phase 1 디폴트 5, 사용자 능동 호출 시 10/15 adaptive** (PR b6.1 정정 — 5 만으로 recall 부족 우려 해소) — page_id 강제 포함 옵션 시 일반 retrieval 4개로 감소 |
 | Page + Note 결합 | ✓ | ✓ |
 | 시간 필터 | 자연어 시간 있으면 적용 | 사용자 질의에 시간 표현 있으면 적용 (TimeRangeParser 호출) |
 | 워크스페이스 격리 | partition_key | partition_key 동일 |
@@ -100,7 +100,7 @@ assistant 응답의 `content` 컬럼 — 사용자에게 표시하는 본문. Ma
 
 - **rows / columns**: 표 header
 - **cells**: row-major 순서 (rows.length × columns.length 개)
-- **sources**: 각 셀의 출처 — `{page_id, visit_id?}` 배열. Note 출처는 `{type:'note', id, page_id, visit_id?}` 확장 (b3.1 정합)
+- **sources**: 각 셀의 출처 — **통일 형식 `[{type, id, page_id?, visit_id?}]`** (§04 §4.3.5 정합, PR b6.1 통일). `type ∈ {'page', 'note'}` 강제. page 출처 = `{type:'page', id:page_id, page_id, visit_id?}` / note 출처 = `{type:'note', id:note_id, page_id?, visit_id?}`
 
 ### 10.3.3 Provider 응답 강제 schema
 
@@ -116,10 +116,14 @@ system prompt 에 명시:
 3. 출처는 retrieved_items 의 page_id / note_id 만 사용 (외부 출처 X).
 ```
 
-응답 파싱:
-- Markdown 본문 + 마지막 JSON 코드 블록 분리 (정규식 `/```json\n([\s\S]+?)\n```/`)
-- JSON 파싱 성공 → chat_meta 컬럼에 저장
-- 실패 → chat_meta=NULL (Markdown 만 표시)
+응답 파싱 (PR b6.1 보강):
+
+- **권장 방식**: OpenAI **Structured Outputs API** (response_format json_schema) 사용 — gpt-4o-mini / gpt-4o 등 지원. JSON schema 강제 + Hallucination 위험 감소
+- **fallback 방식** (Structured Outputs 미지원 시): Markdown 본문 + 마지막 JSON 코드 블록 분리 (정규식 `/```json\n([\s\S]+?)\n```/`). 정규식은 trailing text / 다중 JSON 블록에 취약하므로 **JSON schema validation** 추가 권고
+- JSON 파싱 성공 + schema 검증 통과 → chat_meta 컬럼에 저장
+- 실패 → chat_meta=NULL (Markdown 만 표시), KI-NNN 등록 검토
+
+M5 PoC 시 Structured Outputs API vs system prompt 강제 결정 — 현재 fetch 기반 OpenAIApiKeyProvider 는 Structured Outputs response_format 파라미터 추가로 지원 가능.
 
 ### 10.3.4 출처 인용 표시
 
@@ -185,8 +189,8 @@ chat:retry({
 
 | strategy | 동작 |
 |---|---|
-| `reuse_prompt` (디폴트) | 기존 user prompt 재사용. 기존 failed assistant row 를 UPDATE (status: failed → pending → ok/failed). retrieved_items 재계산 옵션. |
-| `edit_prompt` | 기존 user prompt 편집 가능 — user row 도 UPDATE. 새 assistant 시도. |
+| `reuse_prompt` (디폴트) | 기존 user prompt 재사용. **신규 assistant row INSERT** (기존 failed/error row 보존, role='assistant', status='pending' → ok/failed). retrieved_items 재계산 옵션. PR b6.1 정정 — 기존 row UPDATE는 감사 추적 위험. |
+| `edit_prompt` | 기존 user prompt 편집 가능 — **신규 user row INSERT** (기존 user row 보존 + revision_of 필드로 chain). 새 assistant row INSERT. 대화 history 에 모든 revision 표시. |
 
 ### 10.5.3 재시도 횟수 임계
 
@@ -195,7 +199,10 @@ chat:retry({
 
 ## 10.6 streaming (SSE)
 
-Codex OAuth 와 OpenAI API 둘 다 SSE streaming 지원. `src/ai/codex/SseStreamParser.ts` (KEEP, A1 §C) 재활용.
+streaming 정책은 Provider 별로 분리 (PR b6.1 정정):
+
+- **Codex OAuth (gpt-5.5)**: `src/ai/codex/SseStreamParser.ts` 재활용 — Codex Responses API `response.output_text.delta` / `response.output_text.completed` 이벤트 파싱
+- **OpenAI API Key (gpt-4o-mini)**: 별도 SSE 파서 도입 — `chat/completions` SSE 스트림 `data: {"choices":[{"delta":{...}}]}` 형식. PR b6 표기 "SseStreamParser 재활용"은 부정확 정정 (실제 OpenAIApiKeyProvider 는 현재 `stream:false` fetch — M5 SDK 도입 또는 fetch SSE 파서 신규 작성). M5 PoC 시 결정 (OpenAI Node SDK 도입 또는 fetch + 신규 SSE 파서)
 
 ### 10.6.1 streaming 정책
 
@@ -205,9 +212,23 @@ Codex OAuth 와 OpenAI API 둘 다 SSE streaming 지원. `src/ai/codex/SseStream
 
 ### 10.6.2 streaming 취소
 
-사용자가 ChatPanel "취소" 버튼 클릭 → `chat:abort` IPC → fetch AbortController 호출 → AiChatHistory.status='aborted' 마킹.
+사용자가 ChatPanel "취소" 버튼 클릭 → `chat:abort` IPC → fetch AbortController 호출 → AiChatHistory.status='aborted' 마킹 (§04 §4.3.5 enum 'aborted' 추가, PR b6.1).
 
-(`chat:abort` 는 [§05 §5.3.1](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-24개) 신규 IPC 24개에 포함 — chat 그룹 4개에 abort 추가 검토. M5 PoC 시 결정)
+`chat:abort` IPC 는 [§05 §5.3.1](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-24개) chat 그룹 4개 (request/retry/history/clear) 외 **5번째 chat:abort 추가** (PR b6.1 — 신규 IPC 총 24개 → 25개 정정 동반).
+
+### 10.6.3 multi-turn 대화 컨텍스트
+
+Phase 1 정책 (PR b6.1 신규):
+- **이전 대화 turn 누적**: 같은 워크스페이스의 최근 N=5 turn (user+assistant 쌍) 을 PromptComposer 컨텍스트에 자동 주입
+- **토큰 한도 관리**: 5 turn 누적이 8k tokens 초과 시 가장 오래된 turn 부터 제거 (sliding window)
+- **새 세션 명시**: 사용자가 "새 채팅" 버튼 클릭 시 다음 chat:request 부터 turn 누적 리셋
+- Phase 2+: 요약 기반 압축 (긴 대화 자동 요약 + 요약 turn 으로 대체)
+
+### 10.6.4 streaming 도중 추가 메시지 입력
+
+- **차단**: streaming 응답 도중 사용자가 새 메시지 입력 → ChatPanel 인풋 disable + "응답 완료 후 입력 가능" 표시
+- **사용자 명시 abort**: "응답 중단 후 새 질문" 버튼 → chat:abort → 인풋 활성화
+- **큐잉 X** (Phase 1): 자동 큐잉은 응답 우선순위·취소·재시도 복잡도 큼. Phase 2+ 옵션
 
 ## 10.7 Provider 선택 (사용자 능동 호출)
 
@@ -221,7 +242,7 @@ Codex OAuth 와 OpenAI API 둘 다 SSE streaming 지원. `src/ai/codex/SseStream
 
 ### 10.7.1 Provider별 비용·한도
 
-- **OpenAI API Key (BYOK)**: 사용자 직접 결제. Phase 1 디폴트 모델 `gpt-4o-mini` ($0.15/M tokens 추정, 2026-05-16 기준 OpenAI 공식 가격) — M5 PoC 시 정확 모델 박힘
+- **OpenAI API Key (BYOK)**: 사용자 직접 결제. Phase 1 **저가 디폴트 모델** `gpt-4o-mini` (input **$0.15/M tokens** / output **$0.60/M tokens**, 2026-05-16 기준 OpenAI 공식 가격). "Phase 1 최신 default" 표현 X — 단순 저가 디폴트, M5 PoC 시 GPT-5 계열 등 최신 모델로 변경 검토
 - **Codex OAuth**: ChatGPT 구독 한도 (5h/주) — 사용자 명시 동의 시. gpt-5.5 reasoning low 호출
 
 ## 10.8 정량 임계 (Phase 1 종료 evaluator 입력)
@@ -249,3 +270,4 @@ v04-direction §12.3 AI 채팅 관련:
 ## 10.10 변경 이력
 
 - 2026-05-16 (PR b6): stub → 본문 작성. 채팅 파이프라인 9 step (3 TX 분리 + Provider 호출 TX 외부) + retrieval 정책 (top-k=5 + page_id 옵션) + Markdown + JSON 메타 chat_meta schema 정확 형식 + PromptComposer 사용자 수준 4분기 (R3-A) + chat:retry 2 strategy (reuse_prompt / edit_prompt) + 5회 임계 + SSE streaming + Provider 선택 (BYOK 자동 vs 능동 자유) + 모델·비용 추정 + 정량 임계 (출처 정확도 ≥ 90%).
+- 2026-05-16 (PR b6.1): codex·evaluator 핫픽스. (1) **sources 형식 §04 통일** — `{type, id, page_id?, visit_id?}`. (2) **SseStreamParser Provider 분리** — Codex 재활용 / OpenAI Chat Completions 별도 SSE 파서 (M5 PoC). (3) **Structured Outputs API** 권고 (system prompt 강제 fallback). (4) **gpt-4o-mini input/output 분리** ($0.15 / $0.60 per 1M). (5) **top-k 5 → 5/10/15 adaptive** (능동 호출 시 increase). (6) **chat:retry 정책 정정** — UPDATE 아닌 신규 INSERT (감사 추적, revision_of chain). (7) **chat:abort §05 IPC 추가** (chat 그룹 5번째). (8) **multi-turn 5 turn sliding window** + 토큰 초과 시 oldest 제거. (9) **streaming 도중 추가 메시지 차단** (Phase 1).

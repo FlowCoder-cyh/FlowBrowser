@@ -107,7 +107,7 @@ vec_notes (note_id, workspace_id, embedding) — sqlite-vec virtual
 | content | TEXT | NOT NULL | 메시지 본문 (markdown 가능) |
 | retrieved_items | JSON ARRAY | NULLABLE | RAG retrieval 결과 (page+note 둘 다 cover). 형식: `[{type: 'page'\|'note', id, page_id, visit_id?}]` |
 | chat_meta | JSON | NULLABLE | 표 출력 JSON 메타. 형식: `{rows, columns, cells: [{value, sources: [{type, id, page_id, visit_id?}]}]}` |
-| status | TEXT | NOT NULL DEFAULT 'ok' CHECK ('ok', 'pending', 'failed') | assistant 응답 중간/실패 상태 (재시도 정책 §4.6 참조) |
+| status | TEXT | NOT NULL DEFAULT 'ok' CHECK ('ok', 'pending', 'failed', **'aborted'**) | assistant 응답 중간/실패/중단 상태. 'aborted' = 사용자 명시 abort (chat:abort IPC). 재시도 정책 §4.6 참조 (PR b6.1 추가) |
 | created_at | TIMESTAMP | NOT NULL | |
 
 ### 4.3.6 Tag
