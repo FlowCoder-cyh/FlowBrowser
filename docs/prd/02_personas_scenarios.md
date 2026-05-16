@@ -38,7 +38,7 @@
   └─ AI 메모 (대화 히스토리): 이전 대화 + 본 페이지 base
 ```
 
-1. **자동 인덱싱** (사용자 의식 없음)
+1. **자동 인덱싱** (사용자 개입 없이)
    - 페이지 열기 → DOM 추출 → 제목/저자/요약/본문 → 로컬 SQLite + 임베딩 (OpenAI text-embedding-3-small)
    - 시간 메타 (visited_at, dwell_ms) + 워크스페이스 ID
    - 자동 태깅 (topic / entity / metric / domain / freeform)
@@ -89,7 +89,7 @@
 ```
 
 1. **수집 모드 (1주차)**
-   - 경쟁사 사이트 / Reddit / HN 리뷰 / Twitter / ProductHunt 자유 brows
+   - 경쟁사 사이트 / Reddit / HN 리뷰 / Twitter / ProductHunt 자유 브라우징
    - 자동 인덱싱 + 자동 태깅 (정형 5종: topic / entity / metric / sentiment / domain) — 가격 / 기능 / 평가 자동 추출
 
 2. **분석 단계 (2주차) — AI 채팅 비교 매트릭스**
@@ -112,7 +112,7 @@
 
 ### Phase cover
 
-- **Phase 1 만으로 90% cover** (P3 Export 외부 전송만 미구현). P1 회귀 셋에서 "Export 데이터 생성" 까지 검증 (외부 전송은 Phase 3 위임 mock).
+- **Phase 1 만으로 90% cover** (Phase 3 Export 외부 전송만 미구현). Phase 1 회귀 셋에서 "Export 데이터 생성" 까지 검증 (외부 전송은 Phase 3 위임 mock).
 
 ## 2.4 시나리오 3 — 학습 (페르소나 P3)
 
@@ -178,26 +178,35 @@
 
 - **Phase 1 만으로 100% cover**
 
-## 2.6 페르소나 ↔ 컴포넌트 매핑
+## 2.6 페르소나 ↔ 컴포넌트 매핑 (Phase 1 base + 표기된 Phase 별)
 
-모든 페르소나가 동일 컴포넌트 호출. 페르소나는 사용 패턴이지 구조 분기 아님.
+모든 페르소나가 동일 컴포넌트 호출. 페르소나는 사용 패턴이지 구조 분기 아님. 본 표의 ✓ 표기는 페르소나가 해당 컴포넌트 가치를 사용하는지 여부 (Phase 표기 컴포넌트는 해당 Phase 도래 시).
 
-| 컴포넌트 | P1 | P2 | P3 | P4 |
-|---|---|---|---|---|
-| 워크스페이스 | ✓ | ✓ | ✓ | ✓ |
-| 자동 인덱싱 | ✓ | ✓ | ✓ | ✓ |
-| 자동 태깅 (정형 5종) | ✓ | ✓ (핵심) | ✓ | ✓ |
-| 시간축 + 의미 검색 | ✓ (핵심) | ✓ | ✓ | ✓ (핵심) |
-| AI 채팅 retrieval | ✓ (핵심) | ✓ (핵심) | ✓ (핵심) | ✓ |
-| 비교 매트릭스 (출력 schema) | ✓ | ✓ (핵심) | — | — |
-| 노트 + 임베딩 | ✓ (핵심) | ✓ | ✓ | ✓ |
-| 사용자 수준 옵션 | — | — | ✓ (핵심) | — |
-| Export (P3) | — | ✓ (핵심) | — | — |
+| 컴포넌트 | Phase | P1 | P2 | P3 | P4 |
+|---|---|---|---|---|---|
+| 워크스페이스 (▶ [§3.1 A2](./03_value_propositions.md#31-자체-브라우저의-4가지-정당화-축)) | P1 | ✓ | ✓ | ✓ | ✓ |
+| IndexedPageStore (페이지·visit·본문 캐시) | P1 | ✓ | ✓ | ✓ | ✓ |
+| 자동 인덱싱 (DOM 추출 + 임베딩) | P1 | ✓ | ✓ | ✓ | ✓ |
+| 자동 태깅 (정형 5종 + freeform) | P1 | ✓ | ✓ (핵심) | ✓ | ✓ |
+| 시간축 + 의미 검색 | P1 | ✓ (핵심) | ✓ | ✓ | ✓ (핵심) |
+| AI 채팅 retrieval (▶ [§3.3 ChatGPT 웹 대비](./03_value_propositions.md#33-chatgpt-웹--perplexity-대비)) | P1 | ✓ (핵심) | ✓ (핵심) | ✓ (핵심) | ✓ |
+| 비교 매트릭스 (AI 채팅 출력 schema) | P1 | ✓ | ✓ (핵심) | — | — |
+| 노트 + 임베딩 (검색 retrieval 대상) | P1 | ✓ (핵심) | ✓ | ✓ | ✓ |
+| 사용자 수준 옵션 (직접 선택) | P1 | — | — | ✓ (핵심) | — |
+| 자동 수준 추정 | **P2** | — | — | ✓ | — |
+| 백그라운드 번역 (논문/PDF) | **P2** | ✓ | — | — | — |
+| Export (Notion/Markdown/JSON) | **P3** | — | ✓ (핵심) | — | — |
+| 워크스페이스 공유 | **P3** | ✓ | ✓ | ✓ | ✓ |
 
 ## 2.7 SSOT 인용
 
-- `.flowset/specs/v04-direction.md` §11 (시나리오 cover 매트릭스)
-- `.flowset/specs/v04-test-classification.md` §E1 (시나리오 회귀 셋 18 케이스 정의)
+- `.flowset/specs/v04-direction.md` §11 (시나리오 cover 매트릭스) — **PR b2.1 시점 S3 95→90 SSOT 본문 갱신 동반 (G-012 SSOT 우선)**
+- `.flowset/specs/v04-test-classification.md` §E1 (시나리오 회귀 셋 18 케이스 정의) + §F2 (cover 측정 protocol)
 - L2618 컨셉 SSOT (이전 세션, 시나리오 1~4 원문)
 
 본 §02 와 SSOT 충돌 시 SSOT 우선 (G-012).
+
+## 2.8 변경 이력
+
+- 2026-05-16 (PR b2): stub → 본문 작성 (페르소나 4종 + 시나리오 4개 + 컴포넌트 매핑).
+- 2026-05-16 (PR b2.1): codex·evaluator 권고 11건 반영. "자유 brows" → "자유 브라우징" / "사용자 의식 없음" → "사용자 개입 없이" / "P3 Export" → "Phase 3 Export" / §2.6 표 Phase 컬럼 추가 + Phase 2/3 컴포넌트 명시 + 03 cross-link / S3 cover SSOT 본문 갱신 동반 (95→90).

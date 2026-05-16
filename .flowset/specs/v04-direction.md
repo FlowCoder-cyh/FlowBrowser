@@ -260,11 +260,12 @@ Workspace (id, name, icon, created_at, level_preference?)
 | 영역 | Chrome 확장 | FlowBrowser |
 |---|---|---|
 | 사이드패널 + 페이지 Q&A | ✅ | ✅ (동등) |
-| **다중 워크스페이스 격리** | ❌ 단일 환경만 | ✅ 자체 cookies/cache/storage 분리 (Phase 2+) |
-| **수만 페이지 임베딩 인덱스** | ❌ IndexedDB 용량 제약 | ✅ SQLite + sqlite-vec |
-| **백그라운드 영구 인덱싱** | ❌ service worker 제약 | ✅ main process worker |
-| **워크스페이스 단위 AI 메모리** | ❌ 단일 컨텍스트 | ✅ 격리 + 영구 |
-| **OS 파일/클립보드/단축키/트레이** | ❌ sandbox | ✅ |
+| 텍스트 선택 → AI 분석 | ✅ | ✅ (노트 + 자동 태그 추가) |
+| **다중 워크스페이스 격리** | ⚠️ 논리 분리만 가능 / cookies·storage 격리 제한 | ✅ 자체 cookies/cache/storage 분리 (Phase 2+) |
+| **수만 페이지 임베딩 인덱스** | ⚠️ unlimitedStorage 권한 + IndexedDB 가능하나 sqlite-vec / 마이그레이션 운영 부담 큼 | ✅ SQLite + sqlite-vec |
+| **백그라운드 영구 인덱싱** | ⚠️ service worker 라이프사이클 (필요 시 로드, dormant 시 unload) | ✅ main process worker (사용자 세션 동안 안정) |
+| **워크스페이스 단위 AI 메모리** | ⚠️ 단일 컨텍스트 (워크스페이스 자체 부재) | ✅ 격리 + 영구 |
+| **OS 파일/클립보드/단축키/트레이** | ⚠️ Native messaging 우회 가능하나 권한·설치·UX 비용 큼 | ✅ 직접 통합 |
 | **UI 완전 재설계** | ❌ 사이드/팝업 한정 | ✅ |
 | **시간축 정밀 검색 (방문 시간 + 의미)** | ⚠️ 히스토리 API 한계 | ✅ |
 
@@ -318,7 +319,7 @@ Workspace (id, name, icon, created_at, level_preference?)
 |---|---|---|---|
 | 1 학술 리서치 (논문/arxiv/Nature) | **100%** | — (백그라운드 번역으로 강화) | — |
 | 2 PM 경쟁 분석 (Linear vs Notion 비교) | **90%** | — | 100% (Notion Export) |
-| 3 학습 (Rust lifetime 시간순) | **95%** | 100% (자동 수준 추정) | — |
+| 3 학습 (Rust lifetime 시간순) | **90%** | 100% (자동 수준 추정) | — |
 | 4 우연한 재발견 (6개월 전 본 글) | **100%** | — | — |
 
 → **Sprint 015 (Phase 1)만 끝내도 4개 시나리오 평균 96% cover.**
