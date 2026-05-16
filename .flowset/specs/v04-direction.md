@@ -234,7 +234,7 @@ Workspace (id, name, icon, created_at, level_preference?)
 
 | Phase | 모델 | 비용 / 특성 |
 |---|---|---|
-| **Phase 1** | OpenAI `text-embedding-3-small` | $0.0001/페이지 (~$1~3/월), 인터넷 필수, 1k 차원 |
+| **Phase 1** | OpenAI `text-embedding-3-small` | $0.0001/페이지 (~$1~3/월), 인터넷 필수, **1024 차원** (OpenAI 기본 1536에서 `dimensions=1024` 축소, 저장·성능 최적화) |
 | **Phase 3** | 로컬 옵션 추가 (sqlite-vec + sentence-transformers `all-MiniLM-L6-v2` 등) | 오프라인, 모델 다운로드 부담 |
 
 - Phase 1 → 3 전환 시 임베딩 모델 변경 → 기존 임베딩은 무효화 (재생성 필요) → A3 데이터 마이그레이션에서 처리
@@ -249,7 +249,7 @@ Workspace (id, name, icon, created_at, level_preference?)
 | 검색 (질의당 LLM 호출) | ~$0.001/회 |
 | AI 채팅 (질의당 LLM 호출) | ~$0.001~0.01/회 (retrieval + 응답) |
 | 페이지 텍스트 + 메타 | ~10KB/페이지 |
-| 임베딩 (1k 차원 × 1만) | ~40MB |
+| 임베딩 (1024 차원 × 1만) | ~40MB |
 | 1만 페이지 합산 저장 | ~150MB |
 | **Phase 3 로컬 LLM 옵션 사용 시** | 모든 호출 비용 0원 (전기료만) |
 

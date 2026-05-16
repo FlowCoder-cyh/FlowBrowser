@@ -8,58 +8,80 @@
 
 | Actor | 정의 | 권한 범위 |
 |---|---|---|
-| **User** | 사용자 입력 (직접 클릭·입력·선택) | UI 트리거 |
-| **Renderer** | React renderer 프로세스 (browser-side) | UI 상태 + preload API 호출만 (DB 직접 X) |
-| **Main** | Electron main 프로세스 | DB 직접 + 외부 API 호출 + 파일시스템 |
-| **AI** | Provider (OpenAI / Codex) 응답 처리 | Main 위임 호출, 결과 메타 INSERT |
-| **System** | 백그라운드 자동 동작 (인덱싱 / 임베딩 / 마이그레이션 / Privacy 차단) | Main 내부 worker |
+| **User** | 사용자 입력 (직접 클릭·입력·선택) | UI 트리거만 (DB 직접 X) |
+| **Renderer** | React renderer 프로세스 (browser-side) | UI 상태 + preload API 호출만. **DB·파일시스템 직접 접근 X — 모든 CRUD 는 IPC 위임** |
+| **Main** | Electron main 프로세스 (실제 DB write owner) | DB 직접 + 외부 API 호출 + 파일시스템 |
+| **AI** | Provider (OpenAI / Codex) 응답 처리 | Main 위임 호출, 결과 메타 INSERT (Main 이 실제 write) |
+| **System** | 백그라운드 자동 동작 (인덱싱 / 임베딩 / 마이그레이션 / Privacy 차단) | Main 내부 worker — **System triggers, Main writes** |
 
-**원칙**: Renderer 는 DB 직접 접근 X. 모든 CRUD 는 Main 위임 (IPC). 보안·일관성·트랜잭션 보호.
+**원칙**: Renderer 는 DB 직접 접근 X. 모든 CRUD 는 IPC 호출 → Main 위임 → Main 이 실제 write. 보안·일관성·트랜잭션 보호.
 
 ## 5.2 Entity × Actor 매트릭스
 
-표기: C = Create / R = Read / U = Update / D = Delete / (—) = 권한 없음
+표기: C = Create / R = Read / U = Update / D = Delete / (—) = 권한 없음.
+Renderer 표기 "request C/U/D via IPC" = Renderer 가 IPC 호출만 하고 실제 write 는 Main 이 수행.
 
-| Entity | User | Renderer | Main | AI | System |
+| Entity | User | Renderer | Main (실제 write owner) | AI | System (triggers, Main writes) |
 |---|---|---|---|---|---|
-| **Workspace** | C/R/U/D (UI 트리거) | R (IPC 응답) | C/R/U/D (DB) | — | C (마이그레이션 시 📥 기본 자동) |
-| **Page** | (간접) | R (IPC 응답) | C/R/U (DB) | — | C/U/D (인덱싱 / 본문 변경 감지 / 정리 정책) |
-| **Visit** | (간접 — 페이지 열기) | R (IPC 응답) | C (INSERT) / R | — | C (자동 인덱싱 hook) / D (정리) |
-| **Note** | C/R/U/D (선택 + 추가) | C·U·D (IPC 호출) / R (IPC 응답) | C/R/U/D (DB) | U (자동 태그) | — |
-| **AiChatHistory** | C (질문) / R / D (대화 삭제) | C·D (IPC 호출) / R | C/R/D (DB) | C (응답 INSERT) | — |
-| **Tag** | C/U/D (사용자 수동 태그) | C·U·D (IPC 호출) / R | C/R/U/D (DB) | C (AutoTagger 자동 태그) | — |
-| **Embedding (vec_pages / vec_notes)** | — | — | C/D | — | C (백그라운드 큐) / U (재방문 본문 변경 시) |
-| **Settings (UserSetting)** | C/R/U (선택값 변경) | R (IPC 응답) / U (IPC 호출) | C/R/U (DB) | — | C (마이그레이션 시 디폴트) / D (폐기 키 제거) |
+| **Workspace** | C/R/U/D (UI 트리거) | request C/R/U/D via IPC | C/R/U/D | — | triggers C (앱 첫 실행 시 📥 기본 자동 생성, 마이그레이션 시) |
+| **Page** | (간접 — 페이지 열기) | request R via IPC | C/R/U | — | triggers C/U/D (인덱싱 / 본문 변경 감지 / TTL 정리) |
+| **Visit** | (간접 — 페이지 열기) | request R via IPC | C/R | — | triggers C (자동 인덱싱 hook), D (정리) |
+| **Note** | C/R/U/D (선택 + 추가) | request C/R/U/D via IPC | C/R/U/D | U (ai_tags 자동 태그) | — |
+| **AiChatHistory** | C (질문) / R / D (대화 삭제) | request C/R/D via IPC | C/R/U/D (status 갱신 포함) | C (응답 메타 제공, Main 이 실제 INSERT) | — |
+| **Tag** | C/U/D (사용자 수동 태그) | request C/R/U/D via IPC | C/R/U/D | C (AutoTagger 자동 태그) | — |
+| **PageTag / NoteTag (M:N)** | (간접 — Tag 부여) | request C/D via IPC | C/D | C (자동 태깅 시) | — |
+| **Embedding (vec_pages / vec_notes)** | — | — | C/U/D | — | triggers C/U (백그라운드 큐, Main writes) |
+| **Settings (UserSetting)** | C/R/U (선택값 변경) | request R/U via IPC | C/R/U | — | triggers C (마이그레이션 시 디폴트), D (폐기 키 자동 제거) |
 
-## 5.3 IPC 채널 매핑 (Phase 1 신규 + 기존 유지)
+총 9 entity × 5 actor = 45 cell.
 
-[§19 마이그레이션 IPC 폐기 21개](./19_migration_v03_v04.md) 와 별개로 Phase 1 신규 IPC 약 20~25개. v0.3 유지 IPC 47개.
+## 5.3 IPC 채널 매핑 (Phase 1 신규 + v0.3 유지)
 
-### 5.3.1 Phase 1 신규 IPC (M3~M6 도입)
+본 표의 카운트는 PR b3.1 시점 v04-dependency-graph A4 SSOT 인용. 정확 카운트는 M2 PR 진행 중 코드 grep 으로 재확인.
+
+### 5.3.1 Phase 1 신규 IPC (M3~M6 도입, 총 약 24개)
 
 | 그룹 | 채널 | 방향 | Entity 조작 |
 |---|---|---|---|
-| indexing | `indexing:enqueue` | Renderer → Main (자동, 사용자 호출 X) | Page (C/U) + Visit (C) + Embedding 큐 등록 |
+| indexing | `indexing:enqueue` | **Main 내부** (did-finish-load hook, IPC 노출 X) | Page (C/U) + Visit (C) + Embedding 큐 등록 |
 | indexing | `indexing:status` | Renderer → Main | (R only) 워크스페이스별 진행 카운트 |
 | indexing | `indexing:abort` | Renderer → Main | 탭 닫기 / 워크스페이스 전환 시 |
-| embedding | `embedding:enqueue` | Main 내부 | Embedding (C) |
+| embedding | `embedding:enqueue` | **Main 내부** (IPC 노출 X) | Embedding 큐 INSERT |
 | embedding | `embedding:status` | Renderer → Main | (R only) 큐 진행 카운트 |
-| tagging | `tagging:apply` | Main 내부 (자동) + Renderer → Main (수동) | Tag (C) + PageTag / NoteTag |
+| tagging | `tagging:apply` | Renderer → Main (수동) + **Main 내부** (자동) | Tag (C) + PageTag/NoteTag (C) |
 | search | `search:query` | Renderer → Main | (R only) Page + Note retrieval |
 | search | `search:get-content` | Renderer → Main | (R only) 본문 캐시 fetch |
-| chat | `chat:request` | Renderer → Main | AiChatHistory (C) + retrieval |
+| chat | `chat:request` | Renderer → Main | AiChatHistory (C user + assistant) + retrieval |
+| chat | `chat:retry` | Renderer → Main | AiChatHistory (U status, 재시도) |
 | chat | `chat:history` | Renderer → Main | (R only) 워크스페이스 대화 history |
 | chat | `chat:clear` | Renderer → Main | AiChatHistory (D) |
-| note | `note:create` / `update` / `delete` / `list` / `get` | Renderer → Main | Note CRUD |
-| workspace | `workspace:create` / `switch` / `delete` / `list` / `get-current` | Renderer → Main | Workspace CRUD + 전환 |
-| shortcut | `shortcut:get-bindings` / `set-binding` | Renderer → Main | Settings.shortcutOverride (U) |
+| note | `note:create` / `note:update` / `note:delete` / `note:list` / `note:get` | Renderer → Main | Note CRUD |
+| workspace | `workspace:create` / `workspace:switch` / `workspace:delete` / `workspace:list` / `workspace:get-current` | Renderer → Main | Workspace CRUD + 전환 |
+| shortcut | `shortcut:get-bindings` / `shortcut:set-binding` | Renderer → Main | Settings.shortcutOverride (U) |
 | memory | `memory:stats` | Renderer → Main | (R only) 워크스페이스별 통계 (Page·Visit·Note·AiChatHistory 카운트) |
 
-총 약 22개 신규 IPC.
+**카운트**: Renderer ↔ Main 노출 IPC = 3 (indexing - enqueue 제외 status·abort) + 1 (embedding - status) + 1 (tagging:apply) + 2 (search) + 4 (chat) + 5 (note) + 5 (workspace) + 2 (shortcut) + 1 (memory) = **약 24개**. Main 내부 hook (indexing:enqueue, embedding:enqueue) 은 IPC 카운트에서 제외.
 
-### 5.3.2 v0.3 유지 IPC (47개, [§06 아키텍처](./06_architecture.md) 참조)
+### 5.3.2 v0.3 유지 IPC (약 47개, [§06 아키텍처](./06_architecture.md) 본문 정밀 매핑)
 
-- tab:* 14개 / panel·app·navigate·browser:* 9개 / codex:* 5개 / consent:* 3개 / credential:* 4개 / privacy:* 7개 / usage:* 4개 / userSetting:* 2개 = 48개. 단 v0.3 → v0.4 전환에서 userSetting 일부 키 정리 ([§19](./19_migration_v03_v04.md) 참조).
+본 카운트는 v04-dependency-graph A4 §A3 SSOT 인용 (PR b3.1 시점 추정). 실제 코드 grep 카운트 (`src/main/index.ts` 33개 + `src/main/services.ts` 44개 = 77개)와 차이 있음. 일부 IPC ([§19](./19_migration_v03_v04.md) 폐기 21개 + 유지 47개 + Phase 1 신규 24개) 분류 정합은 §06 아키텍처 본문 작성 시 확정.
+
+| 그룹 | 채널 카운트 | 비고 |
+|---|---|---|
+| tab:* | 15 (`list/open/close/switch/active/reorder/close-others/close-right/duplicate/set-color/set-pinned/get-thumbnail/reopen/reopen-size/show-context-menu`) | PARTIAL — TabManager workspace_id 메타 추가 (M6) |
+| panel·app·navigate·browser:* | 9 (`panel:set-open / app:set-view-visible / navigate / go-back / go-forward / reload / get-current-url / browser:get-view-id / browser:nav-state`) | 변경 없음 |
+| codex:* | 5 (`start-login / cancel-login / poll-status / logout / status`) | 변경 없음 |
+| consent:* | 3 (`get / give / revoke`) | 변경 없음 |
+| credential:* | 4 (`save / delete / list / validate`) | 변경 없음 |
+| privacy:* | 7 (`add-rule / remove-rule / get-rules / approve / scan-page / blocked-stats / clear-policy`) | T20 인덱싱 차단 list 확장 |
+| usage:* | 4 (`list / summary / clear-all / purge-older-than`) | 변경 없음 |
+| userSetting:* | 2 (`get / update`) | PARTIAL — schema 변경 (폐기 키 제거) |
+
+소계 49개. SSOT A4 §A3 카운트 (47개) 와 ±2 차이 — 본 차이 원인 확정은 §06 작성 시 코드 grep + 분류 정정.
+
+폐기 IPC ([§19 마이그레이션](./19_migration_v03_v04.md) 본문) — 약 21개:
+- main/index.ts: 9개 (`translate:render` 외 8) — A4 §A1 카운트 (10개) 와 미세 차이 (paragraphs/page abort 짝 분류 차이)
+- services.ts: 12개 (`cache:* 2 + pageResult:* 2 + glossary:* 7 + translate:request`)
 
 ## 5.4 라이프사이클 다이어그램
 
@@ -76,16 +98,16 @@ WebContentsView did-finish-load 이벤트
    ↓ (통과 시)
 ParagraphExtractor (DOM 추출)
    ↓
-content_hash 계산
+content_hash 계산 (빈 본문이면 NULL)
    ↓
 [Page lookup by (workspace_id, url)]
-   ├─ 없음 → Page (C) + Visit (C)
-   ├─ 있음 + content_hash 같음 → Visit만 (C)
-   └─ 있음 + content_hash 다름 → Page (U) + Visit (C) + Embedding (재생성 큐)
+   ├─ 없음 → 단일 TX { Page (C) + Visit (C) }
+   ├─ 있음 + content_hash 같음 → 단일 TX { Visit (C) } (Page UPDATE 없음)
+   └─ 있음 + content_hash 다름 → 단일 TX { Page (U content/content_hash/updated_at) + Visit (C) }
    ↓
-EmbeddingQueue.enqueue(page_id, priority=active_tab ? 10 : 1)
+EmbeddingQueue.enqueue(page_id, priority=active_tab ? 10 : 1) — TX 외부
    ↓
-[비동기] Embedding (C/U) + AutoTagger (C of Tag + PageTag)
+[비동기 백그라운드] Embedding (C/U) + AutoTagger 호출 (TX 외부, 실패 시 재시도)
    ↓
 indexing:status broadcast (Renderer 갱신)
 ```
@@ -97,14 +119,18 @@ indexing:status broadcast (Renderer 갱신)
    ↓
 Renderer: note:create IPC 호출 (selected_text + active visit_id)
    ↓
-Main: Note INSERT (page_id, visit_id, workspace_id, selected_text)
+Main: 단일 TX { Note (C, ai_tags=NULL, created_by='user') }
    ↓
-Main: AutoTagger 호출 (BYOK 우선) → Tag (C) + NoteTag (C) + ai_tags 컬럼 UPDATE
+note:created broadcast (Renderer 즉시 갱신 — UX 우선)
    ↓
-Main: EmbeddingClient 호출 → Note.embedding (U)
+[비동기 백그라운드, TX 외부] AutoTagger (BYOK) → Tag (C) + NoteTag (C) + Note.ai_tags UPDATE
    ↓
-note:created broadcast (Renderer 갱신)
+[비동기 백그라운드, TX 외부] EmbeddingClient → vec_notes (C)
+   ↓
+note:enriched broadcast (Renderer 태그 + 임베딩 인디케이터 갱신)
 ```
+
+**중요**: AutoTagger / EmbeddingClient 외부 호출은 **DB TX 외부**. 외부 AI 호출을 TX 안에 넣으면 장기 lock 위험.
 
 ### 5.4.3 AI Chat 라이프사이클 (RAG)
 
@@ -113,20 +139,23 @@ note:created broadcast (Renderer 갱신)
    ↓
 Renderer: chat:request IPC 호출 (workspace_id, content, optional page_id)
    ↓
-Main: AiChatHistory.user 메시지 INSERT
+Main: TX#1 { AiChatHistory (C, role='user', status='ok') }
    ↓
-Main: TimeRangeParser (자연어 시간) + SearchService retrieval (Page + Note top-k)
+Main: TimeRangeParser (자연어 시간) + SearchService retrieval (vec_pages + vec_notes top-k)
    ↓
 Main: PromptComposer (system prompt 분기, level_preference 반영)
    ↓
-Main: Provider Adapter 호출 (사용자 선택 — API Key 또는 Codex OAuth)
+Main: TX#2 { AiChatHistory (C, role='assistant', status='pending', retrieved_items=[...]) }
    ↓
-Main: Provider 응답 파싱 (Markdown + JSON 메타 분리)
+Main: Provider Adapter 호출 (사용자 선택 — API Key 또는 Codex OAuth) — TX 외부
+   ├─ 성공 → TX#3 { AiChatHistory (U, content + chat_meta + status='ok') }
+   └─ 실패 → TX#3 { AiChatHistory (U, content=에러 메시지 + status='failed') }
+              + 사용자 UI 에 "재시도" 버튼 표시
    ↓
-Main: AiChatHistory.assistant 메시지 INSERT (retrieved_page_ids + chat_meta)
-   ↓
-chat:response broadcast (Renderer 갱신, 출처 셀 클릭 시 본문 캐시 fetch)
+chat:response broadcast (Renderer 갱신, 출처 셀 클릭 시 search:get-content fetch)
 ```
+
+**중요**: user / assistant 메시지는 별도 TX. Provider 외부 호출은 TX 외부.
 
 ### 5.4.4 Workspace 전환
 
@@ -135,22 +164,42 @@ chat:response broadcast (Renderer 갱신, 출처 셀 클릭 시 본문 캐시 fe
    ↓
 Renderer: workspace:switch IPC 호출 (target_workspace_id)
    ↓
-Main: 현 워크스페이스 인덱싱 / 채팅 등 진행 작업 abort
+Main: 현 워크스페이스 인덱싱·임베딩·채팅 등 진행 작업 abort (큐 클리어)
    ↓
 Main: 활성 탭 그룹 교체 (TabManager workspace_id 메타)
    ↓
 Renderer: 메모리 통계 / AI 채팅 패널 / 노트 패널 / 탭 바 모두 새 워크스페이스 데이터로 교체
 ```
 
+### 5.4.5 Workspace cascade DELETE
+
+```
+Main: workspace:delete IPC 호출
+   ↓
+단일 TX {
+  vec_pages DELETE WHERE workspace_id=target  (sqlite-vec partition 활용)
+  vec_notes DELETE WHERE workspace_id=target
+  AiChatHistory DELETE (FK CASCADE)
+  Note → NoteTag 자동 CASCADE
+  Page → Visit / PageTag 자동 CASCADE
+  Tag DELETE (FK CASCADE)
+  Workspace DELETE
+}
+```
+
+ON DELETE CASCADE FK 설정으로 자동. vec_pages/vec_notes 는 가상 테이블이라 FK CASCADE 미적용 — 명시 DELETE 필수.
+
 ## 5.5 트랜잭션 단위
 
 | 작업 | 트랜잭션 | 이유 |
 |---|---|---|
 | Page (C) + Visit (C) | 단일 TX | 인덱싱 일관성 |
-| Note (C) + Tag (C) + NoteTag (C) | 단일 TX | 노트 작성 원자성 |
-| AiChatHistory user + assistant 메시지 | **별도 TX** | user INSERT 후 assistant 응답이 비동기 도착 |
-| Embedding (C/U) | 별도 TX (백그라운드 큐) | 응답 지연 X |
-| Workspace (D) cascade | 단일 TX | Page/Visit/Note/AiChatHistory/Tag 모두 cascade DELETE (FK ON DELETE CASCADE) |
+| Note (C) | 단일 TX (Tag·NoteTag·Embedding 분리) | 외부 AI 호출 (AutoTagger·EmbeddingClient) 을 TX 안에 넣지 않음 |
+| Note.ai_tags U + NoteTag C | 별도 TX (백그라운드) | AutoTagger 결과 비동기 도착 |
+| AiChatHistory user / assistant / status 갱신 | **3 개 별도 TX** | Provider 외부 호출이 비동기 |
+| Embedding (C/U) | 별도 TX (백그라운드 큐) | 외부 호출 지연·실패 격리 |
+| Tag (C) + PageTag/NoteTag (C) | 단일 TX (AutoTagger 응답 도착 후) | 태그 부여 원자성 |
+| Workspace (D) cascade | 단일 TX (vec 명시 DELETE 포함) | 일관성 |
 | 마이그레이션 (v0.3 → v0.4) | 단일 TX 권장 (회복 가능) | 실패 시 전체 revert ([§19](./19_migration_v03_v04.md)) |
 
 ## 5.6 권한 제약 (G-005 OS Keychain 위임)
@@ -167,11 +216,12 @@ Renderer: 메모리 통계 / AI 채팅 패널 / 노트 패널 / 탭 바 모두 �
 ## 5.7 SSOT 인용
 
 - `.flowset/specs/v04-direction.md` §5 (데이터 모델) + §6 (핵심 동작 흐름)
-- `.flowset/specs/v04-dependency-graph.md` §A (IPC 19개 폐기) + §B (신규 IPC 20~25개)
+- `.flowset/specs/v04-dependency-graph.md` §A (IPC 폐기 21개) + §B (신규 IPC 약 24개)
 - `.flowset/specs/v04-migration-matrix.md` §E (신규 storage 모듈)
 
 본 §05 와 SSOT 충돌 시 SSOT 우선 (G-012).
 
 ## 5.8 변경 이력
 
-- 2026-05-16 (PR b3): stub → 본문 작성. Actor 5종 정의 + Entity × Actor 매트릭스 + IPC 매핑 (신규 22개 + 유지 47개) + 라이프사이클 4종 + 트랜잭션 단위 + Keychain 위임 정책.
+- 2026-05-16 (PR b3): stub → 본문 작성. Actor 5종 + Entity × Actor 매트릭스 + IPC 매핑 + 라이프사이클 4종 + 트랜잭션 + Keychain 위임.
+- 2026-05-16 (PR b3.1): codex 24건 + evaluator 2건 핫픽스. Renderer "request via IPC" 분리 표기 / System triggers/Main writes 통일 / 매트릭스 9 entity × 5 actor = 45 cell (PageTag·NoteTag 행 추가) / Phase 1 신규 IPC 약 22 → 약 24 정정 (내부 hook 분리 명시) / 유지 IPC "47개" → "약 47개" 수치 일관 + §06 본문 위임 / 라이프사이클 4종 → 5종 (Workspace cascade DELETE 추가) / Note·Embedding TX 외부 명시 (외부 AI 호출 lock 방지) / AiChatHistory user·assistant·status 3 TX 분리 / vec 가상 테이블 명시 DELETE 필수 명시.
