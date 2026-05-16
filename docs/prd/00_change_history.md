@@ -2,7 +2,7 @@
 
 > [← PRD 목차](./README.md)
 
-PRD v0.4 정식 발행 — Sprint 015 M1 (2026-05-16).
+PRD v0.4.0 **작성 시작** — Sprint 015 M1 PR b1 발행 (2026-05-16). 정식 발행은 Sprint 015 M6 종료 시점, 본 변경 이력은 b1 시점 스냅샷.
 
 ## 0.1 v0.4.0 — 방향 전환 (2026-05-16)
 
@@ -41,8 +41,8 @@ Sprint 014 (Codex OAuth Login Provider 활성화) + 15회 핫픽스 후 실측 �
 | 코드 폐기 | `src/renderer/src/settings/GlossaryPanel.tsx` | Glossary → Note 자동 이전 후 패널 폐기 |
 | 코드 폐기 | `src/renderer/src/translation/TranslationPanel.tsx` | ChatPanel로 전환 |
 | 코드 폐기 | `src/renderer/src/translation/TranslationPopup.tsx` | 선택 영역 번역 팝업 폐기 |
-| IPC 폐기 | `translate:render` / `render-restore` / `paragraphs` (+abort) / `page` (+abort) / `summarize-page` (+abort) / `pageResult:restore-current` (9개) | main/index.ts |
-| IPC 폐기 | `cache:* / pageResult:* / glossary:* / translate:request` (12개) | services.ts |
+| IPC 폐기 | `translate:render` / `render-restore` / `paragraphs` (+abort) / `page` (+abort) / `summarize-page` (+abort) / `pageResult:restore-current` (9개) | main/index.ts (출처: A4 §A1, Sprint 015 contract AC-3 — A1은 단순 묶음 6개로 카운트, 본 PR은 contract 9개 정밀화 채택) |
+| IPC 폐기 | `cache:* / pageResult:* / glossary:* / translate:request` (12개) | services.ts (출처: A4 §A2) |
 | preload 폐기 | `cacheApi / pageResultApi / glossaryApi / translateApi` (4 묶음) | preload/index.ts |
 | 설정 폐기 | `translationMode` / `cancelOnTabSwitch` | UserSettingStore |
 
@@ -55,7 +55,7 @@ Sprint 014 (Codex OAuth Login Provider 활성화) + 15회 핫픽스 후 실측 �
 
 ### 신규 모듈 (30+)
 
-- **storage**: `IndexedPageStore` / `VectorIndex` (sqlite-vec wrapper) / `PageContentCache` / `AIResponseCache` / `WorkspaceStore` / `NoteStore` / `AiChatHistoryStore` / `TagStore` / `EmbeddingQueue` / `migrations/v03_to_v04.ts`
+- **storage**: `IndexedPageStore` / `VectorIndex` (sqlite-vec wrapper) / `PageContentCache` / `AIResponseCache` / `WorkspaceStore` / `NoteStore` / `AiChatHistoryStore` / `TagStore` / `EmbeddingQueue` / `migrations/v03_to_v04.ts` / `schema/v04.sql` (SQLite 통합 DB 스키마)
 - **ai**: `embedding/EmbeddingClient.ts` / `tagging/AutoTagger.ts` / `PromptComposer.ts`
 - **main**: `IndexingService.ts` / `ChatService.ts` / `SearchService.ts` / `NoteService.ts` / `WorkspaceService.ts` / `DwellTracker.ts` / `Shortcut.ts`
 - **privacy**: `IndexingGate.ts` (인덱싱 차단)
