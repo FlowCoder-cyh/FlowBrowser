@@ -42,14 +42,21 @@
 |---|---|---|
 | cookies | Electron `session.fromPartition('persist:ws-{uuid}')` | Phase 2 M? |
 | storage (localStorage / sessionStorage / IndexedDB) | 동상 — partition 단위 격리 | 동상 |
-| 캐시 | `partition.clearCache()` 단위 관리 | 동상 |
+| 캐시 | `wsSession.clearCache()` (await 대상) + `wsSession.clearStorageData({storages: [...]})` (localStorage/IndexedDB/ServiceWorker 분리 정리) | 동상 — Electron `Session` 객체 메서드 (PR b7.1 변수명 정정) |
 | Service Worker | partition 단위 등록 | 동상 |
 
 ```typescript
-// Phase 2 WorkspacePartitionManager 예시
+// Phase 2 WorkspacePartitionManager 예시 (PR b7.1 변수명 정정)
 import { session, WebContentsView } from 'electron'
-const ws_partition = session.fromPartition(`persist:ws-${workspace_id}`)
-const view = new WebContentsView({ webPreferences: { session: ws_partition } })
+const wsSession = session.fromPartition(`persist:ws-${workspace_id}`)
+const view = new WebContentsView({ webPreferences: { session: wsSession } })
+mainWindow.contentView.addChildView(view)  // 수명주기 명시 — 워크스페이스 전환 시 destroy + recreate
+
+// 워크스페이스 삭제 시
+await wsSession.clearCache()
+await wsSession.clearStorageData({
+  storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage']
+})
 ```
 
 Electron 공식 문서 ([session.fromPartition](https://www.electronjs.org/docs/latest/api/session)) 기준 — `persist:` prefix 가 디스크 영속 partition.
@@ -71,10 +78,10 @@ Phase 2 contract 작성 시 사용자 안내 UI + 워크스페이스별 cookies 
    ↓
 Renderer: workspace:switch IPC 호출 (target_workspace_id)
    ↓
-Main: 현 워크스페이스 진행 중 작업 abort
-   ├─ IndexingService.abort (현 워크스페이스 인덱싱 큐)
-   ├─ EmbeddingQueue.clear (현 워크스페이스 임베딩 큐)
-   └─ ChatService.abortStreaming (active streaming)
+Main: 현 워크스페이스 진행 중 작업 abort (함수명은 가설, M3/M4/M5 contract 시 정확 spec 박힘)
+   ├─ IndexingService.abort (M4 신규) — 현 워크스페이스 인덱싱 큐
+   ├─ EmbeddingQueue.clear (M3 신규) — 현 워크스페이스 임베딩 큐
+   └─ ChatService.abortStreaming (M5 신규) — active streaming + chat:abort IPC
    ↓
 Main: TabManager 활성 탭 그룹 교체
    ├─ 현 워크스페이스 탭 그룹 stash (WebContentsView 메모리 정리)
@@ -160,6 +167,19 @@ UI: WorkspaceSidebar "+ 새 워크스페이스" 모달 (M6).
 
 마지막 워크스페이스 1개 삭제 시 자동으로 "📥 기본" 신규 생성 (워크스페이스 0개 상태 방지).
 
+### 11.5.6 Import / Export (Phase 1 base — PR b7.1 추가)
+
+PR b7 에서 Export 를 Phase 3 만으로 미뤘으나, **데이터 portability + 복구 안전망** 위해 Phase 1 시점 최소 JSON export 도입.
+
+| 동작 | Phase | 형식 |
+|---|---|---|
+| **JSON Export (Phase 1, M6)** | Phase 1 | 워크스페이스 단위 JSON (Workspace + Page + Visit + Note + AiChatHistory + Tag 전체) — 백업·복구 용. v0.4 자체 schema |
+| **JSON Import (Phase 1, M6)** | Phase 1 | 동일 schema 파일 import → 새 워크스페이스로 INSERT (id 재생성) |
+| **Notion Export (Phase 3)** | Phase 3 | 워크스페이스 → Notion DB / Markdown 페이지 변환 ([§19](./19_migration_v03_v04.md)) |
+| **Markdown Export (Phase 3)** | Phase 3 | 워크스페이스 → Markdown 폴더 구조 |
+
+Phase 1 JSON Export 는 마이그레이션·삭제 안전망 — 사용자가 워크스페이스 삭제 직전 자동 백업 옵션 (M6 UI).
+
 ## 11.6 사용자 수준 옵션 (R3-A, Phase 1)
 
 [§04 §4.3.1 Workspace.level_preference](./04_data_model.md#431-workspace) + [§10 §10.4.1 PromptComposer 4 분기](./10_ai_chat.md#1041-사용자-수준-옵션-r3-a-phase-1-직접-선택) 정합.
@@ -218,3 +238,4 @@ Phase 1 시점: mock (회귀 셋 통과만, 실제 학습 로직 X).
 ## 11.10 변경 이력
 
 - 2026-05-16 (PR b7): stub → 본문 작성. 격리 메타포 + Phase 1/2 격리 수준 (메타 vs Electron Partition) + 전환 UX 4 step + 전환 비용 분석 (< 1초) + abort 정책 3종 + "📥 기본" 자동 생성 path 2종 + CRUD 5 동작 + 마지막 워크스페이스 보호 + 사용자 수준 4 분기 (Phase 1 직접 / Phase 2 자동) + 페르소나별 활용 패턴 + 정량 임계 3종.
+- 2026-05-16 (PR b7.1): codex·evaluator 핫픽스. Electron Session 변수명 (partition → wsSession) + addChildView 수명주기 명시 + clearStorageData 다층 storage 정리. abort 함수명 (M3/M4/M5 신규) 시제 명시. §11.5.6 Phase 1 JSON Import/Export 안전망 신규 (Notion·Markdown Export 는 Phase 3 유지).

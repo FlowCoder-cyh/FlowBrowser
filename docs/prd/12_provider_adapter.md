@@ -4,35 +4,66 @@
 
 본 섹션은 외부 AI Provider 추상화 — 실제 코드 `src/ai/ProviderAdapter.ts` 인터페이스 + 구현체 (OpenAIApiKeyProvider / CodexLoginProvider / Phase 3 LocalLLMProvider). [§01 §1.4.2](./01_overview.md#142-동작-원칙) BYOK vs 능동 호출 정합.
 
-## 12.1 ProviderAdapter 인터페이스
+## 12.1 ProviderAdapter 인터페이스 (v0.3 현재 + v0.4 마이그레이션)
+
+### 12.1.1 v0.3 현재 인터페이스 (실제 코드)
 
 ```typescript
-// src/ai/ProviderAdapter.ts (KEEP, A1 §C)
+// src/ai/ProviderAdapter.ts (v0.3 KEEP / v0.4 GENERALIZE)
 export interface ProviderAdapter {
-  readonly providerId: string  // 'openai-key' | 'codex' | 'local-llm' (Phase 3)
-  readonly providerType: 'openai-key' | 'codex' | 'local-llm'
-
-  // 채팅 호출 (Phase 1 base — 텍스트 생성)
-  chat(messages: ChatMessage[], opts?: ChatOpts): Promise<ChatResponse>
-  chatStream?(messages: ChatMessage[], opts?: ChatOpts): AsyncIterable<ChatStreamChunk>
-
-  // 임베딩 호출 (Phase 1 신규)
-  embed?(text: string, opts?: EmbedOpts): Promise<EmbedResponse>
+  readonly info: ProviderInfo
+  validate(): Promise<{ ok: boolean; reason?: string }>
+  translate(input: TranslationInput): Promise<TranslationOutput>
+  dispose?(): Promise<void>
 }
 ```
 
-Phase 1 시점 (PR b7):
-- **CodexLoginProvider**: `chat()` + `chatStream()` 구현. `embed()` 미지원 (Codex 임베딩 API 없음)
-- **OpenAIApiKeyProvider**: `chat()` 구현 (현재 stream:false fetch). `chatStream()` M5 PoC 도입. `embed()` M3 도입
-- **(Phase 3) LocalLLMProvider**: `chat()` + `chatStream()` (Ollama 패턴). `embed()` 옵션
+### 12.1.2 v0.4 마이그레이션 spec (M2 PR 분류 변경: KEEP → GENERALIZE)
+
+v04-migration-matrix §C KEEP 분류는 PR b7.1 시점 정정 — ProviderAdapter 는 **GENERALIZE** (translate → chat / embed 분리 + 재설계). v04-migration-matrix §B 갱신 동반.
+
+```typescript
+// v0.4 신규 인터페이스 (M2 PR 도입 spec)
+export interface ProviderAdapter {
+  readonly info: ProviderInfo
+  validate(): Promise<{ ok: boolean; reason?: string }>
+
+  // 채팅 호출 (M2 신규)
+  chat(messages: ChatMessage[], opts?: ChatOpts): Promise<ChatResponse>
+  chatStream?(messages: ChatMessage[], opts?: ChatOpts): AsyncIterable<ChatStreamChunk>
+
+  // 임베딩 호출 (M3 신규)
+  embed?(text: string, opts?: EmbedOpts): Promise<EmbedResponse>
+
+  // 어댑터 호환 (v0.3 → v0.4 점진 마이그레이션, M5 종료 시 제거)
+  translate?(input: TranslationInput): Promise<TranslationOutput>  // deprecated
+
+  dispose?(): Promise<void>
+}
+```
+
+### 12.1.3 도입 시점 (현 코드 vs 미래)
+
+| 메서드 | v0.3 현재 | M2 도입 | M3 도입 | M5 도입 |
+|---|---|---|---|---|
+| `info` / `validate` / `dispose` | ✓ | (유지) | — | — |
+| `translate` (deprecated) | ✓ | (유지, M5 종료 시 제거) | — | — |
+| `chat()` (단발 호출) | ✗ | ✓ (CodexLoginProvider 가 v0.3 translate 내부 SSE 누적 — chat() 으로 wrap) | (유지) | (유지) |
+| `chatStream()` | ✗ | ✗ | ✗ | ✓ (M5 PoC, ChatPanel streaming) |
+| `embed()` | ✗ | ✗ | ✓ (OpenAIApiKeyProvider 신규 메서드, text-embedding-3-small) | (유지) |
+
+**현재 (PR b7.1 시점) 코드 사실**:
+- `CodexLoginProvider.translate()` 단일 메서드 — 내부에서 SSE 누적 후 `TranslationOutput` 반환 (`src/ai/providers/CodexLoginProvider.ts:123`, `accumulateResponsesStream`)
+- `OpenAIApiKeyProvider.translate()` 단일 메서드 — `fetch /chat/completions stream:false` (`src/ai/providers/OpenAIApiKeyProvider.ts`)
+- 두 Provider 모두 `chat()` / `embed()` 메서드 **부재** — M2 / M3 PR 도입 예정
 
 ## 12.2 Provider 구현체 매트릭스
 
 | Provider | 모델 | Capability | 인증 | TX | Phase | 사용처 |
 |---|---|---|---|---|---|---|
-| **OpenAI API Key (BYOK)** | gpt-4o-mini (저가 디폴트) / text-embedding-3-small | chat / chatStream / embed | API Key (OS Keychain) | external | 1 | 자동 인덱싱·태깅·임베딩 (BYOK 디폴트) + 사용자 능동 채팅 옵션 |
-| **Codex OAuth** | gpt-5.5 reasoning low (기본) / 사용자 명시 변경 | chat / chatStream (SSE Responses API) | OAuth device-code (PKCE, OS Keychain) | external | 1 | 사용자 능동 채팅 (명시 동의). 자동 호출 X (G-003 강화) |
-| **(Phase 3) Local LLM** | Ollama 기본 모델 (llama 3.x / qwen 등) / 사용자 선택 | chat / chatStream / embed (옵션) | endpoint 설정 (localhost:11434) | local | 3 | 오프라인 / 민감 페이지 / Privacy First |
+| **OpenAI API Key (BYOK)** | gpt-4o-mini (저가 디폴트) / text-embedding-3-small | translate (v0.3 현재) / chat·embed (M2/M3 신규) / chatStream (M5) | API Key (OS Keychain) | external | 1 | 자동 인덱싱·태깅·임베딩 (BYOK 디폴트) + 사용자 능동 채팅 옵션 |
+| **Codex OAuth** | gpt-5.5 (디폴트) / gpt-5.4-mini / gpt-5.2 (`AVAILABLE_MODELS` 정합) — gpt-5 는 코드 주석에 "not supported" 명시 | translate (v0.3 현재, SSE 내부 누적) / chat (M2 신규 wrap) / chatStream (M5) | OAuth device-code (PKCE, OS Keychain) | external | 1 | 사용자 능동 채팅 (명시 동의). 자동 호출 X (G-003 강화) |
+| **(Phase 3) Local LLM** | Ollama 기본 모델 + 사용자 선택 (M? PoC) — LM Studio / llama.cpp server / vLLM 도 비교 후보 | chat / chatStream / embed (옵션) | endpoint 설정 (Ollama 기본 `http://localhost:11434/api`) | local | 3 | 오프라인 / 민감 페이지 / Privacy First |
 
 ## 12.3 BYOK 디폴트 정책 (G-003 강화)
 
@@ -73,63 +104,130 @@ Phase 1 시점 (PR b7):
 ### 12.4.2 Codex OAuth 모델
 
 - 기본: `gpt-5.5` reasoning effort `low` (M3-7 핫픽스 검증)
-- 사용자 변경: 변경 불가 (Codex API 가 모델 자동 선택 — gpt-5.5 / gpt-5 / 등). reasoning effort 만 사용자 선택 (`low / medium / high`)
+- `AVAILABLE_MODELS` (실제 코드 `CodexLoginProvider.ts:33`): **`gpt-5.5` / `gpt-5.4-mini` / `gpt-5.2`** 3종 허용. `gpt-5` 는 코드 주석에 `"not supported when using Codex with a ChatGPT account"` 명시 → 거론 X (PR b7.1 정정)
+- 사용자 변경: `modelHint` 파라미터로 위 3종 중 선택 가능 (M5 ChatPanel UI 도입 시 사용자 선택 노출). reasoning effort 는 현재 코드 `effort: 'low'` 하드코딩 — M5 PoC 시 UI 도입으로 사용자 선택 (`low / medium / high`) 가능
 
-### 12.4.3 모델 fallback 체인
+### 12.4.3 모델 fallback 체인 (능동 채팅 호출 한정)
 
-채팅 호출 실패 시 자동 fallback:
+**적용 범위**: 본 체인은 **사용자 능동 채팅 호출 (§10 ChatService)** 에만 적용. 자동 백그라운드 호출 (인덱싱·태깅·임베딩) 은 fallback X (§12.4.4 참조, G-003 강화).
+
+**임베딩 호출**은 모델 단일 (text-embedding-3-small) 이라 fallback 적용 불가.
 
 ```
-1. UserSetting.defaultProviderId 시도
-   ↓ 실패 (rate limit / 401 / 5xx)
-2. 같은 Provider 다른 모델 시도 (예: gpt-4o-mini 실패 → gpt-4o)
+1. UserSetting.defaultProviderId 시도 (예: openai-key + gpt-4o-mini)
+   ↓ 실패
+2. error code 분류:
+   ├─ 401 / auth_invalid → step 5 (인증 fallback 차단, 재로그인 유도)
+   ├─ 429 (rate limit) → 동일 Provider retry 1회 (지수 백오프)
+   └─ 5xx → 다음 step
+   ↓ 실패
+3. 같은 Provider 다른 모델 시도 (예: gpt-4o-mini → gpt-4o)
    └─ 모델별 retry 1회
    ↓ 실패
-3. 다른 Provider 시도 (BYOK 실패 시 Codex OAuth, 또는 그 반대)
-   └─ Provider 별 retry 1회
+4. 다른 Provider 시도 (사용자 명시 동의 시) 
+   └─ BYOK ↔ Codex OAuth 자동 전환은 비용·구독 한도 영향 — UI 알림 + 사용자 동의 토글
    ↓ 실패
-4. AiChatHistory.status='failed' + KI-NNN 등록
+5. AiChatHistory.status='failed' + KI-NNN 등록 + 사용자 "재시도" 버튼
 ```
 
-자동 백그라운드 호출 (인덱싱·태깅·임베딩) 은 fallback X — BYOK 디폴트만 시도, 실패 시 큐 보류 (G-003 강화).
+### 12.4.4 fallback 제한 (비용 폭주 방지)
+
+| 제한 | 기본값 | 사유 |
+|---|---|---|
+| max fallback attempts | 1 단발 호출당 **최대 3** (step 1+2+3 또는 step 1+3+4) | 비용 증폭 방지 |
+| max estimated cost / 호출 | $0.10 (사용자 settings 조정 가능) | BYOK 호출 비용 cap |
+| 401 자동 fallback | **차단** | 인증 실패는 재로그인 유도 (감사 추적 보호) |
+| Codex OAuth 자동 전환 | **사용자 명시 동의 시만** | ChatGPT 한도 묵시 소진 방지 (G-003 강화) |
+| **자동 호출 fallback** | **0** (큐 보류만) | BYOK 디폴트, Provider 미설정 시 큐 보류 |
+
+월 한도 알림 (Phase 1):
+- BYOK 월 사용량 사용자 설정 한도 도달 시 추가 호출 전 확인 dialog (M5 ChatService 도입 시)
+- 워크스페이스별 비용 분석은 [§12.6](#126-cost-tracking-usagelog-재활용)
 
 ## 12.5 Rate Limit + Backoff
 
 [§08 §8.3.3 EmbeddingQueue](./08_indexing.md#833-embeddingqueue-정책) 정합.
 
-| Provider | Rate limit (2026-05-16 기준) | Backoff |
-|---|---|---|
-| OpenAI API Key | tier 1: 3 RPM / 200 TPM 임베딩 등 (tier 별로 다름, 공식 문서 참조) | 5초 / 30초 / 5분 / 30분 / 포기 (5종) |
-| Codex OAuth | ChatGPT 구독 5h/주 | 한도 초과 시 즉시 fallback (사용자 알림) |
-| (Phase 3) Local LLM | endpoint 부하 | endpoint 응답 timeout 30초 후 retry 1회 |
+| Provider | Rate limit (2026-05-16 기준 OpenAI 공식 / Codex 추정) | Backoff | Timeout |
+|---|---|---|---|
+| OpenAI API Key tier 1 (PR b7.1 정정) | **chat gpt-4o-mini ≈ 500 RPM / 200K TPM**, **embedding text-embedding-3-small ≈ 3,000 RPM / 1M TPM** (정확 수치 OpenAI 공식 rate limits 페이지 [docs](https://platform.openai.com/docs/guides/rate-limits)) — tier 2~5 는 더 높음 | 5초 / 30초 / 5분 / 30분 / 포기 (5종) | **30초** (단발 호출) |
+| Codex OAuth | ChatGPT 구독 한도 (Plus 추정 ~80 메시지/주, Pro 더 높음 — 2026-05-16 추정, 공식 공시 없음). 429 응답 시 fallback | 한도 초과 시 즉시 사용자 알림 + BYOK 자동 전환 동의 dialog | **60초** (Codex Responses API + SSE streaming) |
+| (Phase 3) Local LLM | endpoint 부하 (사용자 하드웨어 의존) | endpoint 응답 timeout 30초 후 retry 1회 | **사용자 설정** (디폴트 30초) |
+
+> **PR b7.1 정정**: PR b7 의 "tier 1: 3 RPM / 200 TPM" 은 외부 사실 오류 (실제 최소 1000배 차이). 정확 수치는 OpenAI 공식 rate limits 페이지 참조 — tier 1 기본은 sustainable 운영 가능 수준.
 
 ### 12.5.1 OpenAI tier 자동 감지
 
-응답 헤더 `x-ratelimit-*` 파싱 — 남은 한도 모니터링 + 80% 도달 시 사용자 인디케이터 (Phase 2+ 옵션).
+응답 헤더 4종 모니터링:
+- `x-ratelimit-limit-requests` / `x-ratelimit-remaining-requests`
+- `x-ratelimit-limit-tokens` / `x-ratelimit-remaining-tokens`
 
-## 12.6 Cost Tracking (UsageLog 재활용)
+남은 한도 80% 도달 시 사용자 인디케이터 표시 (Phase 2+ 옵션, MemoryStatsPanel 또는 별도 alert).
 
-v0.3 `src/storage/UsageLog.ts` (KEEP, A1 §C) 재활용 — 호출별 비용 누적.
+## 12.6 Cost Tracking (UsageLog GENERALIZE — PR b7.1 정정)
 
-| 로그 필드 | 비고 |
-|---|---|
-| timestamp | |
-| provider_id | 'openai-key' / 'codex' / 'local-llm' |
-| model | 'gpt-4o-mini' / 'text-embedding-3-small' / ... |
-| operation | 'chat' / 'embed' / 'tag' |
-| input_tokens / output_tokens | OpenAI 응답 `usage` 필드 |
-| cost_usd | 모델별 가격 곱 (`OpenAIApiKeyProvider.MODEL_PRICING` 정합) |
-| workspace_id | 워크스페이스 단위 비용 추적 |
+v0.3 `src/storage/UsageLog.ts` 는 v04-migration-matrix §C KEEP 분류였으나 **PR b7.1 시점 GENERALIZE 재분류** — schema 확장 + feature enum 변경 필요.
 
-### 12.6.1 사용자 표시 (SettingsPage > UsagePanel)
+### 12.6.1 v0.3 현재 schema (실제 코드)
 
-- 워크스페이스별 월 비용 분포
-- Provider별 분포
-- 임계 알림 (사용자 설정 월 한도 도달 시 추가 호출 차단 옵션)
+```typescript
+// src/storage/UsageLog.ts:13-29 실제 UsageLogEntry
+export interface UsageLogEntry {
+  id: string
+  providerId: string
+  feature: Feature  // 'translation' | 'summary' | 'tts' | 'stt' | 'explanation'
+  inputTokens: number
+  outputTokens: number
+  audioSeconds: number
+  estimatedCostUsd: number  // 호출 시점 OpenAIApiKeyProvider.MODEL_PRICING_PER_M_TOKENS 로 계산 후 전달
+  domain: string
+  privacyDecision: 'allowed' | 'user_approved'
+  status: UsageStatus
+  errorCode?: string
+  createdAt: number
+}
+```
 
-### 12.6.2 Codex OAuth 비용
+**현재 부재**:
+- `workspaceId` 컬럼 (워크스페이스별 비용 추적 불가)
+- `model` 컬럼 (모델별 비용 재계산 불가, `estimatedCostUsd` 만 저장)
+- v0.4 feature `'chat' / 'embed' / 'tag'` enum 값 (현재 v0.3 use case 만)
 
-Codex 는 ChatGPT 구독 한도 (5h/주) 기반이라 USD 비용 X. 대신 "사용 시간" 추정 (호출당 ~30초 가정).
+### 12.6.2 v0.4 schema 마이그레이션 (M3 PR 진입 시)
+
+```typescript
+// v0.4 신규 UsageLogEntry (M3 schema 확장)
+export interface UsageLogEntry {
+  id: string
+  providerId: string
+  workspaceId?: string  // NEW (M3) — 워크스페이스별 분석. nullable (v0.3 데이터 호환)
+  feature: Feature  // CHANGE: v0.3 enum 폐기 + v0.4 enum 추가 → 'chat' | 'embed' | 'tag' | 'background_translation' (P2)
+  model?: string  // NEW (M3) — 'gpt-4o-mini' / 'text-embedding-3-small' / 'gpt-5.5' 등
+  inputTokens: number
+  outputTokens: number
+  durationMs?: number  // NEW (M3, Codex Responses API duration 실측 저장) — "30초 추정" 대체
+  estimatedCostUsd: number  // 호출 시점 계산 후 전달 (위치는 OpenAIApiKeyProvider.MODEL_PRICING_PER_M_TOKENS)
+  domain: string
+  privacyDecision: 'allowed' | 'user_approved'
+  status: UsageStatus
+  errorCode?: string
+  createdAt: number
+}
+```
+
+> v0.3 `feature: 'translation' / 'summary' / 'tts' / 'stt' / 'explanation'` 5종은 폐기 ([§19 마이그레이션](./19_migration_v03_v04.md) 동반). 마이그레이션 시 5종 이전 데이터는 archive (분석 retention 1년) 또는 폐기.
+
+### 12.6.3 사용자 표시 (SettingsPage > UsagePanel, M3 schema 후)
+
+- 워크스페이스별 월 비용 분포 (workspace_id 추가 후 가능)
+- Provider 별 / 모델별 분포 (model 컬럼 추가 후 가능)
+- 임계 알림 (사용자 설정 월 한도 도달 시 추가 호출 확인 dialog) — Phase 1 M5 도입
+
+### 12.6.4 Codex OAuth 비용
+
+Codex 는 ChatGPT 구독 한도 기반이라 USD 비용 0 (`CodexLoginProvider.translate` 결과 `estimatedCostUsd: 0`). 대신:
+- **durationMs 실측 저장** (M3 schema 후) — Codex Responses API 응답의 duration 값 활용 (PR b7 "30초 추정" 정정)
+- 워크스페이스별 사용 시간 분석 (M3 후)
 
 ## 12.7 G-003 강화 — 자동 호출 BYOK 디폴트
 
@@ -177,3 +275,4 @@ Codex 는 ChatGPT 구독 한도 (5h/주) 기반이라 USD 비용 X. 대신 "사�
 ## 12.10 변경 이력
 
 - 2026-05-16 (PR b7): stub → 본문 작성. ProviderAdapter 인터페이스 + 구현체 3종 매트릭스 (OpenAI BYOK / Codex OAuth / Phase 3 Local LLM) + BYOK 디폴트 정책 (G-003 강화, 호출 종류별 매트릭스) + 모델 선택 (gpt-4o-mini 저가 디폴트 / text-embedding-3-small 1024 / Codex gpt-5.5) + 4 단계 fallback 체인 + Rate limit 5종 backoff + UsageLog 비용 추적 + Phase 3 LocalLLMProvider 의의·부담 명시.
+- 2026-05-16 (PR b7.1): codex 32건 + evaluator Fail 핫픽스. **실제 코드 grep 정정**: (1) §12.1 ProviderAdapter 인터페이스 정정 — v0.3 현재 (`info / validate / translate / dispose`) vs v0.4 마이그레이션 spec (chat/embed/chatStream M2~M5 도입) 분리. v04-migration-matrix §C KEEP → GENERALIZE 재분류 동반. (2) §12.4.2 Codex 모델 `AVAILABLE_MODELS = gpt-5.5/gpt-5.4-mini/gpt-5.2` 정확 박힘 (gpt-5 코드 주석 "not supported" 충돌 제거). (3) §12.6 UsageLog GENERALIZE 재분류 + v0.3 schema (실제 UsageLogEntry 12 필드) vs v0.4 M3 schema 마이그레이션 (workspaceId/model/durationMs 추가, feature enum 변경). (4) §12.5 rate limit 수치 정정 — "3 RPM/200 TPM" 외부 사실 오류 → "tier 1 gpt-4o-mini ≈ 500 RPM/200K TPM, text-embedding-3-small ≈ 3,000 RPM/1M TPM" (OpenAI 공식). **fallback 안전화**: (5) §12.4.3 능동 채팅 한정 명시 (자동 호출 fallback X). (6) §12.4.4 fallback 제한 신규 (max 3 attempts / cost cap $0.10 / 401 차단 / Codex 명시 동의). **외부 사실**: (7) Codex 한도 "5h/주" → "추정, 429 검증" 시제. (8) Codex token refresh 60초 전 (실제 코드 정합). (9) Ollama endpoint `http://localhost:11434/api` 정확. (10) Local LLM 옵션 다양화 (Ollama + LM Studio + llama.cpp + vLLM). **Provider timeout**: (11) OpenAI 30s / Codex 60s / Local LLM 사용자 설정 명시. **§12.6 durationMs 실측**: (12) Codex "30초 추정" → durationMs 실측 저장 (M3 후).

@@ -108,9 +108,12 @@
 - `src/renderer/src/settings/DomainPolicyPanel.tsx` — 도메인 정책 패널 (Privacy 차단 list 사용자 추가·제외)
 - `src/renderer/src/settings/UsagePanel.tsx` — 사용량 패널
 
-### storage/ (2개)
+### storage/ (1개, PR b7.1 정정 — UsageLog 는 GENERALIZE 로 이동)
 - `src/storage/Credentials.ts` — OAuth 토큰 묶음 + API Key safeStorage
-- `src/storage/UsageLog.ts` — 사용량 로그
+
+### ai/ (GENERALIZE 이동, PR b7.1 추가)
+- `src/ai/ProviderAdapter.ts` — v0.3 `translate()` 단일 메서드 → v0.4 `chat()` / `embed()` / `chatStream()` 분리 (M2 PR). 어댑터 보존 M5 종료 시 제거 (translate deprecated)
+- `src/storage/UsageLog.ts` — v0.3 feature enum (translation/summary/tts/stt/explanation) → v0.4 (chat/embed/tag/background_translation) + workspaceId / model / durationMs 컬럼 추가 (M3 PR schema 마이그레이션)
 
 ### KEEP 테스트 (20개)
 - `tests/unit/ai/CodexLoginProvider.test.ts` / `DeviceCodeFlow.test.ts` / `JwtDecoder.test.ts` / `SseStreamParser.test.ts` / `SystemPrompt.test.ts` (5)
