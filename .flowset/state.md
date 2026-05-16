@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **방향 전환 결정** — Phase 1 (실시간 번역) 효용 한계 확인 → AI 콘텐츠 메모리 + 워크스페이스 브라우저로 전환
-- **Sprint**: **014 종료 + 15회 핫픽스 + 방향 전환 결정**. Sprint 015 진입 대기 (PRD v0.4 작성부터)
+- **Phase**: **1 진입 준비** — Sprint 015 정의 완료 (AI 콘텐츠 메모리 + 워크스페이스 베이스 인프라)
+- **Sprint**: **015 정의 완료**, M0 사전 분석 진입 대기 (T01 폐기 매트릭스부터)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: **v0.3.12** (구버전, **v0.4 신규 작성 예정** — 방향 전환)
-- **최근 갱신**: 2026-05-16 (방향 전환 결정 핸드오프 작성)
-- **다음 세션 진입점**: `.flowset/handoffs/2026-05-16.md` 필독
+- **PRD 버전**: **v0.3.12** (구버전, **v0.4.0 작성 예정** — Sprint 015 M1)
+- **최근 갱신**: 2026-05-16 (Sprint 015 정의 + CI 게이트 강화 + 오토머지 활성)
+- **다음 세션 진입점**: `.flowset/contracts/sprint-015.md` + `.flowset/specs/v04-direction.md` (방향 SSOT) 필독
 
 ## 현재 작업
 
@@ -175,6 +175,43 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 3. 자동 인덱싱 + 워크스페이스 + 검색바 + AI 채팅 패널
 
 상세: `.flowset/handoffs/2026-05-16.md`
+
+---
+
+## 🟢 Sprint 015 진입 준비 완료 (2026-05-16)
+
+### 산출물 (PR로 머지 예정)
+- **`.flowset/specs/v04-direction.md`** — v0.4 방향 SSOT (550 lines, 19 섹션, P0~P2 결정 38건)
+- **`.flowset/contracts/sprint-015.md`** — Sprint 015 contract (M0~M6, T01~T31, AC-1~AC-8, evaluator Pass 21/2/0 통과)
+- **`.flowset/known-issues.md`** — KI-NNN 등록 정책 + Severity 정의 + 누적 0건
+- **`.claude/settings.json`** — SessionStart hook schema 정상화 (`/doctor` 통과)
+
+### CI 게이트 강화 (Sprint 015 진입 시점 활성)
+- main branch protection rule 적용
+  - Required status checks: `typecheck + test + build` + `커밋 메시지 형식 검증`
+  - Strict (브랜치 최신 동기화 필수): true
+  - Enforce admins: false (핫픽스 긴급 우회 능력 보존)
+  - Required linear history: true (squash 일관성)
+  - Force push / 브랜치 삭제: 차단
+- 오토머지 활성 (`gh pr merge --auto --squash --delete-branch`)
+
+### 신규 가드레일 (Sprint 015에서 활성)
+- **G-012** v0.4 방향 SSOT — `.flowset/specs/v04-direction.md` 우선 갱신 (역방향 금지). M1 활성.
+- **G-013** 단계별 PR 전략 — 신규 모듈+어댑터 → 신규 사용처 → 기존 호출지점 제거 순서. M2 활성.
+- **G-014** 데이터 마이그레이션 dry-run + 자동 백업 — `~/.flowbrowser/backup/v03/`. M3 활성.
+
+### Sprint 015 M0~M6 (목표 2.5~3주)
+- **M0** (3~4일): T01~T04 사전 분석 (폐기 매트릭스 / 테스트 분류 / 데이터 마이그레이션 / 의존 그래프)
+- **M1** (2~3일): PRD v0.4.0 19개 섹션 작성 + 진입 문서 갱신
+- **M2** (2~3일): 폐기 + 일반화 (TranslationCache → AIResponseCache / PageResultStore → IndexedPageStore / TranslationRenderer·SummarizationPlanner 폐기 / paragraphs IPC 정리)
+- **M3** (4~5일): IndexedPageStore (SQLite + sqlite-vec + 본문 캐시) + 임베딩 + 데이터 마이그레이션
+- **M4** (3~4일): 페이지 인덱싱 hook + 재방문 정책 + AI 자동 태깅 + dwell + Privacy 차단
+- **M5** (4~5일): 검색바 (Cmd+K) + AI 채팅 패널 (ChatPanel) + 노트 + 수준 옵션
+- **M6** (2~3일): 워크스페이스 사이드바 + 메모리 통계 UI + Sprint 종합 핸드오프
+
+### 시나리오 cover 목표
+- 시나리오 1 (학술) / 4 (우연재발견): **100%** (Phase 1만으로)
+- 시나리오 2 (PM 경쟁) / 3 (학습): **90%+** (Phase 1만으로, Notion Export = Phase 3)
 
 ## 최근 핸드오프
 
