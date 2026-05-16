@@ -40,9 +40,9 @@ v0.3 → v0.4 방향 전환 배경은 [`00_change_history.md`](./00_change_histo
 ### 동작
 | # | 섹션 | 상태 | 내용 |
 |---|---|---|---|
-| 08 | [인덱싱 (Indexing)](./08_indexing.md) | 📝 (b6) | 인덱싱 흐름 + 임베딩 + 캐시 + 재방문 정책 |
-| 09 | [검색 (Search)](./09_search.md) | 📝 (b6) | 검색 흐름 + 자연어 시간 파싱 + retrieval 정책 |
-| 10 | [AI 채팅 (AI Chat)](./10_ai_chat.md) | 📝 (b6) | 채팅 retrieval + 출력 schema + 출처 인용 + 수준 옵션 |
+| 08 | [인덱싱 (Indexing)](./08_indexing.md) | ✅ | 인덱싱 흐름 + 임베딩 + 캐시 + 재방문 정책 |
+| 09 | [검색 (Search)](./09_search.md) | ✅ | 검색 흐름 + 자연어 시간 파싱 + retrieval 정책 |
+| 10 | [AI 채팅 (AI Chat)](./10_ai_chat.md) | ✅ | 채팅 retrieval + 출력 schema + 출처 인용 + 수준 옵션 |
 | 11 | [워크스페이스 (Workspace)](./11_workspace.md) | 📝 (b7) | 격리 모델 + 전환 UX |
 | 12 | [Provider 어댑터 (Provider Adapter)](./12_provider_adapter.md) | 📝 (b7) | OpenAI / Codex OAuth / 로컬 LLM + 모델 fallback |
 
