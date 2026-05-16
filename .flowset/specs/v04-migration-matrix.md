@@ -220,14 +220,15 @@
 - `src/search/TimeRangeParser.ts` (T22) — 자연어 시간 파싱 ("지난주" / "6개월 전쯤" / "어제")
 - `src/search/SearchService.ts` (T23) (main 또는 search 디렉토리 선택은 M3에서 결정)
 
-### renderer/src/ (8개)
+### renderer/src/ (9개, PR b5.1 ShortcutSettings 추가)
 - `src/renderer/src/search/SearchBar.tsx` (T21)
 - `src/renderer/src/search/SearchResultCard.tsx` (T24)
-- `src/renderer/src/search/PreviewPane.tsx` (T24)
+- `src/renderer/src/search/PreviewPane.tsx` (T24, M5 후순위)
 - `src/renderer/src/chat/ChatPanel.tsx` (T25) — TranslationPanel 대체
 - `src/renderer/src/note/NotePanel.tsx` (T26)
 - `src/renderer/src/workspace/WorkspaceSidebar.tsx` (T28)
 - `src/renderer/src/workspace/WorkspaceSettings.tsx` (T27)
+- `src/renderer/src/settings/ShortcutSettings.tsx` (T21, PR b5.1 정정) — Cmd+K override + Phase 1 단축키 정책
 - `src/renderer/src/memory/MemoryStatsPanel.tsx` (T29)
 
 ### 테스트 (예상 50+개 신규, T30)
