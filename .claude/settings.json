@@ -5,12 +5,13 @@
     "SessionStart": [
       {
         "_comment": "세션 시작 시 state.md + 최근 핸드오프를 자동 주입",
-        "matchers": [
+        "matcher": "",
+        "hooks": [
           {
-            "type": "always"
+            "type": "command",
+            "command": "echo '[FlowSet] SessionStart: state.md + 최근 핸드오프 + guardrails.md 참조 권장'"
           }
-        ],
-        "command": "echo '[FlowSet] SessionStart: state.md + 최근 핸드오프 + guardrails.md 참조 권장'"
+        ]
       }
     ]
   },
