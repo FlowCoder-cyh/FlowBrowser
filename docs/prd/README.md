@@ -32,8 +32,8 @@ v0.3 → v0.4 방향 전환 배경은 [`00_change_history.md`](./00_change_histo
 ### 시스템
 | # | 섹션 | 상태 | 내용 |
 |---|---|---|---|
-| 04 | [데이터 모델 (Data Model)](./04_data_model.md) | 📝 (b3) | Entity ERD + anchor 키 + forward-compatibility |
-| 05 | [CRUD 매트릭스 (CRUD Matrix)](./05_crud_matrix.md) | 📝 (b3) | Entity × Actor + IPC 채널 + 라이프사이클 |
+| 04 | [데이터 모델 (Data Model)](./04_data_model.md) | ✅ | Entity ERD + anchor 키 + forward-compatibility |
+| 05 | [CRUD 매트릭스 (CRUD Matrix)](./05_crud_matrix.md) | ✅ | Entity × Actor + IPC 채널 + 라이프사이클 |
 | 06 | [아키텍처 (Architecture)](./06_architecture.md) | 📝 (b4) | Main/Renderer + IPC + 컴포넌트 트리 + 의존 그래프 |
 | 07 | [UI 레이아웃 (UI Layout)](./07_ui_layout.md) | 📝 (b5) | UI 스케치 + 컴포넌트 spec |
 
