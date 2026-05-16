@@ -376,7 +376,7 @@ Workspace (id, name, icon, created_at, level_preference?)
 
 ---
 
-## 13. PRD v0.4 섹션 분할 (19개)
+## 13. PRD v0.4 섹션 분할 (00~19 = 20행: README + 19개 섹션)
 
 ```
 docs/prd/
