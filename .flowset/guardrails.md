@@ -72,8 +72,14 @@
   - type: feat / fix / docs / style / refactor / test / chore / perf / ci / revert
   - NNN: 숫자(`001`) / 영숫자(`A2a`) / 서브넘버(`001-1`)
   - 시스템 커밋: `WI-chore` / `WI-docs` (번호 없음 허용)
-- **Why**: 사용자 글로벌 wi-global.md / 일관성.
-- **How to apply**: 커밋 전 형식 검증. `.github/workflows/commit-check.yml`이 자동 검증.
+- **NNN 한 분절 강화 (학습 29 + 30)**:
+  - 학습 29: `-` 추가 분절 금지 — `WI-C3-content` ❌ → `WI-C3content` ✓
+  - **학습 30 (2026-05-16, Sprint 015)**: Sprint milestone + Task 조합 시 T 번호를 별도 분절로 붙이지 않는다. T 번호는 한글 작업명 본문에 박거나 milestone과 한 분절로 합친다.
+    - ❌ `WI-S015M0-T01-docs ...` (T01이 추가 분절)
+    - ✓ `WI-S015M0-docs T01 ...` (T 번호는 본문, **권장**)
+    - ✓ `WI-S015M0T01-docs ...` (한 분절 합성, 학습 29 예시 패턴)
+- **Why**: 사용자 글로벌 wi-global.md / 일관성. commit-check.yml 정규식 `^WI-([0-9A-Za-z]+(-[0-9]+)?-(type))` 는 milestone 자리에 영숫자 1+ 글자만 허용하고 `-T 영숫자` 추가 분절은 허용 안 함.
+- **How to apply**: 커밋 전 형식 검증. `.github/workflows/commit-check.yml`이 자동 검증. Sprint·Task 조합 시 본문에 T 번호 박는 패턴 권장 (Sprint 014 `WI-S014M1-feat ...` 일관성 유지).
 
 ### G-010 [active] UTF-8 / LF
 
@@ -106,3 +112,4 @@
 
 - 2026-05-11: G-001 ~ G-010 초기 등록 (PRD v0.2 + 사용자 글로벌 규칙 기반)
 - 2026-05-11: G-011 추가 (Phase 0 종합 보고 §8 권고 반영, Spike 1·2 회색지대 패턴 명문화)
+- 2026-05-16: G-009 강화 — 학습 30 추가 (Sprint milestone + Task 조합 시 T 번호 분절 금지, Sprint 015 T01 amend 사례 반영)

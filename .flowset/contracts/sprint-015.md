@@ -142,7 +142,7 @@ L2618 결합 컨셉 (#2 Time Machine + #1 워크스페이스)의 Phase 1을 한 
 - 각 M evaluator Pass + Pass 카운트 ≥ 8
 - lint / typecheck / test / build 모두 PASS
 - commit-check CI 모든 PR success (G-009 NNN 한 분절 9 Sprint 연속)
-- **누적 단위 테스트 ≥ 420** (Sprint 014 358 + 폐기 N개 - 신규 70+개)
+- **누적 단위 테스트 ≥ 420** (목표 431~471). 산식: 358 (Sprint 014) − 49 (DEPRECATE 차감) + 26 (GENERALIZE 확장) + 16 (PARTIAL 확장) + 98~138 (NEW) ≈ 431~471. 정정 출처: `.flowset/specs/v04-test-classification.md` §H
 - 시나리오 회귀 셋 (1·4 100%, 2·3 90%+) 통과
 - PRD v0.4.0 정식 발행
 - Known Issue 등록 정책 활성 (`.flowset/known-issues.md` 신규 + KI-NNN 형식)
@@ -171,7 +171,7 @@ L2618 결합 컨셉 (#2 Time Machine + #1 워크스페이스)의 Phase 1을 한 
 - **G-005** OS Keychain 위임 — OpenAI API Key / Codex OAuth 토큰 safeStorage 유지
 - **G-006** 추측 금지 — v04-direction.md SSOT 인용, PRD에 "TBD" 금지
 - **G-007** main 직접 push 금지 — 모든 작업 브랜치 + PR
-- **G-009** 커밋명 — `WI-S015M0-...` / `WI-S015M1-...` / ... / `WI-S015M6-...` (NNN 한 분절, G-009 9 Sprint 연속)
+- **G-009** 커밋명 — `WI-S015M0-...` / `WI-S015M1-...` / ... / `WI-S015M6-...` (NNN 한 분절, G-009 9 Sprint 연속). **T 번호는 한글 작업명 본문에 박음** (예: `WI-S015M0-docs T01 폐기 매트릭스 작성`), `-T01-` 추가 분절 금지 (학습 30, 2026-05-16 Sprint 015 T01 amend 사례)
 - **G-010** UTF-8 / LF
 - **G-011** 공개 endpoint 회색지대 — Codex OAuth 유지 (가벼운 채팅 호출에 적합)
 
