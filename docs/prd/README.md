@@ -1,49 +1,85 @@
-# FlowBrowser AI PRD v0.3.12 — 목차
+# FlowBrowser AI — PRD v0.4
 
-본 문서는 FlowBrowser AI 제품 요구사항 명세(PRD)의 **v0.3.12** 버전이며, 13개 섹션 파일로 분할되어 있다.
-v0.2 통합본은 [archive/flowbrowser_ai_prd_crud_v0.2.md](../../archive/flowbrowser_ai_prd_crud_v0.2.md)에 보관되며, v0.3.x 통합본은 작성하지 않고 분할 SSOT로 운영한다.
+> **본 페이지를 자동 기억하면서, 프로젝트별로 환경이 격리되는 AI 리서치 브라우저**
 
-## 섹션 구성
+PRD v0.4 정식 발행 — Sprint 015 M1 완료 시점.
 
-| # | 섹션 | 파일 | 핵심 내용 |
-|---|---|---|---|
-| 0 | 변경 이력 | [00_change_history.md](./00_change_history.md) | 문서 목적 + v0.2 변경 사항 |
-| 1 | 제품 | [01_product.md](./01_product.md) | 제품 개요 / 문제 정의 / 목표 / 가설 |
-| 2 | 사용자 | [02_users.md](./02_users.md) | 타깃 / 페르소나 / 경쟁 분석 / 포지셔닝 |
-| 3 | MVP & 시나리오 | [03_mvp_and_scenarios.md](./03_mvp_and_scenarios.md) | MVP 범위 / 사용자 시나리오 / 온보딩 |
-| 4 | 요구사항 | [04_requirements.md](./04_requirements.md) | 기능 요구사항 / Privacy Filter / 비기능 |
-| 5 | 아키텍처 | [05_architecture.md](./05_architecture.md) | 권장 아키텍처 / Provider Adapter |
-| 6 | 데이터 모델 | [06_data_model.md](./06_data_model.md) | 데이터 모델 / CRUD 매트릭스 |
-| 7 | 싱크 더빙 정책 | [07_sync_policy.md](./07_sync_policy.md) | 싱크 제어 / TTS 번역 정책 |
-| 8 | 인증 / 과금 | [08_auth_billing.md](./08_auth_billing.md) | Provider 전략 / 금지 / BM |
-| 9 | 로드맵 / Phase 0 | [09_roadmap_phase0.md](./09_roadmap_phase0.md) | Phase 0 Spike 5종 / Phase 1~5 |
-| 10 | 지표 / 리스크 | [10_metrics_and_risks.md](./10_metrics_and_risks.md) | 성공 지표 / 리스크 대응 |
-| 11 | 개발 / 운영 | [11_dev_tasks_and_ops.md](./11_dev_tasks_and_ops.md) | 개발 태스크 / 운영 인프라 |
-| 12 | 요약 | [12_summary.md](./12_summary.md) | 최종 요약 |
+이전 버전 (v0.1 / v0.2 / v0.3) 은 [archive/](../../archive/) 디렉토리에 보존:
+- `archive/flowbrowser_ai_prd_crud_v0.1.md` (v0.1 통합본)
+- `archive/flowbrowser_ai_prd_crud_v0.2.md` (v0.2 통합본)
+- `archive/prd-v0.3/` (v0.3 13 섹션 — Phase 0 Spike + Phase 1 실시간 번역 시기)
 
-## 현재 상태
+v0.3 → v0.4 방향 전환 배경은 [`00_change_history.md`](./00_change_history.md) 참조.
 
-**Phase 1 MVP 본체 완료 — Sprint 001~014 종료 / 사용자 테스트 진입 단계**
+---
 
-Phase 0 5종 Spike + Phase 1 Sprint 001~014 완료. v0.3.12에서는 Sprint 014 (Codex OAuth Login Provider 활성화 + OnboardingTour + 사용자 가이드) 실측 반영. **Phase 1 §16 11개 항목 모두 완료**. Phase 1.5 트랙 (PoC 4종 실측 + 사용자 QA) 후 Phase 2 진입.
-Spike 5 (사용자 인터뷰) 실제 진행은 사용자 직접 작업으로 코드 작업과 병렬 진행 가능.
+## 19개 섹션 목차
 
-## 버전 이력
-
-| 버전 | 일자 | 비고 |
+### 진입
+| # | 섹션 | 내용 |
 |---|---|---|
-| v0.1 | 초안 | [archive/flowbrowser_ai_prd_crud_v0.1.md](../../archive/flowbrowser_ai_prd_crud_v0.1.md) |
-| v0.2 | 2026-05-11 | GPT/Claude 교차 검토 반영 |
-| v0.3 | 2026-05-11 | Phase 0 1차 조사 (5개 Spike) 반영 |
-| v0.3.1 | 2026-05-15 | Sprint 002·003 실측 반영 (페이지 전체 번역 / 도메인 정책 UI / BlockReason enum / LRU trim) |
-| v0.3.2 | 2026-05-15 | Sprint 004 실측 반영 (IPC 채널 분리 / 쉬운 설명 / 페이지 요약 / SummarizationPlanner) |
-| v0.3.3 | 2026-05-15 | Sprint 005 실측 반영 (캐시 키 확장 / 용어집 + invalidation / 요약 폭주 보호) |
-| v0.3.4 | 2026-05-15 | Sprint 006 실측 반영 (Navigation 동기화 / 표시 모드 3종 / 페이지 캐시) |
-| v0.3.5 | 2026-05-15 | Sprint 007 실측 반영 (UserSetting 잔여 4 필드 / 요약 메타 수치 / PageCachePanel / tsconfig·빌드 보강) |
-| v0.3.6 | 2026-05-15 | Sprint 008 실측 반영 (다중 탭 / TabManager + TabBar + 활성 탭 라우팅) |
-| v0.3.7 | 2026-05-15 | Sprint 009 실측 반영 (Glossary flaky 핫픽스 + sourceTabId 가드 + 탭 영속) |
-| v0.3.8 | 2026-05-15 | Sprint 010 실측 반영 (탭 드래그/순서 + 탭 컨텍스트 메뉴 + cancel-on-switch UX + isCurrentTab 순수 함수 추출) |
-| v0.3.9 | 2026-05-15 | Sprint 011 실측 반영 (summary abort API + 탭 컬러 라벨 + 탭 핀) |
-| v0.3.10 | 2026-05-15 | Sprint 012 실측 반영 (탭 미리보기 hover thumbnail + 키보드 단축키) |
-| v0.3.11 | 2026-05-15 | Sprint 013 실측 반영 (닫은 탭 복원 + ThumbnailStore 디스크 영속 + 미리보기 viewport 보정) |
-| **v0.3.12** | **2026-05-15** | **Sprint 014 + Phase 1 MVP 본체 완료 (Codex OAuth Login + OnboardingTour + USAGE.md), 현재** |
+| 00 | [Change History](./00_change_history.md) | v0.3 → v0.4 방향 전환 기록 |
+| 01 | [Overview](./01_overview.md) | 한 줄 정의 + 정체성 + 결격사유 0 원칙 |
+
+### 사용자
+| # | 섹션 | 내용 |
+|---|---|---|
+| 02 | [Personas & Scenarios](./02_personas_scenarios.md) | 4개 페르소나 (학술/PM/학습/우연재발견) + 시나리오 |
+| 03 | [Value Propositions](./03_value_propositions.md) | Chrome 확장 대비 차별 + 자체 브라우저 정당화 |
+
+### 시스템
+| # | 섹션 | 내용 |
+|---|---|---|
+| 04 | [Data Model](./04_data_model.md) | Entity ERD + anchor 키 + forward-compatibility |
+| 05 | [CRUD Matrix](./05_crud_matrix.md) | Entity × Actor + IPC 채널 + 라이프사이클 |
+| 06 | [Architecture](./06_architecture.md) | Main/Renderer + IPC + 컴포넌트 트리 + 의존 그래프 |
+| 07 | [UI Layout](./07_ui_layout.md) | UI 스케치 + 컴포넌트 spec |
+
+### 동작
+| # | 섹션 | 내용 |
+|---|---|---|
+| 08 | [Indexing](./08_indexing.md) | 인덱싱 흐름 + 임베딩 + 캐시 + 재방문 정책 |
+| 09 | [Search](./09_search.md) | 검색 흐름 + 자연어 시간 파싱 + retrieval 정책 |
+| 10 | [AI Chat](./10_ai_chat.md) | 채팅 retrieval + 출력 schema + 출처 인용 + 수준 옵션 |
+| 11 | [Workspace](./11_workspace.md) | 격리 모델 + 전환 UX |
+| 12 | [Provider Adapter](./12_provider_adapter.md) | OpenAI / Codex OAuth / 로컬 LLM + 모델 fallback |
+
+### 안전·통합
+| # | 섹션 | 내용 |
+|---|---|---|
+| 13 | [Security & Privacy](./13_security_privacy.md) | Privacy Filter + OS Keychain + UA 정체성 |
+| 14 | [Translation (Background)](./14_translation_background.md) | 백그라운드 번역 (P2) + 작업 큐 + 알림 |
+
+### 운영
+| # | 섹션 | 내용 |
+|---|---|---|
+| 15 | [Costs & Storage](./15_costs_storage.md) | 비용 / 저장 / 임계 |
+| 16 | [Roadmap](./16_roadmap.md) | Phase 1/2/3 + Sprint 매핑 + 시나리오 cover 매트릭스 |
+| 17 | [Known Issues Policy](./17_known_issues_policy.md) | KI-NNN 정책 + Severity 정의 |
+| 18 | [Evaluation](./18_evaluation.md) | 검증 layering + 정량 임계 셋 |
+| 19 | [Migration v0.3 → v0.4](./19_migration_v03_v04.md) | 모듈 매핑 + 데이터 마이그레이션 + 회귀 셋 |
+
+---
+
+## SSOT 참조
+
+- 방향 SSOT: [`.flowset/specs/v04-direction.md`](../../.flowset/specs/v04-direction.md)
+- 핸드오프: [`.flowset/handoffs/2026-05-16.md`](../../.flowset/handoffs/2026-05-16.md)
+- Sprint 015 contract: [`.flowset/contracts/sprint-015.md`](../../.flowset/contracts/sprint-015.md)
+- 가드레일: [`.flowset/guardrails.md`](../../.flowset/guardrails.md)
+- M0 사전 분석 (A1~A4):
+  - [`.flowset/specs/v04-migration-matrix.md`](../../.flowset/specs/v04-migration-matrix.md)
+  - [`.flowset/specs/v04-test-classification.md`](../../.flowset/specs/v04-test-classification.md)
+  - [`.flowset/specs/v04-data-migration.md`](../../.flowset/specs/v04-data-migration.md)
+  - [`.flowset/specs/v04-dependency-graph.md`](../../.flowset/specs/v04-dependency-graph.md)
+
+## 작성 원칙
+
+- **추측 금지** (G-006): v04-direction.md SSOT를 인용. "TBD" 금지.
+- **한국어 우선** (G-008): 코드 식별자·표준 영어 표현은 그대로.
+- **단일 책임**: 각 섹션은 한 도메인. 중복은 cross-reference만.
+- **Phase 매핑**: 컴포넌트는 본 섹션에 기술, Phase는 §16에 종합.
+
+## 변경 이력 (메타)
+
+- 2026-05-16: PRD v0.4.0 19 섹션 분할 신규 발행. v0.3 13 섹션은 archive 이동.
