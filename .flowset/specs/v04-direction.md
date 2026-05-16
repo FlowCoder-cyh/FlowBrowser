@@ -440,7 +440,7 @@ docs/prd/
 | S1 | **단계별 PR 전략** — 한 번에 다 갈아엎지 X. M2 일반화 시 v0.3 호환 유지 → M3 신규 사용 → M5에서 v0.3 호출지점 제거 | M2~M5 |
 | S2 | **회귀 테스트 셋** — Phase 1 시나리오 4개에 대한 자동화 셋 | M2 시작 시 셋 정의, M3~M6 매 PR에서 통과 강제 |
 | S3 | **feature flag** (`flowbrowser.v04.enabled`) — 신규 모듈 도입 시 기존 동작 유지 가능 | M2~M5 |
-| S4 | **데이터 마이그레이션 dry-run + 백업** — 사용자 기존 SQLite 자동 백업 후 마이그레이션 | M3 (IndexedPageStore 도입 시) |
+| S4 | **데이터 마이그레이션 dry-run + 백업** — 사용자 기존 SQLite 자동 백업 후 마이그레이션. 백업 위치: `<userDataDir>/backup/v03/<ISO_timestamp>/` (Electron `app.getPath('userData')` 기준, OS 호환). 마이그레이션 로그: `<userDataDir>/migration-v04.log` | M3 (IndexedPageStore 도입 시) |
 
 ---
 
@@ -524,7 +524,7 @@ docs/prd/
 
 ### 데이터 마이그레이션 (A3 입력)
 - [x] **Glossary → Note 자동 이전**: "📥 기본" 워크스페이스 / `ai_tags = ["glossary"]` / 검색 retrieval 대상 자동 포함
-- [x] **settings 호환**: 폐기 항목 자동 제거 + `.flowset/logs/v04-migration.log` 기록 / 폐기 키 = displayMode / summaryPolicy / fontSize / paragraphIPC 등
+- [x] **settings 호환**: 폐기 항목 자동 제거 + `<userDataDir>/migration-v04.log` 기록 / **폐기 키 = `translationMode` / `cancelOnTabSwitch`** (M0 A3 코드 실측 — `displayMode` / `summaryPolicy` / `fontSize` / `paragraphIPC` 은 실제 schema에 없음, 본 §17 정정 2026-05-16)
 
 ### Schema (PRD §04/§10 입력)
 - [x] **Tag schema**: `Tag.kind ∈ {topic, entity, metric, sentiment, domain, freeform}` — 정형 + free-form 결합 / 시나리오 1·2 모두 cover

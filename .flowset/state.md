@@ -198,7 +198,7 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 ### 신규 가드레일 (Sprint 015에서 활성)
 - **G-012** v0.4 방향 SSOT — `.flowset/specs/v04-direction.md` 우선 갱신 (역방향 금지). M1 활성.
 - **G-013** 단계별 PR 전략 — 신규 모듈+어댑터 → 신규 사용처 → 기존 호출지점 제거 순서. M2 활성.
-- **G-014** 데이터 마이그레이션 dry-run + 자동 백업 — `~/.flowbrowser/backup/v03/`. M3 활성.
+- **G-014** 데이터 마이그레이션 dry-run + 자동 백업 — `<userDataDir>/backup/v03/<ISO_ts>/`. M3 활성. (M0 A3 정정)
 
 ### Sprint 015 M0~M6 (목표 2.5~3주)
 - **M0** (3~4일): T01~T04 사전 분석 (폐기 매트릭스 / 테스트 분류 / 데이터 마이그레이션 / 의존 그래프)
