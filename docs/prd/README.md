@@ -2,7 +2,7 @@
 
 > **본 페이지를 자동 기억하면서, 프로젝트별로 환경이 격리되는 AI 리서치 브라우저**
 
-PRD v0.4.0 **작성 시작** — Sprint 015 M1 진행 중 (PR b1 발행, 후속 PR b2~b10에서 §02~§19 점진 작성). 정식 발행은 Sprint 015 M6 종료 시점.
+PRD v0.4.0 **19 섹션 본문 완성** — Sprint 015 M1 종료 시점 (PR b10 머지 후). 후속 핫픽스 가능. **정식 발행 (v0.4.0 release tag)** 은 Sprint 015 M6 종료 시점.
 
 이전 버전 (v0.1 / v0.2 / v0.3) 은 [archive/](../../archive/) 디렉토리에 보존:
 - `archive/flowbrowser_ai_prd_crud_v0.1.md` (v0.1 통합본)
@@ -57,9 +57,9 @@ v0.3 → v0.4 방향 전환 배경은 [`00_change_history.md`](./00_change_histo
 |---|---|---|---|
 | 15 | [비용·저장 (Costs & Storage)](./15_costs_storage.md) | ✅ | 비용 / 저장 / 임계 |
 | 16 | [로드맵 (Roadmap)](./16_roadmap.md) | ✅ | Phase 1/2/3 + Sprint 매핑 + 시나리오 cover 매트릭스 |
-| 17 | [Known Issue 정책 (Known Issues Policy)](./17_known_issues_policy.md) | 📝 (b10) | KI-NNN 정책 + Severity 정의 |
-| 18 | [평가 (Evaluation)](./18_evaluation.md) | 📝 (b10) | 검증 layering + 정량 임계 셋 |
-| 19 | [v0.3 → v0.4 마이그레이션 (Migration)](./19_migration_v03_v04.md) | 📝 (b10) | 모듈 매핑 + 데이터 마이그레이션 + 회귀 셋 |
+| 17 | [Known Issue 정책 (Known Issues Policy)](./17_known_issues_policy.md) | ✅ | KI-NNN 정책 + Severity 정의 |
+| 18 | [평가 (Evaluation)](./18_evaluation.md) | ✅ | 검증 layering + 정량 임계 셋 |
+| 19 | [v0.3 → v0.4 마이그레이션 (Migration)](./19_migration_v03_v04.md) | ✅ | 모듈 매핑 + 데이터 마이그레이션 + 회귀 셋 |
 
 ---
 
