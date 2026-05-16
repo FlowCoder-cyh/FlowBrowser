@@ -234,7 +234,7 @@ Workspace (id, name, icon, created_at, level_preference?)
 
 | Phase | 모델 | 비용 / 특성 |
 |---|---|---|
-| **Phase 1** | OpenAI `text-embedding-3-small` | $0.0001/페이지 (~$1~3/월), 인터넷 필수, **1024 차원** (OpenAI 기본 1536에서 `dimensions=1024` 축소, 저장·성능 최적화) |
+| **Phase 1** | OpenAI `text-embedding-3-small` | **$0.02/M tokens = $0.00002/1k tokens** (2026-05-16 OpenAI 공식 가격) / **~$0.2~0.6/월** (1만 페이지, 1k tokens/페이지 평균) / 인터넷 필수 / **1024 차원** (OpenAI 기본 1536에서 `dimensions=1024` 축소, 저장·성능 최적화) — PR b6.1 가격 5배 오류 정정 |
 | **Phase 3** | 로컬 옵션 추가 (sqlite-vec + sentence-transformers `all-MiniLM-L6-v2` 등) | 오프라인, 모델 다운로드 부담 |
 
 - Phase 1 → 3 전환 시 임베딩 모델 변경 → 기존 임베딩은 무효화 (재생성 필요) → A3 데이터 마이그레이션에서 처리
@@ -535,7 +535,7 @@ docs/prd/
 - [x] **인덱싱 큐 우선순위**: 활성 탭 우선, 동일 priority 내 FIFO / 사용자가 보는 페이지 즉시 검색 반영
 - [x] **Privacy Filter 인덱싱 차단**: 디폴트 list + 컨텐츠 감지 (비밀번호 필드) 결합 / 디폴트 패턴 = `*.bank.com / mail.google.com / gmail.com / *.paypal.com / *.naver.com/mail/* / *.icloud.com / accounts.google.com / login.*` 등 / 사용자 추가·제외 가능
 - [x] **Cmd+K 단축키**: 사용자 설정 가능 (디폴트 Cmd/Ctrl+K) / WebContentsView 안의 Cmd/Ctrl+K를 메인 프로세스에서 먼저 캡처 / 사이트 충돌 시 Cmd+Shift+K 등으로 변경 가능
-- [x] **검색 정렬 공식 (Phase 1)**: `score = 0.85 × cosine_sim + 0.15 × time_factor` / `time_factor = exp(-days_ago / 180)` (180일 반감기) / 시나리오 4 "6개월 전" cover 위해 시간 가중치 약하게 / dwell 가중치는 Phase 2+ 옵션
+- [x] **검색 정렬 공식 (Phase 1)**: `score = 0.85 × cosine_sim + 0.15 × time_factor` / `time_factor = exp(-days_ago / 180)` (**180일 e-folding time**, 1/e ≈ 0.37 시점. 진짜 반감기 ≈ 125일, "180일 반감기" 표현은 e-folding 의미로 사용) / 시나리오 4 "6개월 전" cover 위해 시간 가중치 약하게 / dwell 가중치는 Phase 2+ 옵션
 - [x] **검색 미리보기**: 제목 + URL + 의미 매칭 발췌 (±100자 highlight) + 시간 시그널 ("5일 전, 12분 머묾" / "8개월 전, 짧게 본 거")
 - [x] **워크스페이스 아이콘**: preset 12종 (📚 💻 🎯 🏠 🔬 ✍️ 🎨 📊 🌍 ⚖️ 💡 🛒) + 사용자 이모지 자유 입력 / 이미지 업로드는 Phase 2+
 

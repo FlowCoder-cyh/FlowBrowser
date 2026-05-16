@@ -103,9 +103,9 @@ time_factor = exp(-days_ago / 180)
 
 | 변수 | 정의 | 비고 |
 |---|---|---|
-| `cosine_sim` | 1 - (sqlite-vec distance) — 0~1 정규화 | distance = L2 또는 cosine, M3 PoC 결정 |
+| `cosine_sim` | **vec_pages에 `distance_metric=cosine` 명시 시** cosine distance → `cosine_sim = 1 - distance`. **L2 metric 사용 시** L2 → cosine 변환 불가하므로 score scale 깨짐 — vec_pages/vec_notes 정의 시 cosine 명시 강제 (PR b6.1 정정). M3 PoC 시 정확 metric 박힘 |
 | `days_ago` | (now - visited_at) / 86400 (초→일) | Visit 의 최근값 (다중 visit 시 max) |
-| `time_factor` | exp(-days_ago / 180) | 180일 반감기 — 6개월 전 = 0.37, 1년 전 = 0.13 |
+| `time_factor` | exp(-days_ago / 180) | **180일 e-folding time** (1/e ≈ 0.37). 정확한 반감기는 ln(2) × 180 ≈ 125일. 표기 정정: "180일 e-folding time, 6개월 ≈ 0.37, 1년 ≈ 0.13, 2년 ≈ 0.018". 진짜 반감기 정책으로 변경 시 `time_factor = 2^(-days_ago/180)` (180일 반감기) |
 | `α = 0.85` | 의미 가중치 | v04-direction §17 P2-5 |
 | `β = 0.15` | 시간 가중치 | 약하게 — 시나리오 4 (6개월 전) cover 위해 |
 
@@ -183,12 +183,19 @@ v04-direction §12.3 검색 관련:
 
 | 지표 | 임계 | 측정 방법 (M5 종료) |
 |---|---|---|
-| 검색 응답 | < 200ms (top-5 retrieval, 본문 캐시 fetch 제외) | 1000 페이지 인덱스 + retrieval × 100회 평균 |
-| top-5 hit rate | ≥ 80% | 회귀 셋 + 50 페어 자체 테스트 셋 |
+| 검색 응답 | < 200ms (**top-10 표시까지**, 본문 캐시 fetch 제외) | 1000 페이지 인덱스 + retrieval × 100회 평균. 내부 top-k = 20, 정렬 후 10 표시 (PR b6.1 정정 — top-5 표기 불일치 해소) |
+| top-10 hit rate | ≥ 80% | 회귀 셋 + 50 페어 자체 테스트 셋. 측정: 정답 페이지가 표시 top-10 안에 포함 |
 
 [§18 평가 §F4](./18_evaluation.md) 측정 protocol + KI 등록 시점.
 
-## 9.8 캐싱 정책
+## 9.8 Pagination (PR b6.1 신규)
+
+Phase 1 디폴트: 초기 표시 10개 + "더 보기" 버튼 (다음 10개 표시, 최대 50개). 50개 초과 시 사용자가 query 정제 또는 시간 필터 추가 권장.
+
+- 내부 retrieval: top-k = 20 (1차) → 사용자 "더 보기" 클릭 시 추가 top-k = 30 fetch (총 50)
+- 50개 초과 = "결과가 너무 많습니다. query 를 더 구체적으로 입력하거나 시간 범위 (예: '지난 한 달') 를 추가하세요." UX 메시지
+
+## 9.9 캐싱 정책
 
 | 캐시 | TTL | 키 |
 |---|---|---|
@@ -198,7 +205,7 @@ v04-direction §12.3 검색 관련:
 
 자주 재검색 시 비용 절감 (v04-direction §17 R2 임베딩 비용 임계 대응).
 
-## 9.9 SSOT 인용
+## 9.10 SSOT 인용
 
 - `.flowset/specs/v04-direction.md` §6 (검색 흐름) + §17 P1-10 (Cmd+K) + P2-5 (정렬 공식) + P2-6 (검색 미리보기)
 - `.flowset/specs/v04-test-classification.md` §E1 S4 (자연어 시간 + 정렬 회귀 셋)
@@ -209,6 +216,7 @@ v04-direction §12.3 검색 관련:
 
 본 §09 와 SSOT 충돌 시 SSOT 우선 (G-012).
 
-## 9.10 변경 이력
+## 9.11 변경 이력
 
 - 2026-05-16 (PR b6): stub → 본문 작성. 검색 파이프라인 7 step + TimeRangeParser 5종 표현 + sqlite-vec top-k SQL + 정렬 공식 (0.85 × cosine + 0.15 × exp(-days/180)) + Phase 2+ dwell 가중치 옵션 + SearchResultCard 필드 7종 + 시간 시그널 표시 규칙 + 결과 클릭 동작 (본문 캐시 + 노트 + AI 대화 복원) + 성능 임계 (검색 < 200ms, top-5 hit rate ≥ 80%) + 캐싱 정책 3종.
+- 2026-05-16 (PR b6.1): codex·evaluator 핫픽스. (1) **수학 오류 정정** — "180일 반감기" → "180일 e-folding time" (정확한 반감기는 ln(2)×180 ≈ 125일). (2) cosine_sim 처리 — vec_pages 에 `distance_metric=cosine` 명시 강제 (L2 metric 사용 시 변환 불가). (3) Pagination 신규 §9.8 (초기 10 + 더 보기, 최대 50). (4) top-5 → top-10 hit rate 임계 정렬 일관성. (5) 검색 응답 임계 "top-5" → "top-10 표시까지".

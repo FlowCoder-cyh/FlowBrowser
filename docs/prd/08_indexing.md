@@ -49,19 +49,23 @@
 
 v0.3 `src/perception/ParagraphExtractor.ts` 그대로 재활용 (A1 §C KEEP). M3-13 핫픽스 (style/script 자식 + CSS-like 필터) 보존.
 
-### 8.2.1 추출 대상
+### 8.2.1 현재 ParagraphExtractor 기능 (v0.3 KEEP)
 
-- 페이지 `<title>` → Page.title
-- `<html lang="...">` → Page.lang (없으면 자동 감지 라이브러리, M3 PoC 결정)
-- 본문 텍스트: `<article>`, `<main>`, `<section>`, `<div>` 등 의미 요소 우선 / fallback `<p>` 모두
-- 메타 author / publish date 등은 OpenGraph / JSON-LD 우선 (M3 PoC 시 정확 spec)
+실제 코드 `src/perception/ParagraphExtractor.ts` 기능 (PR b6.1 검증 정정):
 
-### 8.2.2 제외 대상
+- **본문 문단 추출**: `<p>`, `<h1>~<h6>`, `<li>`, `<dd>` 등 문단성 요소
+- **자식 필터** (M3-13 보존): `<style>` / `<script>` / `<noscript>` / `<template>` 자식 제외
+- **CSS-like 패턴 필터** (M3-13 보존): `color: red; font-size: ...` 같은 스타일 조각 제외
 
-- `<script>` / `<style>` (M3-13 필터)
-- CSS-like 패턴 (`color: red; font-size: ...` 같은 스타일 조각)
-- `<nav>` / `<footer>` / `<aside>` 의 boilerplate
-- 광고 영역 (휴리스틱: `class*="ad"` 등 — M3 PoC 시 정확 spec)
+### 8.2.2 Phase 1 확장 spec (M3~M4 도입, PR b6 과장 표현 정정)
+
+PR b6 에서 "article/main/section 우선 + title/lang/meta/OpenGraph 추출" 라고 표기했으나 현재 코드 기능 아님. Phase 1 도입 정책:
+
+- 페이지 `<title>` → Page.title 추출 (`document.title`, JS 1줄)
+- `<html lang="...">` → Page.lang (없으면 빈 값, Phase 2+ 자동 감지)
+- **본문 영역 우선순위**: `<article>` / `<main>` / `<section>` 우선 추출 정책은 M3 PoC 결정 — 현재 코드는 모든 `<p>` 추출 + boilerplate 영역 (nav/footer/aside) 무차별 포함. Phase 1 M3 PoC에서 의미 영역 우선 추출 도입 검토
+- **메타 (author / publish date)**: Phase 1 미지원. Phase 2+ OpenGraph / JSON-LD 파싱 옵션
+- **광고·boilerplate 제외**: Phase 1 미지원 (모든 `<p>` 추출). Phase 2+ 휴리스틱 옵션
 
 ### 8.2.3 콘텐츠 청크
 
@@ -78,7 +82,7 @@ v0.3 `src/perception/ParagraphExtractor.ts` 그대로 재활용 (A1 §C KEEP). M
 |---|---|---|
 | 모델 | OpenAI `text-embedding-3-small` | v04-direction §7 SSOT |
 | 차원 | **1024** | OpenAI 기본 1536 → `dimensions=1024` 축소 (저장·성능 최적화) |
-| 비용 | ~$0.0001 / 1k tokens 추정 (OpenAI 공식 가격, 2026-05-16 기준) | ~$1~3/월 (1만 페이지) |
+| 비용 | **$0.00002 / 1k tokens** = $0.02 / 1M tokens (2026-05-16 기준 OpenAI 공식 가격) | ~$0.2~0.6/월 (1만 페이지, 평균 1k tokens/페이지) — PR b6 의 "$1~3/월" 5배 추정 오류 정정 |
 | 호출 방식 | **fetch 기반 REST** (현재 OpenAIApiKeyProvider 패턴 재활용, OpenAI Node SDK 미사용) | M3 SDK 도입 결정 시 PoC |
 
 ### 8.3.2 BYOK 디폴트 정책 (G-003 강화)
@@ -99,7 +103,7 @@ EmbeddingClient.embed(text)
 | 우선순위 | 활성 탭 page = 10 / 백그라운드 탭 = 1 / 동일 priority 내 FIFO |
 | 동시 호출 | 최대 5 (OpenAI rate limit 보수, M3 PoC에서 조정) |
 | Rate limit 대응 | 지수 백오프 (5초 / 30초 / 5분 / 30분 / 포기) + KI-NNN 등록 |
-| 실패 처리 | 재시도 4회 → 5회째 실패 시 `embedding_status='failed'` 마킹 + KI-NNN |
+| 실패 처리 | 재시도 4회 → 5회째 실패 시 **EmbeddingQueue 테이블 (M4+ SQLite 영속 큐) `status='failed'` 마킹** + KI-NNN. Page 컬럼 spec 변경 X (b6.1 §04 schema 침범 회피) |
 | Abort 트리거 | 탭 닫기 / 워크스페이스 전환 → 해당 page_id 큐 제거 |
 | 큐 영속 | M3 in-memory / M4+ SQLite EmbeddingQueue 테이블 (재시작 시 복원) |
 
@@ -152,18 +156,22 @@ Phase 1 시점: 탭 활성 + focus 만으로 충분 (b4.1 학습 — 외부 호�
 
 [§13 보안·프라이버시](./13_security_privacy.md) 본문 + A1 §E `src/privacy/IndexingGate.ts` 신규.
 
-### 8.6.1 디폴트 차단 list (v04-direction §17 P1-9)
+### 8.6.1 디폴트 차단 list (v04-direction §17 P1-9, PR b6.1 강화)
 
-| 패턴 | 사유 |
-|---|---|
-| `*.bank.com` | 은행 |
-| `mail.google.com` | Gmail |
-| `gmail.com` | Gmail |
-| `*.paypal.com` | 결제 |
-| `*.naver.com/mail/*` | 네이버 메일 |
-| `*.icloud.com` | iCloud |
-| `accounts.google.com` | Google 로그인 |
-| `login.*` | 로그인 페이지 일반 패턴 |
+본 list 는 v0.3 `src/privacy/DomainFilter.ts` (KEEP, A1 §C) 패턴 기준 + PR b6.1 보강. 실제 코드의 매칭 범위 (mail.*/accounts?/payment/pay/checkout/signin/oauth/id/*.bank/gmail/paypal) 반영.
+
+| 패턴 | 매칭 방식 | 사유 |
+|---|---|---|
+| `*.bank.com` / `*.bank.*` | domain | 은행 |
+| `mail.*` | domain prefix | 메일 서비스 일반 |
+| `gmail.com` | domain | Gmail |
+| `*.paypal.com` | domain | 결제 |
+| `*.icloud.com` | domain | iCloud |
+| `accounts.*` / `accounts?.*` | domain prefix | 계정 페이지 일반 |
+| `signin.*` / `login.*` | domain prefix | 로그인 페이지 |
+| `oauth.*` / `id.*` | domain prefix | OAuth / SSO / Passkey |
+| `payment.*` / `pay.*` / `checkout.*` | domain prefix | 결제 흐름 |
+| `*.naver.com/mail/*` | **path glob** (M3 PoC PathMatcher 도입) | 네이버 메일 — 현재 DomainFilter 는 domain 매칭만, M3 path 매칭 확장 |
 
 사용자 settings 추가/제외 가능 (`UserSetting.privacyExclusions[]`).
 
@@ -188,7 +196,7 @@ Phase 1 시점: 탭 활성 + focus 만으로 충분 (b4.1 학습 — 외부 호�
 | 영역 | 정책 |
 |---|---|
 | **canvas / SPA dynamic** | content 빈값 → Page·Visit INSERT (시간 시그널은 보존) + 임베딩 skip |
-| **PDF** | Phase 1 미지원 (Chromium PDF viewer 컨테이너 인식 X). Phase 2+ pdf-extract 라이브러리 도입 검토 |
+| **PDF** | Phase 1 **URL/제목/방문 시그널만 저장**, 본문 검색·RAG 제외 (Chromium PDF viewer 컨테이너 인식 X). **시나리오 1 (학술 P1) 영향**: 논문 PDF use case 는 Phase 1 부분 cover (제목/시간/방문 기록만) — Phase 2+ pdf-extract 라이브러리 도입으로 본문 인덱싱 + RAG 완성. 학술 시나리오 회귀 셋에 PDF 케이스 포함 시 별도 임계 |
 | **로그인 페이지 / 인증 화면** | Privacy IndexingGate 차단 |
 | **이미지 only 페이지 (캡션 부재)** | content 빈값. OCR 은 Phase 2+ 옵션 |
 | **iframe 안 콘텐츠** | M3 PoC 결정 (top frame 만 vs 동일 origin iframe 포함) |
@@ -234,8 +242,8 @@ JSON 파싱 실패 시 → freeform fallback (전체 응답 텍스트를 `kind=f
 
 | 항목 | 추정 (v04-direction §8) |
 |---|---|
-| 임베딩 호출 | ~$0.0001 / 페이지 (8k tokens 기준) |
-| 1만 페이지 / 월 | ~$1~3 |
+| 임베딩 호출 | **~$0.00002 / 페이지** (1k tokens 기준, OpenAI 공식 2026-05-16) |
+| 1만 페이지 / 월 | **~$0.2~0.6** (PR b6.1 정정 — 가격 5배 오류 해소) |
 | 페이지 텍스트 저장 | ~10KB / 페이지 |
 | 임베딩 저장 (1024 차원) | ~4KB / 페이지 |
 | 1만 페이지 합산 | ~150MB |
@@ -267,3 +275,4 @@ v04-direction §12.3 정량 임계 6종 중 인덱싱 관련:
 ## 8.12 변경 이력
 
 - 2026-05-16 (PR b6): stub → 본문 작성. 인덱싱 파이프라인 12 step + ParagraphExtractor 재활용 (M3-13 보존) + EmbeddingClient (1024 차원, BYOK) + EmbeddingQueue (활성 탭 우선, 백오프 5종) + 재방문 4 분기 + DwellTracker + Privacy IndexingGate + DOM 추출 실패 영역 정책 + AutoTagger 6종 kind + JSON schema + 비용 추정 + 정량 임계 3종.
+- 2026-05-16 (PR b6.1): codex 다수 + evaluator 핫픽스. **외부 사실 정정**: OpenAI 임베딩 가격 5배 오류 — $0.0001 → **$0.00002 / 1k tokens** ($0.02 / 1M, 2026-05-16 공식). 월 비용 $1~3 → **$0.2~0.6**. v04-direction §7 동반 갱신. **실제 코드 정합**: ParagraphExtractor 과장 표현 정정 (현재 코드 = 문단 추출 + M3-13 필터만, "article/main/section 우선" / "OpenGraph" / "boilerplate 제외" 는 Phase 1 M3 PoC 결정 또는 Phase 2+). **Privacy 강화**: 디폴트 8 → 11 패턴 (signin/oauth/id/payment/pay/checkout 추가) + path glob (M3 PathMatcher 도입). **PDF**: P1 시나리오 영향 명시 (URL/제목/시간만 저장, 본문 RAG Phase 2+). **embedding_status**: Page schema 침범 회피 — EmbeddingQueue 테이블 status 컬럼으로 격하.

@@ -52,7 +52,8 @@ Renderer 표기 "request C/U/D via IPC" = Renderer 가 IPC 호출만 하고 실�
 | search | `search:query` | Renderer → Main | (R only) Page + Note retrieval |
 | search | `search:get-content` | Renderer → Main | (R only) 본문 캐시 fetch |
 | chat | `chat:request` | Renderer → Main | AiChatHistory (C user + assistant) + retrieval |
-| chat | `chat:retry` | Renderer → Main | AiChatHistory (U status, 재시도) |
+| chat | `chat:retry` | Renderer → Main | AiChatHistory (C 신규 assistant row, b6.1 정정) — 기존 row UPDATE 아닌 신규 INSERT |
+| chat | `chat:abort` | Renderer → Main | AiChatHistory (U status='aborted', b6.1 추가) — streaming 도중 사용자 취소 |
 | chat | `chat:history` | Renderer → Main | (R only) 워크스페이스 대화 history |
 | chat | `chat:clear` | Renderer → Main | AiChatHistory (D) |
 | note | `note:create` / `note:update` / `note:delete` / `note:list` / `note:get` | Renderer → Main | Note CRUD |
@@ -60,7 +61,7 @@ Renderer 표기 "request C/U/D via IPC" = Renderer 가 IPC 호출만 하고 실�
 | shortcut | `shortcut:get-bindings` / `shortcut:set-binding` | Renderer → Main | Settings.shortcutOverride (U) |
 | memory | `memory:stats` | Renderer → Main | (R only) 워크스페이스별 통계 (Page·Visit·Note·AiChatHistory 카운트) |
 
-**카운트**: Renderer ↔ Main 노출 IPC = 3 (indexing - enqueue 제외 status·abort) + 1 (embedding - status) + 1 (tagging:apply) + 2 (search) + 4 (chat) + 5 (note) + 5 (workspace) + 2 (shortcut) + 1 (memory) = **약 24개**. Main 내부 hook (indexing:enqueue, embedding:enqueue) 은 IPC 카운트에서 제외.
+**카운트**: Renderer ↔ Main 노출 IPC = 3 (indexing - enqueue 제외 status·abort) + 1 (embedding - status) + 1 (tagging:apply) + 2 (search) + **5 (chat — request/retry/abort/history/clear, PR b6.1 abort 추가)** + 5 (note) + 5 (workspace) + 2 (shortcut) + 1 (memory) = **약 25개** (PR b6.1 정정 — chat 그룹 4→5). Main 내부 hook (indexing:enqueue, embedding:enqueue) 은 IPC 카운트에서 제외.
 
 ### 5.3.2 v0.3 유지 IPC (56개, [§06 아키텍처](./06_architecture.md) 본문 정밀 매핑)
 
@@ -103,8 +104,8 @@ content_hash 계산 (빈 본문이면 NULL)
    ↓
 [Page lookup by (workspace_id, url)]
    ├─ 없음 → 단일 TX { Page (C) + Visit (C) }
-   ├─ 있음 + content_hash 같음 → 단일 TX { Visit (C) } (Page UPDATE 없음)
-   └─ 있음 + content_hash 다름 → 단일 TX { Page (U content/content_hash/updated_at) + Visit (C) }
+   ├─ 있음 + content_hash 같음 → 단일 TX { Page (U visited_count++) + Visit (C) } (PR b6.1 정정 — denormalized 카운트 갱신)
+   └─ 있음 + content_hash 다름 → 단일 TX { Page (U content/content_hash/visited_count++/updated_at) + Visit (C) }
    ↓
 EmbeddingQueue.enqueue(page_id, priority=active_tab ? 10 : 1) — TX 외부
    ↓
