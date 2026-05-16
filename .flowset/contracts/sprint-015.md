@@ -85,7 +85,7 @@ L2618 결합 컨셉 (#2 Time Machine + #1 워크스페이스)의 Phase 1을 한 
 
 - **T01 폐기 매트릭스**: 폐기/일반화/유지/부분폐기 4종 분류로 src/ 전 파일 분류. 폐기 대상에 대체 모듈 명시. 일정 = M2 또는 M5.
 - **T02 테스트 분류**: 358개 단위 테스트 폐기 N / 유지 M / 재작성 K / 신규 추가 P 명시. Phase 1 시나리오 4개 회귀 셋 정의 (각 시나리오당 3~5 케이스).
-- **T03 데이터 마이그레이션**: 기존 SQLite/Cache/PageResult/Glossary/UserSetting의 자동 마이그레이션 또는 폐기 결정 명시. dry-run 절차 + 자동 백업 위치(`~/.flowbrowser/backup/v03/`) + revert 경로.
+- **T03 데이터 마이그레이션**: 기존 SQLite/Cache/PageResult/Glossary/UserSetting의 자동 마이그레이션 또는 폐기 결정 명시. dry-run 절차 + 자동 백업 위치(`<userDataDir>/backup/v03/<ISO_timestamp>/`) + revert 경로. (M0 A3 §C 정정 반영)
 - **T04 의존 그래프**: 폐기 대상 (TranslationRenderer / SummarizationPlanner / paragraphs IPC) 호출지점 전수 + IPC 채널 변경 영향 매트릭스 + 단계별 PR 순서 권고.
 
 ### AC-2 PRD v0.4 발행 (S015-T05 ~ T06)
@@ -100,7 +100,9 @@ L2618 결합 컨셉 (#2 Time Machine + #1 워크스페이스)의 Phase 1을 한 
 - `AIResponseCache` 신규 동작 + `TranslationCache` 어댑터로 v0.3 호출 유지 (feature flag `flowbrowser.v04.enabled` false 시 어댑터 경로)
 - `IndexedPageStore` base 동작 + `PageResultStore` 어댑터 유지
 - `TranslationRenderer` / `SummarizationPlanner` / `displayMode replace·overlay` 코드 비활성 + 의존 호출지점 0
-- `paragraphs/page` IPC 채널 제거 + preload API deprecation + UI 호출 제거
+- **IPC 21개 폐기 (main/index.ts 9개 + services.ts 12개) + 20~25개 신규 매핑** (M0 A4 §A 참조 — main: `translate:render` / `translate:render-restore` / `translate:paragraphs` / `translate:paragraphs-abort` / `translate:page` / `translate:page-abort` / `translate:summarize-page` / `translate:summarize-abort` / `pageResult:restore-current`. services: `cache:stats` / `cache:clear-all` / `pageResult:stats` / `pageResult:clear` / `glossary:list` / `glossary:add` / `glossary:remove` / `glossary:update` / `glossary:export` / `glossary:clear` / `glossary:version` / `translate:request`. 신규는 M3~M6 누적 `indexing:* / search:* / chat:* / note:* / workspace:* / shortcut:* / embedding:* / tagging:* / memory:*`)
+- preload API 폐기 4 묶음 (`cacheApi` / `pageResultApi` / `glossaryApi` / `translateApi`) + 8 묶음 신규 (`indexingApi` / `searchApi` / `chatApi` / `noteApi` / `workspaceApi` / `shortcutApi` / `embeddingApi` / `taggingApi`)
+- UI 호출 제거 (TranslationPanel 약 30 호출지점 / GlossaryPanel 8 호출지점 / 등 약 60개)
 - M2 종료 시 lint / typecheck / test / build 모두 PASS
 
 ### AC-4 IndexedPageStore + 임베딩 + 마이그레이션 (S015-T11 ~ T15)
@@ -178,7 +180,7 @@ L2618 결합 컨셉 (#2 Time Machine + #1 워크스페이스)의 Phase 1을 한 
 ### 신규 (본 Sprint에서 활성화)
 - **G-012 [신규]** v0.4 방향 SSOT — `.flowset/specs/v04-direction.md`가 PRD v0.4 작성 입력의 SSOT. 결정사항 변경 시 본 문서 먼저 갱신 후 PRD 동기화 (역방향 금지). M1 시작 시 활성.
 - **G-013 [신규]** 단계별 PR 전략 — 한 번에 전체 갈아엎기 금지. (1) 신규 모듈 + 어댑터 도입 → (2) 신규 사용처 적용 → (3) 기존 호출지점 제거 순서. M2에서 활성.
-- **G-014 [신규]** 데이터 마이그레이션 dry-run + 자동 백업 — 신규 SQLite 스키마 도입 시 자동 백업 (`~/.flowbrowser/backup/v03/`) + dry-run 결과 로그 + revert 경로. M3에서 활성.
+- **G-014 [신규]** 데이터 마이그레이션 dry-run + 자동 백업 — 신규 SQLite 스키마 도입 시 자동 백업 (`<userDataDir>/backup/v03/<ISO_timestamp>/`, Electron `app.getPath('userData')` 기준) + dry-run 결과 로그 (`<userDataDir>/migration-v04.log`) + revert 경로. M3에서 활성. (M0 A3 §C 표기 정정 반영)
 
 ## 6. evaluator 통과 기준
 
