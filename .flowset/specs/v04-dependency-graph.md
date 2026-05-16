@@ -15,7 +15,7 @@
 
 | 영역 | 폐기 | 일반화 (어댑터) | 유지 | 신규 |
 |---|---|---|---|---|
-| **IPC 채널 (main + services)** | 19 | 4 (cache/pageResult) | 47 | 20~25 |
+| **IPC 채널 (main + services)** | 21 (main 9 + services 12) | 4 (cache/pageResult) | **56 (main 24 + services 32, PR b4 실측 정정)** | 23~24 |
 | **preload API 묶음** | 4 (cacheApi / pageResultApi / glossaryApi / translateApi) | 0 | 약 10 | 8 (indexing/search/chat/note/workspace/shortcut/embedding/tagging) |
 | **renderer 호출지점 (window.*Api)** | 약 60 | — | 약 80 | (신규 panel) |
 
