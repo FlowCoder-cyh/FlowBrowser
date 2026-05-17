@@ -13,6 +13,23 @@ export type {
 } from './TranslationCache'
 
 export {
+  AIResponseCache,
+  defaultAIResponseCachePath,
+  AI_CACHE_TTL_DEFAULTS
+} from './AIResponseCache'
+export type {
+  AICacheKind,
+  AICacheEntry,
+  AICacheStoreInput,
+  AICacheLookupInput,
+  AICacheOptions,
+  AICacheStats
+} from './AIResponseCache'
+
+export { isV04Enabled } from './featureFlags'
+export type { V04FlagSource } from './featureFlags'
+
+export {
   GlossaryStore,
   defaultGlossaryPath,
   validateTerm,

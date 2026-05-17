@@ -440,7 +440,7 @@ docs/prd/
 |---|---|---|
 | S1 | **단계별 PR 전략** — 한 번에 다 갈아엎지 X. M2 일반화 시 v0.3 호환 유지 → M3 신규 사용 → M5에서 v0.3 호출지점 제거 | M2~M5 |
 | S2 | **회귀 테스트 셋** — Phase 1 시나리오 4개에 대한 자동화 셋 | M2 시작 시 셋 정의, M3~M6 매 PR에서 통과 강제 |
-| S3 | **feature flag** (`flowbrowser.v04.enabled`) — 신규 모듈 도입 시 기존 동작 유지 가능 | M2~M5 |
+| S3 | **feature flag** (`flowbrowser.v04.enabled`) — 신규 모듈 도입 시 기존 동작 유지 가능. M2-1 (PR #122) 시점 도입 — `UserSettingStore.v04Enabled` 키 + 환경변수 `FLOWBROWSER_V04` 우회 (`src/storage/featureFlags.ts`). 디폴트 false → v0.3 동작 100% 보존 | M2~M5 |
 | S4 | **데이터 마이그레이션 dry-run + 백업** — 사용자 기존 SQLite 자동 백업 후 마이그레이션. 백업 위치: `<userDataDir>/backup/v03/<ISO_timestamp>/` (Electron `app.getPath('userData')` 기준, OS 호환). 마이그레이션 로그: `<userDataDir>/migration-v04.log` | M3 (IndexedPageStore 도입 시) |
 
 ---

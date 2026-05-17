@@ -1,0 +1,24 @@
+/**
+ * Sprint 015 M2 — Feature Flag helper.
+ * PRD §19.5 / v04-direction §17 S3 — `flowbrowser.v04.enabled`.
+ *
+ * 우선순위:
+ *   1) 환경변수 `FLOWBROWSER_V04` 명시 (개발 / 테스트 우회)
+ *   2) UserSetting.v04Enabled (디폴트 false — Phase 1 마이그레이션 안전)
+ *
+ * M2 활성 시 사용처:
+ *   - services.ts: TranslationCache backend 주입 분기 (M2-2 이후 호출)
+ *   - M3 마이그레이션: v04Enabled true 진입 시 v03_to_v04 자동 실행 (M3-6)
+ *   - M5 어댑터 제거 시 본 helper 제거 + UserSetting.v04Enabled 키 폐기
+ */
+
+export interface V04FlagSource {
+  v04Enabled: boolean
+}
+
+export function isV04Enabled(setting: V04FlagSource): boolean {
+  const envValue = process.env.FLOWBROWSER_V04
+  if (envValue === '1' || envValue === 'true') return true
+  if (envValue === '0' || envValue === 'false') return false
+  return setting.v04Enabled === true
+}
