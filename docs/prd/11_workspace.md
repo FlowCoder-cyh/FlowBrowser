@@ -128,7 +128,7 @@ Renderer broadcast:
 
 ## 11.5 워크스페이스 CRUD
 
-[§05 §5.3.1 workspace 5 IPC](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-24개) 정합.
+[§05 §5.3.1 workspace 5 IPC](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-25개) 정합.
 
 ### 11.5.1 Create (`workspace:create`)
 

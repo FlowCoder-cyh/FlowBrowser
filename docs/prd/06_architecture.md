@@ -79,7 +79,7 @@
 
 ## 6.2 IPC 표면
 
-총 IPC 채널 = **유지 56개 + Phase 1 신규 약 24개 = 약 80개** (PR b4 시점 실측 + SSOT 갱신).
+총 IPC 채널 = **유지 56개 + Phase 1 신규 약 25개 = 약 81개** (PR b4 실측 + PR b10.1 chat:abort 포함 정정 + SSOT 갱신).
 
 ### 6.2.1 v0.3 유지 (56개, M2 종료까지 변경 없음)
 
@@ -115,9 +115,9 @@
 - main/index.ts 9개 (translate:render / render-restore / paragraphs / paragraphs-abort / page / page-abort / summarize-page / summarize-abort / pageResult:restore-current)
 - services.ts 12개 (cache:* 2 + pageResult:* 2 + glossary:* 7 + translate:request)
 
-### 6.2.3 Phase 1 신규 (약 24개, M3~M6 도입)
+### 6.2.3 Phase 1 신규 (약 25개, M3~M6 도입)
 
-[§05 CRUD 매트릭스 §5.3.1](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-24개) 참조. 요약:
+[§05 CRUD 매트릭스 §5.3.1](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-25개) 참조. 요약:
 
 | 그룹 | 채널 수 | 도입 milestone |
 |---|---|---|
@@ -125,18 +125,18 @@
 | embedding (status, enqueue 는 main 내부) | 1 | M3 |
 | tagging:apply | 1 | M4 |
 | search:* | 2 | M5 |
-| chat:* | 4 | M5 |
+| chat:* (request/retry/abort/history/clear) | 5 | M5 |
 | note:* | 5 | M5 |
 | workspace:* | 5 | M6 |
 | shortcut:* | 2 | M5 |
 | memory:stats | 1 | M6 |
 
-소계 23~24개 (chat:retry 포함 여부에 따라).
+소계 25개 (PR b6.1 `chat:abort` 추가 + PR b10.1 헤더 카운트 정합).
 
 ### 6.2.4 합계
 
-- 유지 56 + 신규 24 = **약 80개**
-- 폐기 (M2 후 제거) 21 → 최종 80개 active IPC
+- 유지 56 + 신규 25 = **약 81개** (PR b10.1 정정)
+- 폐기 (M2 후 제거) 21 → 최종 81개 active IPC
 
 ## 6.3 컴포넌트 트리 (Main 모듈 의존 그래프)
 
@@ -275,7 +275,7 @@ src/main/index.ts (IPC handler 등록 + WindowManager)
    ├─ OpenAI API Key credential 있으면 OpenAIApiKeyProvider 활성 (fetch 기반)
    └─ Codex OAuth 토큰 있으면 CodexLoginProvider 활성 (자동 백그라운드 호출 X, 사용자 명시 동의 시만)
    ↓
-4. Main: IPC handlers 등록 (Phase 1 종료 후 약 80개 — 유지 56 + 신규 24)
+4. Main: IPC handlers 등록 (Phase 1 종료 후 약 81개 — 유지 56 + 신규 25, PR b10.1 정정)
    ↓
 5. Main: BrowserWindow 생성 + Renderer 로드
    ↓
@@ -333,7 +333,7 @@ src/main/index.ts (IPC handler 등록 + WindowManager)
 ## 6.8 SSOT 인용
 
 - `.flowset/specs/v04-direction.md` §6 (핵심 동작 흐름) + §4 (UI 레이아웃) + §10 (Phase 분할)
-- `.flowset/specs/v04-dependency-graph.md` §A (IPC 폐기 21개) + §A3 (유지 56개, PR b4 갱신) + §B (신규 24개)
+- `.flowset/specs/v04-dependency-graph.md` §A (IPC 폐기 21개) + §A3 (유지 56개, PR b4 갱신) + §B (신규 25개, PR b10.1 정정)
 - `.flowset/specs/v04-migration-matrix.md` §A~§E (DEPRECATE / GENERALIZE / KEEP / PARTIAL / NEW)
 - `.flowset/specs/v04-data-migration.md` §B (부팅 시퀀스 트리거)
 
