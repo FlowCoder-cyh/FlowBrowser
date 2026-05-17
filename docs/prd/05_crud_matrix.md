@@ -39,7 +39,7 @@ Renderer 표기 "request C/U/D via IPC" = Renderer 가 IPC 호출만 하고 실�
 
 본 표의 카운트는 PR b3.1 시점 v04-dependency-graph A4 SSOT 인용. 정확 카운트는 M2 PR 진행 중 코드 grep 으로 재확인.
 
-### 5.3.1 Phase 1 신규 IPC (M3~M6 도입, 총 약 24개)
+### 5.3.1 Phase 1 신규 IPC (M3~M6 도입, 총 약 25개)
 
 | 그룹 | 채널 | 방향 | Entity 조작 |
 |---|---|---|---|
@@ -218,7 +218,7 @@ ON DELETE CASCADE FK 설정으로 자동. vec_pages/vec_notes 는 가상 테이�
 ## 5.7 SSOT 인용
 
 - `.flowset/specs/v04-direction.md` §5 (데이터 모델) + §6 (핵심 동작 흐름)
-- `.flowset/specs/v04-dependency-graph.md` §A (IPC 폐기 21개) + §B (신규 IPC 약 24개)
+- `.flowset/specs/v04-dependency-graph.md` §A (IPC 폐기 21개) + §B (신규 IPC 약 25개, PR b10.1 정정)
 - `.flowset/specs/v04-migration-matrix.md` §E (신규 storage 모듈)
 
 본 §05 와 SSOT 충돌 시 SSOT 우선 (G-012).

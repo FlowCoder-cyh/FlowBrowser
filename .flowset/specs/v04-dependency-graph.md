@@ -19,13 +19,13 @@
 | **preload API 묶음** | 4 (cacheApi / pageResultApi / glossaryApi / translateApi) | 0 | 약 10 | 8 (indexing/search/chat/note/workspace/shortcut/embedding/tagging) |
 | **renderer 호출지점 (window.*Api)** | 약 60 | — | 약 80 | (신규 panel) |
 
-→ Sprint 015 contract §3 AC-3 표현 "IPC 6개 폐기 + 15개+ 신규" → **정정: IPC 19개 폐기 + 20~25개 신규**.
+→ Sprint 015 contract §3 AC-3 표현 "IPC 6개 폐기 + 15개+ 신규" → **정정: IPC 21개 폐기 (main 9 + services 12) + 23~24개 신규** (PR b10.1 §A1/§A2 헤더 카운트 표 행 합산과 일치).
 
 ---
 
-## A. IPC 채널 폐기·일반화 매트릭스 (19개 폐기)
+## A. IPC 채널 폐기·일반화 매트릭스 (21개 폐기)
 
-### A1. `src/main/index.ts` 폐기 (10개)
+### A1. `src/main/index.ts` 폐기 (9개)
 
 | 채널 | 라인 | 사유 | 신규 대체 | 일정 |
 |---|---|---|---|---|
@@ -39,7 +39,7 @@
 | `translate:summarize-abort` | L1125 | SummarizationPlanner DEPRECATE | — | M2 |
 | `translate:summarize-page` | L1135 | 동상 | — | M2 |
 
-### A2. `src/main/services.ts` 폐기 (9개)
+### A2. `src/main/services.ts` 폐기 (12개)
 
 | 채널 | 사유 | 신규 대체 | 일정 |
 |---|---|---|---|
@@ -56,7 +56,7 @@
 | `glossary:version` | 동상 | (없음) | M5 |
 | `translate:request` | 단발 번역 use case 폐기 | `chat:request` (신규, RAG retrieval 포함) | M5 |
 
-소계: services.ts 12개 폐기 (위에 11개 + L242 부근 추가 분기). 정확 카운트는 M2 PR에서 정정.
+소계: services.ts 12개 폐기 (위 표 12행 = cache 2 + pageResult 2 + glossary 7 + translate:request 1, PR b10.1 헤더 정정).
 
 ### A3. 유지 (실측 코드 grep 56개, PR b4 §06 정확 매핑)
 

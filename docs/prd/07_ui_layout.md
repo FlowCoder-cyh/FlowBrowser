@@ -352,7 +352,7 @@ preset 아이콘 12종에 1:1 매핑되는 컬러:
 - `.flowset/specs/v04-direction.md` §4 (UI 레이아웃) + §17 결정사항 (preset 아이콘 12종 / Cmd+K 사용자 설정 / 비교 매트릭스 schema)
 - L2618 (이전 세션 SSOT, UI 스케치 원문)
 - [§04 데이터 모델](./04_data_model.md) (entity → UI 매핑)
-- [§05 CRUD 매트릭스 §5.3.1](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-24개) (UI ↔ IPC 매핑)
+- [§05 CRUD 매트릭스 §5.3.1](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-25개) (UI ↔ IPC 매핑)
 - [§06 §6.3 컴포넌트 트리](./06_architecture.md#63-컴포넌트-트리-main-모듈-의존-그래프) (renderer 진입점)
 
 본 §07 와 SSOT 충돌 시 SSOT 우선 (G-012).

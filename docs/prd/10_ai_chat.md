@@ -214,7 +214,7 @@ streaming 정책은 Provider 별로 분리 (PR b6.1 정정):
 
 사용자가 ChatPanel "취소" 버튼 클릭 → `chat:abort` IPC → fetch AbortController 호출 → AiChatHistory.status='aborted' 마킹 (§04 §4.3.5 enum 'aborted' 추가, PR b6.1).
 
-`chat:abort` IPC 는 [§05 §5.3.1](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-24개) chat 그룹 4개 (request/retry/history/clear) 외 **5번째 chat:abort 추가** (PR b6.1 — 신규 IPC 총 24개 → 25개 정정 동반).
+`chat:abort` IPC 는 [§05 §5.3.1](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-25개) chat 그룹 5개 (request/retry/abort/history/clear) 중 **5번째** (PR b6.1 추가 → PR b10.1 헤더 카운트 24→25 cross-link 정합).
 
 ### 10.6.3 multi-turn 대화 컨텍스트
 
@@ -260,7 +260,7 @@ v04-direction §12.3 AI 채팅 관련:
 - `.flowset/specs/v04-direction.md` §6 (AI 채팅 흐름) + §17 P0-4 (Markdown + JSON 메타) + R3-A (사용자 수준 직접 선택)
 - `.flowset/specs/v04-test-classification.md` §E1 S1-C3 / S2-C3 (비교 매트릭스 + 출처 인용 회귀 셋)
 - [§04 §4.3.5 AiChatHistory](./04_data_model.md#435-aichathistory-ai-메모)
-- [§05 §5.3.1 chat:* IPC](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-24개) + [§05 §5.4.3 RAG 라이프사이클](./05_crud_matrix.md#543-ai-chat-라이프사이클-rag)
+- [§05 §5.3.1 chat:* IPC](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-25개) + [§05 §5.4.3 RAG 라이프사이클](./05_crud_matrix.md#543-ai-chat-라이프사이클-rag)
 - [§07 §7.4.4 ChatPanel UI](./07_ui_layout.md#744-chatpanel-m5-translationpanel-대체)
 - [§08 §8.3 EmbeddingClient](./08_indexing.md#83-embeddingclient-byok-openai-text-embedding-3-small)
 - [§09 §9.3 retrieval](./09_search.md#93-retrieval--sqlite-vec-top-k)

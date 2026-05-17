@@ -210,7 +210,7 @@ Phase 1 디폴트: 초기 표시 10개 + "더 보기" 버튼 (다음 10개 표�
 - `.flowset/specs/v04-direction.md` §6 (검색 흐름) + §17 P1-10 (Cmd+K) + P2-5 (정렬 공식) + P2-6 (검색 미리보기)
 - `.flowset/specs/v04-test-classification.md` §E1 S4 (자연어 시간 + 정렬 회귀 셋)
 - [§04 §4.3.8 sqlite-vec](./04_data_model.md#438-embedding-sqlite-vec-virtual-table)
-- [§05 §5.3.1 search IPC](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-24개)
+- [§05 §5.3.1 search IPC](./05_crud_matrix.md#531-phase-1-신규-ipc-m3m6-도입-총-약-25개)
 - [§07 §7.4.3 SearchBar UI](./07_ui_layout.md#743-searchbar-m5)
 - [§08 §8.3 EmbeddingClient](./08_indexing.md#83-embeddingclient-byok-openai-text-embedding-3-small)
 

@@ -27,11 +27,13 @@
 | 분류 | 개수 | 비율 |
 |---|---|---|
 | **DEPRECATE** | 6 | 11% |
-| **GENERALIZE** | 2 | 4% |
-| **KEEP** | 25 | 46% |
+| **GENERALIZE** | 4 | 7% |
+| **KEEP** | 23 | 43% |
 | **PARTIAL** | 21 | 39% |
 | 소계 (기존) | **54** | 100% |
 | **NEW** | **30+** | (신규) |
+
+> PR b7.1 정정 — `src/ai/ProviderAdapter.ts` + `src/storage/UsageLog.ts` 가 KEEP → GENERALIZE 로 이동. §B 본 표 4행으로 통합.
 
 → 기존 자산 85% 재활용 (KEEP + GENERALIZE + PARTIAL) / 폐기 11%.
 
@@ -55,25 +57,28 @@
 
 ---
 
-## B. GENERALIZE (2개)
+## B. GENERALIZE (4개)
 
-| 파일 | 일반화 대상 | 키 schema 변경 | 어댑터 전략 | 일정 |
+| 파일 | 일반화 대상 | 키/schema 변경 | 어댑터 전략 | 일정 |
 |---|---|---|---|---|
 | `src/storage/TranslationCache.ts` | **AIResponseCache** (신규) | `key: {translation, embedding, ai_response, tag}` × 도메인 키 → 단일 cache layer | M2: AIResponseCache 신규 + TranslationCache 어댑터로 v0.3 호출 유지 (feature flag `flowbrowser.v04.enabled` false 시 어댑터 경로). M5: 어댑터 제거 | M2 신규 → M5 어댑터 제거 |
 | `src/storage/PageResultStore.ts` | **IndexedPageStore** (신규) | Page (id/workspace_id/url/title/content/embedding/...) + Visit (id/page_id/workspace_id/visited_at/dwell_ms) 분리 / 워크스페이스 ID 메타 / 본문 캐시 흡수 | M2: IndexedPageStore base 신규 + PageResultStore 어댑터로 v0.3 호출 유지. M3에서 sqlite-vec + Note + AiChatHistory + Tag 테이블 추가. M5에서 어댑터 제거 | M2 신규 → M3 확장 → M5 어댑터 제거 |
+| `src/ai/ProviderAdapter.ts` (PR b7.1 분류 이동) | **ProviderAdapter v0.4** (`chat()` / `embed()` / `chatStream()` 메서드 분리) | v0.3 `translate()` 단일 → v0.4 분리 메서드 | M2: 신규 메서드 추가 + `translate()` deprecated 유지 (어댑터). M5: `translate()` 제거 | M2 신규 → M5 어댑터 제거 |
+| `src/storage/UsageLog.ts` (PR b7.1 분류 이동) | **UsageLog v0.4** (feature enum 확장 + 컬럼 추가) | v0.3 feature enum `{translation, summary, tts, stt, explanation}` → v0.4 `{chat, embed, tag, background_translation}` + `workspaceId` / `model` / `durationMs` 컬럼 추가 | M3: schema 마이그레이션 (v04.sql + 백업 + revert). 어댑터 경로 = v0.3 enum 값을 v0.4 enum 으로 매핑하여 INSERT | M3 마이그레이션 |
 
-### GENERALIZE 테스트 (2개 → 재구성)
+### GENERALIZE 테스트 (4개 → 재구성, PR b7.1 정정)
 - `tests/unit/storage/TranslationCache.test.ts` + `.lru.test.ts` → `tests/unit/storage/AIResponseCache.test.ts`로 재작성 + LRU 케이스 + 신규 도메인 키 케이스 추가 (M2)
 - `tests/unit/storage/PageResultStore.test.ts` → `tests/unit/storage/IndexedPageStore.test.ts`로 재작성 + Visit 누적 케이스 + 워크스페이스 격리 케이스 + sqlite-vec 케이스 추가 (M3)
+- (b7.1 추가) ProviderAdapter 신규 메서드 (`chat`/`embed`/`chatStream`) 단위 테스트 — `tests/unit/ai/ProviderAdapter.test.ts` 신규 (M2)
+- (b7.1 추가) UsageLog feature enum 확장 + `workspaceId`/`model`/`durationMs` 컬럼 테스트 — 기존 `tests/unit/storage/UsageLog.test.ts` 확장 (M3 schema 마이그레이션)
 
 ---
 
-## C. KEEP (25개)
+## C. KEEP (23개)
 
 변경 없이 v0.4에서 그대로 재활용. 가드레일·테스트 모두 유지.
 
-### ai/ (5개)
-- `src/ai/ProviderAdapter.ts` — Provider Adapter 추상화 (G-005 OS Keychain 위임 패턴)
+### ai/ (6개, PR b7.1 정정 — ProviderAdapter는 §B GENERALIZE 로 이동)
 - `src/ai/codex/DeviceCodeFlow.ts` — Codex OAuth device-code (재활용)
 - `src/ai/codex/JwtDecoder.ts` — JWT account_id 추출 (재활용)
 - `src/ai/codex/SseStreamParser.ts` — SSE 파서 (AI 채팅 SSE 응답에 재활용)
@@ -108,12 +113,8 @@
 - `src/renderer/src/settings/DomainPolicyPanel.tsx` — 도메인 정책 패널 (Privacy 차단 list 사용자 추가·제외)
 - `src/renderer/src/settings/UsagePanel.tsx` — 사용량 패널
 
-### storage/ (1개, PR b7.1 정정 — UsageLog 는 GENERALIZE 로 이동)
+### storage/ (1개, PR b7.1 정정 — UsageLog 는 §B GENERALIZE 로 이동)
 - `src/storage/Credentials.ts` — OAuth 토큰 묶음 + API Key safeStorage
-
-### ai/ (GENERALIZE 이동, PR b7.1 추가)
-- `src/ai/ProviderAdapter.ts` — v0.3 `translate()` 단일 메서드 → v0.4 `chat()` / `embed()` / `chatStream()` 분리 (M2 PR). 어댑터 보존 M5 종료 시 제거 (translate deprecated)
-- `src/storage/UsageLog.ts` — v0.3 feature enum (translation/summary/tts/stt/explanation) → v0.4 (chat/embed/tag/background_translation) + workspaceId / model / durationMs 컬럼 추가 (M3 PR schema 마이그레이션)
 
 ### KEEP 테스트 (20개)
 - `tests/unit/ai/CodexLoginProvider.test.ts` / `DeviceCodeFlow.test.ts` / `JwtDecoder.test.ts` / `SseStreamParser.test.ts` / `SystemPrompt.test.ts` (5)

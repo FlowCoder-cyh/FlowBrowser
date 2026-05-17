@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **1 진입 준비** — Sprint 015 정의 완료 (AI 콘텐츠 메모리 + 워크스페이스 베이스 인프라)
-- **Sprint**: **015 정의 완료**, M0 사전 분석 진입 대기 (T01 폐기 매트릭스부터)
+- **Phase**: **1** (AI 콘텐츠 메모리 + 워크스페이스 베이스 인프라, Sprint 015 진행 중)
+- **Sprint**: **015 M0~M1 완료** (M2 진입 대기 — T07~T10 폐기 + 일반화 PR 8개)
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: **v0.3.12** (구버전, **v0.4.0 작성 예정** — Sprint 015 M1)
-- **최근 갱신**: 2026-05-16 (Sprint 015 정의 + CI 게이트 강화 + 오토머지 활성)
-- **다음 세션 진입점**: `.flowset/contracts/sprint-015.md` + `.flowset/specs/v04-direction.md` (방향 SSOT) 필독
+- **PRD 버전**: **v0.4.0 본문 완성** (19 섹션, 약 5,200+ lines — 정식 release tag 는 Sprint 015 M6 종료 시점)
+- **최근 갱신**: 2026-05-17 (M0~M1 종합 evaluator Pass 6/2/0 + PR b10.1 핫픽스 4건 정정)
+- **다음 세션 진입점**: `.flowset/handoffs/2026-05-17.md` (M1 종합) + `.flowset/contracts/sprint-015.md` §2 T07~T10 (M2 범위)
 
 ## 현재 작업
 
@@ -178,11 +178,24 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 
 ---
 
-## 🟢 Sprint 015 진입 준비 완료 (2026-05-16)
+## 🟢 Sprint 015 M0~M1 완료 (2026-05-17)
 
-### 산출물 (PR로 머지 예정)
-- **`.flowset/specs/v04-direction.md`** — v0.4 방향 SSOT (550 lines, 19 섹션, P0~P2 결정 38건)
-- **`.flowset/contracts/sprint-015.md`** — Sprint 015 contract (M0~M6, T01~T31, AC-1~AC-8, evaluator Pass 21/2/0 통과)
+### M0 사전 분석 4 산출물 (T01~T04)
+- `.flowset/specs/v04-migration-matrix.md` (A1, 폐기/일반화/유지/부분폐기 분류 + PR b10.1 §B GENERALIZE 4개 정정)
+- `.flowset/specs/v04-test-classification.md` (A2, 358 테스트 분류 + 시나리오 회귀 셋 18 케이스)
+- `.flowset/specs/v04-data-migration.md` (A3, 5단계 마이그레이션 + 자동 백업 `<userDataDir>/backup/v03/<ISO_ts>/`)
+- `.flowset/specs/v04-dependency-graph.md` (A4, IPC 21 폐기 / 56 유지 / 23~24 신규 + PR b10.1 §A 매트릭스 헤더 정정)
+- **M0 evaluator (PR #103)**: Pass 16 / Partial 4 / Fail 0 → 권고 4건 정정 완료
+
+### M1 PRD v0.4 19 섹션 본문 완성 (PR #104 ~ #120, b1~b10)
+- `docs/prd/README.md` + `00_change_history.md` ~ `19_migration_v03_v04.md` (20행, 약 5,200+ lines)
+- 진행 중 codex blocking 127건 + evaluator Partial/Fail 21건 즉시 핫픽스 (b{N}.1 패턴) → KI 누적 0건
+- **M1 종합 evaluator (2026-05-17)**: Pass 6 / Partial 2 / Fail 0 → 종합 Pass, M2 진입 가능
+- **PR b10.1 핫픽스**: A1 §B GENERALIZE 4개 / §A1 9개 / §A2 12개 / PRD §05.3.1 25개 + cross-link 5파일 / §18 TBD 표현 통일
+
+### Sprint 015 진입 시 박힌 자산
+- **`.flowset/specs/v04-direction.md`** — v0.4 방향 SSOT (568+ lines, 19 섹션, P0~P2 결정 38건, 다층 갱신 14건)
+- **`.flowset/contracts/sprint-015.md`** — Sprint 015 contract (M0~M6, T01~T31, AC-1~AC-8)
 - **`.flowset/known-issues.md`** — KI-NNN 등록 정책 + Severity 정의 + 누적 0건
 - **`.claude/settings.json`** — SessionStart hook schema 정상화 (`/doctor` 통과)
 
@@ -201,9 +214,17 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 - **G-014** 데이터 마이그레이션 dry-run + 자동 백업 — `<userDataDir>/backup/v03/<ISO_ts>/`. M3 활성. (M0 A3 정정)
 
 ### Sprint 015 M0~M6 (목표 2.5~3주)
-- **M0** (3~4일): T01~T04 사전 분석 (폐기 매트릭스 / 테스트 분류 / 데이터 마이그레이션 / 의존 그래프)
-- **M1** (2~3일): PRD v0.4.0 19개 섹션 작성 + 진입 문서 갱신
-- **M2** (2~3일): 폐기 + 일반화 (TranslationCache → AIResponseCache / PageResultStore → IndexedPageStore / TranslationRenderer·SummarizationPlanner 폐기 / paragraphs IPC 정리)
+- **M0** ✅ (T01~T04 사전 분석, PR #98~#103 진행 완료)
+- **M1** ✅ (PRD v0.4.0 19 섹션 본문 작성, PR #104~#120 + b10.1 핫픽스)
+- **M2** (다음) — 폐기 + 일반화 (PR 8개)
+  - M2-1 AIResponseCache 신규 + TranslationCache 어댑터 (feature flag `flowbrowser.v04.enabled` 도입)
+  - M2-2 IndexedPageStore base + PageResultStore 어댑터
+  - M2-3 SummarizationPlanner DEPRECATE
+  - M2-4 translate:summarize-* IPC 폐기
+  - M2-5 translate:paragraphs/page IPC 폐기
+  - M2-6 translate:render/restore IPC 폐기
+  - M2-7 ai/index.ts + types.ts PARTIAL (ProviderAdapter chat/embed 메서드 추가)
+  - M2-8 TranslationCache.test → AIResponseCache.test 재작성
 - **M3** (4~5일): IndexedPageStore (SQLite + sqlite-vec + 본문 캐시) + 임베딩 + 데이터 마이그레이션
 - **M4** (3~4일): 페이지 인덱싱 hook + 재방문 정책 + AI 자동 태깅 + dwell + Privacy 차단
 - **M5** (4~5일): 검색바 (Cmd+K) + AI 채팅 패널 (ChatPanel) + 노트 + 수준 옵션
@@ -215,7 +236,8 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 
 ## 최근 핸드오프
 
-- **[2026-05-16](./handoffs/2026-05-16.md) — 🔴 방향 전환 결정 (필독)**
+- **[2026-05-17](./handoffs/2026-05-17.md) — Sprint 015 M0~M1 완료 + M2 진입 준비 (필독)**
+- [2026-05-16](./handoffs/2026-05-16.md) — 🔴 방향 전환 결정
 - [2026-05-15](./handoffs/2026-05-15.md) — Sprint 003~014 진행 종합
 - [2026-05-11](./handoffs/2026-05-11.md) — Sprint 001/002 진행 종합
 
