@@ -24,6 +24,12 @@ export interface UserSettingState {
   cancelOnTabSwitch: boolean
   /** Sprint 014 M3 — 첫 실행 OnboardingTour 표시 여부. 한 번이라도 닫으면 true (영속). */
   onboardingShown: boolean
+  /**
+   * Sprint 015 M2-1 — v0.4 신규 모듈 (AIResponseCache / IndexedPageStore / sqlite-vec) 활성화.
+   * 디폴트 false (Phase 1 마이그레이션 안전). M5 어댑터 제거 시점에 본 키 폐기.
+   * 환경변수 `FLOWBROWSER_V04` 가 우선 (storage/featureFlags.ts).
+   */
+  v04Enabled: boolean
 }
 
 const DEFAULTS: UserSettingState = {
@@ -33,7 +39,8 @@ const DEFAULTS: UserSettingState = {
   defaultProviderId: 'openai',
   privacyFilterEnabled: true,
   cancelOnTabSwitch: false,
-  onboardingShown: false
+  onboardingShown: false,
+  v04Enabled: false
 }
 
 function isNonEmptyString(v: unknown): v is string {
@@ -74,7 +81,9 @@ export class UserSettingStore {
         onboardingShown:
           typeof parsed.onboardingShown === 'boolean'
             ? parsed.onboardingShown
-            : DEFAULTS.onboardingShown
+            : DEFAULTS.onboardingShown,
+        v04Enabled:
+          typeof parsed.v04Enabled === 'boolean' ? parsed.v04Enabled : DEFAULTS.v04Enabled
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -135,6 +144,12 @@ export class UserSettingStore {
         throw new Error('invalid onboardingShown')
       }
       this.state.onboardingShown = patch.onboardingShown
+    }
+    if (patch.v04Enabled !== undefined) {
+      if (typeof patch.v04Enabled !== 'boolean') {
+        throw new Error('invalid v04Enabled')
+      }
+      this.state.v04Enabled = patch.v04Enabled
     }
     await this.persist()
     return this.getState()

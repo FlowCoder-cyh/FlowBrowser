@@ -147,7 +147,7 @@ Step 5: 로그 + 알림
 ### 19.5.1 M2 폐기 + 일반화 (8 PR)
 
 ```
-M2-1 AIResponseCache 신규 + TranslationCache 어댑터 (feature flag)
+M2-1 ✅ AIResponseCache 신규 + TranslationCache 어댑터 + feature flag (PR #122 — UserSetting.v04Enabled + FLOWBROWSER_V04 env + AIResponseCache 4 kind / 17 테스트 + TC adapter 회귀 10 테스트 + featureFlags 7 테스트 + UserSetting v04 4 테스트, +38 단위 테스트)
 M2-2 IndexedPageStore base 신규 + PageResultStore 어댑터
 M2-3 SummarizationPlanner DEPRECATE
 M2-4 translate:summarize-* IPC 폐기 (handler 2개)

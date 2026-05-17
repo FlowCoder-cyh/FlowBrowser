@@ -220,4 +220,43 @@ describe('UserSettingStore', () => {
       ).rejects.toThrow('invalid cancelOnTabSwitch')
     })
   })
+
+  // Sprint 015 M2-1 — v04Enabled (feature flag `flowbrowser.v04.enabled`)
+  describe('v04Enabled (Sprint 015 M2-1)', () => {
+    it('기본값 false (Phase 1 마이그레이션 안전)', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().v04Enabled).toBe(false)
+    })
+
+    it('update + persist', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      const s = await store.update({ v04Enabled: true })
+      expect(s.v04Enabled).toBe(true)
+
+      const reloaded = new UserSettingStore(path)
+      await reloaded.load()
+      expect(reloaded.getState().v04Enabled).toBe(true)
+    })
+
+    it('비-boolean 값 거부', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await expect(
+        // @ts-expect-error invalid type for test
+        store.update({ v04Enabled: 'yes' })
+      ).rejects.toThrow('invalid v04Enabled')
+    })
+
+    it('기존 파일에 v04Enabled 누락 → false fallback', async () => {
+      await fs.writeFile(
+        path,
+        JSON.stringify({ translationMode: 'panel' }) // 옛 형식
+      )
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().v04Enabled).toBe(false)
+    })
+  })
 })
