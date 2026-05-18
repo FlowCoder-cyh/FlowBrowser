@@ -93,6 +93,8 @@ export class IndexedPageStoreSqlite {
   private readonly stmtStatsVisits: Stmt<{ workspace_id: string; n: number }>
   private readonly stmtDeletePagesByWs: Stmt
   private readonly stmtDeleteAllPages: Stmt
+  private readonly stmtUpdateVisitDwell: Stmt // M4-3 — DwellTracker.stop() → Visit.dwell_ms UPDATE
+  private readonly stmtFindVisitById: Stmt<VisitRow>
   private readonly recordVisitTxn: (input: NormalizedRecordVisit) => RecordVisitResult
 
   constructor(fb: FlowbrowserDatabase, opts: IndexedPageStoreSqliteOptions) {
@@ -144,6 +146,12 @@ export class IndexedPageStoreSqlite {
     )
     this.stmtDeletePagesByWs = this.db.prepare('DELETE FROM pages WHERE workspace_id = ?')
     this.stmtDeleteAllPages = this.db.prepare('DELETE FROM pages')
+    this.stmtUpdateVisitDwell = this.db.prepare(
+      'UPDATE visits SET dwell_ms = ? WHERE id = ?'
+    )
+    this.stmtFindVisitById = this.db.prepare(
+      'SELECT id, page_id, workspace_id, visited_at, dwell_ms FROM visits WHERE id = ?'
+    )
     // 단일 TX — PRD §05.4.1 정합. upsertPage + createVisit 원자 처리.
     this.recordVisitTxn = this.db.transaction(
       (input: NormalizedRecordVisit): RecordVisitResult => {
@@ -207,6 +215,21 @@ export class IndexedPageStoreSqlite {
 
   listVisits(page_id: string): Visit[] {
     return this.stmtListVisitsByPage.all(page_id).map(rowToVisit)
+  }
+
+  /**
+   * Sprint 015 M4-3 — DwellTracker.stop() 결과를 Visit.dwell_ms 에 영속.
+   * 음수 허용 X (clamp to 0). visit 미존재 시 false 반환 (호출자가 stale visit 케이스 판단).
+   */
+  updateVisitDwell(visitId: string, dwellMs: number): boolean {
+    const clamped = Math.max(0, Math.floor(dwellMs))
+    const result = this.stmtUpdateVisitDwell.run(clamped, visitId)
+    return result.changes > 0
+  }
+
+  getVisit(visitId: string): Visit | null {
+    const row = this.stmtFindVisitById.get(visitId)
+    return row ? rowToVisit(row) : null
   }
 
   countPages(workspace_id?: string): number {
