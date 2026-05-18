@@ -249,7 +249,7 @@ describe('AutoTagger.tagPage — schema 정상 응답', () => {
     if (result.status === 'tagged') expect(result.tags).toHaveLength(3)
   })
 
-  it('코드 펜스 ```json ... ``` strip', async () => {
+  it('코드 펜스 ```json ... ``` strip (멀티 라인)', async () => {
     const provider = makeChatStub(
       '```json\n' +
         JSON.stringify({ tags: [{ kind: 'topic', name: 'fenced' }] }) +
@@ -265,6 +265,44 @@ describe('AutoTagger.tagPage — schema 정상 응답', () => {
     if (result.status === 'tagged') {
       expect(result.schemaParsed).toBe(true)
       expect(result.tags[0].name).toBe('fenced')
+    }
+  })
+
+  it('코드 펜스 단일 라인 ```json{...}``` strip (codex M4-2 hotfix NB-4)', async () => {
+    const provider = makeChatStub(
+      '```json' +
+        JSON.stringify({ tags: [{ kind: 'topic', name: 'single-line-fence' }] }) +
+        '```'
+    )
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    const result = await tagger.tagPage({
+      pageId: fx.pageId,
+      workspaceId: fx.wsId,
+      content: 'x'
+    })
+    expect(result.status).toBe('tagged')
+    if (result.status === 'tagged') {
+      expect(result.schemaParsed).toBe(true)
+      expect(result.tags[0].name).toBe('single-line-fence')
+    }
+  })
+
+  it('코드 펜스 lang 미명시 단일 라인 ``` {...} ``` strip', async () => {
+    const provider = makeChatStub(
+      '``` ' +
+        JSON.stringify({ tags: [{ kind: 'topic', name: 'no-lang' }] }) +
+        ' ```'
+    )
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    const result = await tagger.tagPage({
+      pageId: fx.pageId,
+      workspaceId: fx.wsId,
+      content: 'x'
+    })
+    expect(result.status).toBe('tagged')
+    if (result.status === 'tagged') {
+      expect(result.schemaParsed).toBe(true)
+      expect(result.tags[0].name).toBe('no-lang')
     }
   })
 })
