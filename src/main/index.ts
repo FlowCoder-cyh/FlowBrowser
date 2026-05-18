@@ -1,24 +1,15 @@
 import { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain } from 'electron'
 import { join } from 'node:path'
-// Sprint 015 M2-5 — legacy page-translation imports removed.
-//   The old tab-switch auto-cancel branch no longer uses user settings here.
+// Sprint 015 M2-5/M2-6 — legacy page-translation / render-restore imports 제거. services dead export 는 M2-8 cleanup 위임 (PRD §19.5.1).
 import {
   initServices,
   rebuildAllProviders,
   WebContentsRegistry,
   executeTranslateRequest,
   scanWebContentsFields,
-  extractWebContentsPageNodes,
-  pageResultLookup,
   loadTabState,
   saveTabState
 } from './services'
-import {
-  renderTranslationsScript,
-  restoreOriginalsScript,
-  type RenderPayload
-} from '../perception/TranslationRenderer'
-import { nodesSignatureFromTexts } from '../storage/PageResultStore'
 import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
 import { ThumbnailStore, type ThumbnailEntry } from './ThumbnailStore'
 import { ThumbnailDiskStore, defaultThumbnailsPath } from './ThumbnailDiskStore'
@@ -739,100 +730,9 @@ ipcMain.handle(
   }
 )
 
-/**
- * Sprint 006 M1/M2 — 외부 페이지에 번역 결과 렌더링 / 복원.
- */
-ipcMain.handle(
-  'translate:render',
-  async (
-    _event,
-    payload: RenderPayload
-  ): Promise<{ ok: boolean; applied?: number; missing?: number; reason?: string }> => {
-    if (!browserView) return { ok: false, reason: 'browser-view-not-ready' }
-    try {
-      const result = (await browserView.webContents.executeJavaScript(
-        renderTranslationsScript(payload)
-      )) as { applied: number; missing: number }
-      return { ok: true, applied: result.applied, missing: result.missing }
-    } catch (err) {
-      return { ok: false, reason: err instanceof Error ? err.message : String(err) }
-    }
-  }
-)
-
-/**
- * Sprint 006 M3 — 페이지 캐시 복원. 현재 페이지 URL + 노드 추출 + signature 비교 후 render.
- */
-ipcMain.handle(
-  'pageResult:restore-current',
-  async (
-    _event,
-    args: {
-      targetLanguage: string
-      providerType: string
-      mode: 'replace' | 'overlay'
-    }
-  ): Promise<{
-    ok: boolean
-    applied?: number
-    missing?: number
-    reason?: 'no-hit' | 'signature-mismatch' | 'browser-not-ready' | 'no-nodes' | string
-  }> => {
-    if (!browserView) return { ok: false, reason: 'browser-not-ready' }
-    const url = browserView.webContents.getURL()
-    const webContentsId = browserView.webContents.id
-    const bundle = await extractWebContentsPageNodes(webContentsId)
-    if (bundle.nodes.length === 0) return { ok: false, reason: 'no-nodes' }
-    const signature = nodesSignatureFromTexts(bundle.nodes)
-    const entry = await pageResultLookup({
-      url,
-      targetLanguage: args.targetLanguage,
-      providerType: args.providerType,
-      nodesSignature: signature
-    })
-    if (!entry) {
-      const entryAny = await pageResultLookup({
-        url,
-        targetLanguage: args.targetLanguage,
-        providerType: args.providerType
-      })
-      return entryAny
-        ? { ok: false, reason: 'signature-mismatch' }
-        : { ok: false, reason: 'no-hit' }
-    }
-    try {
-      const result = (await browserView.webContents.executeJavaScript(
-        renderTranslationsScript({
-          mode: args.mode,
-          selectorPreset: entry.selectorPreset,
-          instructions: entry.instructions
-        })
-      )) as { applied: number; missing: number }
-      return { ok: true, applied: result.applied, missing: result.missing }
-    } catch (err) {
-      return { ok: false, reason: err instanceof Error ? err.message : String(err) }
-    }
-  }
-)
-
-ipcMain.handle(
-  'translate:render-restore',
-  async (): Promise<{ ok: boolean; restored?: number; overlays?: number; reason?: string }> => {
-    if (!browserView) return { ok: false, reason: 'browser-view-not-ready' }
-    try {
-      const result = (await browserView.webContents.executeJavaScript(
-        restoreOriginalsScript()
-      )) as { restored: number; overlays: number }
-      return { ok: true, restored: result.restored, overlays: result.overlays }
-    } catch (err) {
-      return { ok: false, reason: err instanceof Error ? err.message : String(err) }
-    }
-  }
-)
-
+// Sprint 015 M2-6 — translate:render / translate:render-restore / pageResult:restore-current IPC handler 3개 + TranslationRenderer 모듈 폐기.
 // Sprint 015 M2-5 — legacy page-translation IPC handlers and push events removed.
-//   Details: PRD §19.5.1 M2-5 / PR body.
-// Sprint 015 M2-4 — 페이지 요약 use case 폐기. 상세: PRD §19.5.1 M2-4 / PR 본문.
+// Sprint 015 M2-4 — 페이지 요약 use case 폐기. 상세: PRD §19.5.1.
 
 async function handleContextMenuTranslate(
   selectionText: string,

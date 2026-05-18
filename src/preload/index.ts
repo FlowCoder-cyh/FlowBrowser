@@ -217,17 +217,8 @@ const pageResultApi = {
     nodesSignature: string
     selectorPreset: 'paragraph' | 'page'
     instructions: Array<{ id: string; translatedText: string }>
-  }): Promise<PageResultEntryPayload> => ipcRenderer.invoke('pageResult:store', args),
-  restoreCurrent: (args: {
-    targetLanguage: string
-    providerType: string
-    mode: 'replace' | 'overlay'
-  }): Promise<{
-    ok: boolean
-    applied?: number
-    missing?: number
-    reason?: string
-  }> => ipcRenderer.invoke('pageResult:restore-current', args)
+  }): Promise<PageResultEntryPayload> => ipcRenderer.invoke('pageResult:store', args)
+  // Sprint 015 M2-6 — pageResult:restore-current API 제거 (render IPC 폐기 동반).
 }
 
 interface GlossaryTermPayload {
@@ -324,21 +315,10 @@ interface TranslateRequest {
 //   Details: PRD §19.5.1 M2-5.
 
 const translateApi = {
-  request: (args: TranslateRequest) => ipcRenderer.invoke('translate:request', args),
+  request: (args: TranslateRequest) => ipcRenderer.invoke('translate:request', args)
+  // Sprint 015 M2-6 — render / renderRestore API 제거 (translate:render / translate:render-restore IPC 폐기).
   // Sprint 015 M2-5 — legacy page-translation APIs and listeners removed.
-  // Sprint 015 M2-4 — 페이지 요약 API/listener 제거. 상세: PRD §19.5.1 M2-4.
-  render: (payload: {
-    mode: 'replace' | 'overlay'
-    selectorPreset: 'paragraph' | 'page'
-    instructions: Array<{ id: string; translatedText: string }>
-  }): Promise<{ ok: boolean; applied?: number; missing?: number; reason?: string }> =>
-    ipcRenderer.invoke('translate:render', payload),
-  renderRestore: (): Promise<{
-    ok: boolean
-    restored?: number
-    overlays?: number
-    reason?: string
-  }> => ipcRenderer.invoke('translate:render-restore')
+  // Sprint 015 M2-4 — 페이지 요약 API/listener 제거. 상세: PRD §19.5.1.
 }
 
 type PopupMode = 'translation' | 'explanation' | 'summary'
