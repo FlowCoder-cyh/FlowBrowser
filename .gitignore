@@ -35,6 +35,9 @@ coverage/
 .cache/
 .tmp/
 
+# Spike PoC (P-002, .flowset/specs/m3-spike-decisions.md 만 commit)
+spike/
+
 # FlowSet runtime
 # eval-results는 evaluator 채점 기록(PR 검토/감사 로그)이므로 git 추적 (변경: 2026-05-11)
 .flowset/logs/*
