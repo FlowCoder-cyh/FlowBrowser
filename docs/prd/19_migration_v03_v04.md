@@ -149,7 +149,7 @@ Step 5: 로그 + 알림
 ```
 M2-1 ✅ AIResponseCache 신규 + TranslationCache 어댑터 + feature flag (PR #122 — UserSetting.v04Enabled + FLOWBROWSER_V04 env + AIResponseCache 4 kind / 17 테스트 + TC adapter 회귀 10 테스트 + featureFlags 7 테스트 + UserSetting v04 4 테스트 + codex 핫픽스 (peek/parseEntry/LRU 주석) 14 테스트, +52 단위 테스트)
 M2-2 ✅ IndexedPageStore base 신규 + PageResultStore 어댑터 (PR #123) — Page + Visit 분리 + workspace_id (DEFAULT_WORKSPACE_ID='default') + content_hash dedupe + visited_count denormalized + cascade DELETE + side-write 어댑터 + **recordVisit() 단일 TX 원자 메서드 (PRD §05.4.1 정합, codex 핫픽스)** + parseEntry epoch-ms Integer 검증 + Visit↔Page workspace 동기화 검증 + sideWriteFailureCount 관측 가능성 (+49 단위 = 30 IndexedPageStore + 10 PRS.adapter + 9 codex 핫픽스)
-M2-3 SummarizationPlanner DEPRECATE
+M2-3 ✅ SummarizationPlanner DEPRECATE 마킹 (PR #124) — @deprecated JSDoc (모듈 헤더 + planChunks + summarizeChunks + main IPC handler 2개 (`translate:summarize-page` / `translate:summarize-abort`) + preload API 2개 (`summarizePage` / `abortSummarize`)) + 호출 시 main process stderr 에 모듈 lifetime 1회 warn (호출 폭주 방지 모듈 flag, production 포함 — Electron stderr 사용자 노출 X). 코드 동작 v0.3 100% 보존. 대체: ChatPanel + RAG retrieval (M5+, PRD §10.1 채팅 파이프라인). M2-4 에서 IPC handler + 모듈 + 단위 테스트 18개 제거 / M5 에서 UI 분기 (`TranslationPanel.tsx` mode='summary') 제거. (+4 신규 단위 = deprecation 회귀 4 케이스, 누적 459 → 463 / 35 모듈)
 M2-4 translate:summarize-* IPC 폐기 (handler 2개)
 M2-5 translate:paragraphs / page IPC 폐기 (handler 4개)
 M2-6 translate:render / render-restore / pageResult:restore IPC 폐기 (handler 3개)

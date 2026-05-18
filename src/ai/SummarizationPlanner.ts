@@ -3,6 +3,18 @@
  *
  * PageNodeBundle을 청크 단위 텍스트로 변환하고, 각 청크 요약 → 통합 요약 단계를
  * pure 함수로 분리한다. mock provider 단위 테스트를 위한 의존성 주입 구조.
+ *
+ * @deprecated Sprint 015 M2-3 — v0.4 방향 전환 (PRD §00 §0.2 / §01 §1.2.1 폐기된 패러다임) 결정.
+ *   페이지 요약 use case 자체 폐기. 대체:
+ *     - Phase 1 (Sprint 015 M5+): ChatPanel + RAG retrieval (`docs/prd/10_ai_chat.md` §10.1 채팅 파이프라인)
+ *     - Phase 2 (Sprint 016+): 백그라운드 장시간 처리 (`docs/prd/14_translation_background.md`)
+ *
+ *   본 모듈 실제 코드 + IPC handler (`translate:summarize-page` / `translate:summarize-abort`)
+ *   + preload API (`summarizePage` / `abortSummarize`) + 단위 테스트 18개는 **M2-4 PR 에서 제거**.
+ *   UI 분기 (`TranslationPanel.tsx` mode='summary') 는 **M5 ChatPanel 전환 시 제거**.
+ *
+ *   본 M2-3 PR 은 마킹 단계 — 호출 시 console.warn 1회 (모듈 단위 flag, 호출 폭주 방지) + JSDoc @deprecated 표시.
+ *   코드 동작은 v0.3 모드 100% 보존.
  */
 
 import type {
@@ -62,10 +74,27 @@ export class SummarizationAbortedError extends Error {
 
 const DEFAULT_COMBINE_CHAR_LIMIT = 8000
 
+// M2-3 deprecate — 호출 시 main process stderr 에 모듈 lifetime 1회 warn (호출 폭주 방지 모듈 flag).
+// production 포함 — Electron main process stderr 는 사용자 노출 X, 디버깅/로그 수집에만 가시.
+let deprecationWarned = false
+function warnDeprecatedOnce(): void {
+  if (deprecationWarned) return
+  deprecationWarned = true
+  console.warn(
+    '[FlowBrowser] SummarizationPlanner is deprecated (Sprint 015 M2-3). ' +
+      'Removal in M2-4 (IPC handler + module) + M5 (UI 분기). ' +
+      'See docs/prd/19_migration_v03_v04.md §19.5.1.'
+  )
+}
+
 /**
  * PageNodeBundle의 chunks 메타를 사용해 각 청크의 노드 텍스트를 합본.
+ *
+ * @deprecated Sprint 015 M2-3 — 페이지 요약 use case 폐기 (PRD §00 §0.2). M2-4 PR 에서 본 함수 + 모듈 제거.
+ *   대체: ChatPanel + RAG retrieval (Sprint 015 M5+, `docs/prd/10_ai_chat.md` §10.1).
  */
 export function planChunks(bundle: PageNodeBundle): PlannedChunk[] {
+  warnDeprecatedOnce()
   const idIndex = new Map<string, number>()
   bundle.nodes.forEach((n, i) => idIndex.set(n.id, i))
   const planned: PlannedChunk[] = []
@@ -89,12 +118,16 @@ export function planChunks(bundle: PageNodeBundle): PlannedChunk[] {
  * Sprint 005 M3 — 폭주 보호:
  * 통합 단계 입력이 `combineCharLimit` 초과 시 재분할 (부분 통합 → 최종 통합).
  * 재분할 후에도 초과 시 truncate 폴백 (무한 루프 방지, 한 번만 재분할).
+ *
+ * @deprecated Sprint 015 M2-3 — 페이지 요약 use case 폐기 (PRD §00 §0.2). M2-4 PR 에서 본 함수 + 모듈 제거.
+ *   대체: ChatPanel + RAG retrieval (Sprint 015 M5+, `docs/prd/10_ai_chat.md` §10.1).
  */
 export async function summarizeChunks(
   chunkTexts: string[],
   summarize: (text: string) => Promise<string>,
   options: SummarizeOptions = {}
 ): Promise<SummarizeResult> {
+  warnDeprecatedOnce()
   const combineCharLimit = options.combineCharLimit ?? DEFAULT_COMBINE_CHAR_LIMIT
   const checkAbort = (): void => {
     if (options.abortCheck && options.abortCheck()) {
