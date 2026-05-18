@@ -1,3 +1,7 @@
+// Sprint 015 M3-7 PARTIAL — v0.4 방향 전환에 따라 "페이지 번역 결과" → "페이지 본문 캐시" 의미로 일반화.
+// M5-8 시점에 본 패널은 신규 인덱싱 통계 (MemoryStatsPanel) 로 흡수 폐기 예정.
+// 현재는 기존 pageResultApi 사용 (어댑터 모드 보존) — copy 만 갱신.
+
 import { useEffect, useState } from 'react'
 
 export default function PageCachePanel(): JSX.Element {
@@ -15,12 +19,12 @@ export default function PageCachePanel(): JSX.Element {
   }
 
   async function handleClear(): Promise<void> {
-    if (!window.confirm('저장된 페이지 번역 결과를 모두 삭제합니다. 진행할까요?')) return
+    if (!window.confirm('저장된 페이지 본문 캐시를 모두 삭제합니다. 진행할까요?')) return
     setBusy(true)
     setMessage(null)
     try {
       await window.pageResultApi.clear()
-      setMessage('페이지 캐시를 모두 삭제했습니다.')
+      setMessage('페이지 본문 캐시를 모두 삭제했습니다.')
       await refresh()
     } finally {
       setBusy(false)
@@ -29,9 +33,9 @@ export default function PageCachePanel(): JSX.Element {
 
   return (
     <section className="settings-section page-cache-panel">
-      <h2 className="settings-title">페이지 캐시</h2>
+      <h2 className="settings-title">페이지 본문 캐시</h2>
       <p className="settings-muted">
-        페이지 번역 결과를 저장해 재방문 시 즉시 복원합니다 (TTL 30일, 최대 500MB).
+        방문한 페이지의 본문을 저장해 재방문 / 인덱싱 / 검색 시 재사용합니다 (TTL 30일, 최대 500MB).
       </p>
       <div className="pc-stats">
         <span className="pc-count">{count ?? '…'}</span>

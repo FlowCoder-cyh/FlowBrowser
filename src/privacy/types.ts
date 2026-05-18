@@ -52,12 +52,27 @@ export interface PrivacyEvaluation {
   blockedBy?: 'password_field' | 'card_field' | 'domain_blacklist' | 'consent_revoked'
 }
 
+/**
+ * M3-7 v0.4 GENERALIZE — v0.3 feature + v0.4 신규 (chat/embed/tag/background_translation).
+ * UsageLog.Feature 와 동일 타입 (감사 로그 ↔ 사용량 로그 정합).
+ */
+export type TransmissionFeature =
+  | 'translation'
+  | 'summary'
+  | 'tts'
+  | 'stt'
+  | 'explanation'
+  | 'chat'
+  | 'embed'
+  | 'tag'
+  | 'background_translation'
+
 export interface TransmissionLogEntry {
   timestamp: number
   url: string
   domain: string
   decision: PrivacyDecision
-  feature: 'translation' | 'summary' | 'tts' | 'stt' | 'explanation'
+  feature: TransmissionFeature
   providerId?: string
   reason?: string
 }
