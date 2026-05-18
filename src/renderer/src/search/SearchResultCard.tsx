@@ -1,12 +1,14 @@
 /**
  * Sprint 015 M5-4 — SearchResultCard.
  *
- * PRD §9.5.1 필드 7종:
- *   - 제목 (Page.title 또는 Note.selected_text 첫 50자) — bold
- *   - URL (도메인만 strip) — muted small
- *   - 시간 시그널 — Visit.visited_at + dwell_ms ("5일 전, 12분 머묾")
- *   - 매칭 발췌 — content / selected_text 매칭 영역 (±100자) + <mark> highlight
- *   - 타입 인디케이터 — "📄 페이지" / "📝 노트"
+ * PRD §9.5.1 필드 (본 PR 5/6 구현):
+ *   1. 제목 (Page.title 또는 Note.selected_text 첫 50자) — bold ✓
+ *   2. URL (도메인만 strip) — muted small ✓
+ *   3. 시간 시그널 — Visit.visited_at + dwell_ms ("5일 전, 12분 머묾") ✓
+ *   4. 매칭 발췌 — content / selected_text 매칭 영역 (±100자) + <mark> highlight ✓
+ *   5. 타입 인디케이터 — "📄 페이지" / "📝 노트" ✓
+ *   6. 워크스페이스 컬러 좌측 4px 막대 — **미구현, M6 T28 (워크스페이스 사이드바) 산출물 의존**
+ *      → M6 합류 시 props.workspaceColor 추가 + `.search-result-card__color-bar` 스타일 추가
  *
  * PRD §9.5.4 PreviewPane (hover) 는 M5-4 후순위 → 미구현. SearchResultCard 단일 책임만.
  *

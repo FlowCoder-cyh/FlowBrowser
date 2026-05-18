@@ -127,6 +127,21 @@ describe('buildExcerpt — 다중 token + case-insensitive', () => {
     expect(r.matchPositions[0]).toEqual({ start: 0, end: 3 })
     expect(r.matchPositions[1]).toEqual({ start: 8, end: 11 })
   })
+
+  it('unicode 길이 비보존 — "İ" (U+0130) 동일 case 원문 인덱스 정확 (codex M5-4 PR #156 BLOCKING 회귀)', () => {
+    // 'İ'.toLowerCase() = 'i' + combining dot (2 code units) — lowerText.indexOf 기반 구현은
+    // 원문 인덱스 mapping 깨짐. 원문 슬라이스 비교 방식 (findCaseInsensitive) 만 정확.
+    // 본 회귀 보호: 동일 case ('İstanbul' query) 의 원문 인덱스 정합 검증.
+    //
+    // 다른 case 매칭 ("istanbul" query → "İstanbul" content) 은 본 PR 범위 외 — Phase 2+ unicode
+    // normalization (Intl.Collator 등) 의존. KI 후보: 다국어 case-fold 정규화.
+    const content = 'aaa İstanbul bbb'
+    const expectedStart = content.indexOf('İstanbul')
+    const r = buildExcerpt(content, 'İstanbul')
+    expect(r.matchPositions).toHaveLength(1)
+    expect(r.matchPositions[0]).toEqual({ start: expectedStart, end: expectedStart + 8 })
+    expect(r.text.slice(r.matchPositions[0].start, r.matchPositions[0].end)).toBe('İstanbul')
+  })
 })
 
 describe('buildExcerpt — 옵션', () => {

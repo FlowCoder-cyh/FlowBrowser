@@ -53,13 +53,14 @@ export function buildExcerpt(
     return { text: content.slice(0, fallbackLength), matchPositions: [] }
   }
 
-  // 가장 빠른 매칭 token + 위치 찾기 (case-insensitive)
-  const lowerContent = content.toLowerCase()
+  // 가장 빠른 매칭 token + 위치 찾기 (case-insensitive, unicode-safe).
+  // codex M5-4 PR #156 BLOCKING 정정 — `toLowerCase()` 는 길이 비보존 가능 (예: 'İ' U+0130 →
+  // 'i' + combining dot 2 code units). lowerText 인덱스를 원문 인덱스로 사용 시 mapping 깨짐.
+  // 안전한 방식: 원문 substring 슬라이스 후 `toLowerCase` 비교 — 인덱스는 항상 원문 기준.
   let firstMatchIdx = -1
   let firstMatchTokenLen = 0
   for (const t of tokens) {
-    const lowerT = t.toLowerCase()
-    const idx = lowerContent.indexOf(lowerT)
+    const idx = findCaseInsensitive(content, t, 0)
     if (idx === -1) continue
     if (firstMatchIdx === -1 || idx < firstMatchIdx) {
       firstMatchIdx = idx
@@ -79,21 +80,20 @@ export function buildExcerpt(
   )
   const text = content.slice(sliceStart, sliceEnd)
 
-  // text 내 모든 token 위치 찾기
-  const lowerText = text.toLowerCase()
+  // text 내 모든 token 위치 찾기 (unicode-safe — 원문 슬라이스 비교)
   const positions: ExcerptMatch[] = []
   for (const t of tokens) {
-    const lowerT = t.toLowerCase()
     let cursor = 0
-    while (cursor < lowerText.length) {
-      const idx = lowerText.indexOf(lowerT, cursor)
+    while (cursor < text.length) {
+      const idx = findCaseInsensitive(text, t, cursor)
       if (idx === -1) break
       positions.push({ start: idx, end: idx + t.length })
       cursor = idx + t.length
     }
   }
 
-  // 정렬 + 중복 (overlap) 병합
+  // 정렬 + 중복 (overlap) + 인접 매칭 병합. `last.end >= p.start` 조건은 overlap 외에 인접 매칭
+  // (e.g., "abc" + "def" → "abcdef") 도 병합. codex M5-4 PR #156 NB — 함수 동작 범위 명시.
   positions.sort((a, b) => a.start - b.start)
   const merged: ExcerptMatch[] = []
   for (const p of positions) {
@@ -109,8 +109,35 @@ export function buildExcerpt(
 }
 
 /**
+ * Case-insensitive substring 검색 (unicode 동일-case mapping 정합).
+ *
+ * 원문 `haystack` 의 `from` 위치부터 `needle.toLowerCase()` 와 일치하는 위치 반환.
+ * 본 함수의 정확성 보장 범위:
+ *   ✓ ASCII / 한국어 / 일본어 등 toLowerCase 길이 보존 케이스 — 정확
+ *   ✓ 동일 case 매칭 (`İstanbul` query → `İstanbul` content) — 원문 인덱스 정합 (codex M5-4 BLOCKING 정정)
+ *   ✗ 다른 case 매칭 (`istanbul` query → `İstanbul` content 의 cross-case fold) — Phase 2+ unicode
+ *     정규화 (Intl.Collator / String.prototype.localeCompare) 옵션 — 본 PR 범위 외. KI 후보 등록.
+ *
+ * 단점: O(n × m) — 큰 content 에서 다중 토큰 검색 시 느림. 본 앱 use case (페이지 본문 수십 KB,
+ * 토큰 5개 미만, 검색 응답 < 200ms PRD §9.7) 에서는 충분히 빠름. 성능 임계 미달 시 Aho-Corasick
+ * 같은 다중 패턴 매칭 옵션 (Phase 2+).
+ */
+function findCaseInsensitive(haystack: string, needle: string, from: number): number {
+  if (!needle) return -1
+  const needleLower = needle.toLowerCase()
+  const needleLen = needle.length
+  const maxStart = haystack.length - needleLen
+  for (let i = from; i <= maxStart; i++) {
+    if (haystack.slice(i, i + needleLen).toLowerCase() === needleLower) {
+      return i
+    }
+  }
+  return -1
+}
+
+/**
  * query 를 공백 기반으로 토큰화. 빈 토큰 제거.
- * 한국어 형태소 분석은 비용 위협으로 본 PR 단순 공백 split (Phase 2+ 형태소 옵션).
+ * 한국어 형태소 분석은 비용 위협으로 본 PR 단순 공백 split (Phase 2+ 형태소 옵션 — KI 후보).
  */
 function tokenize(query: string): string[] {
   return query
