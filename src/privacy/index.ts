@@ -37,8 +37,16 @@ export type {
   PrivacyContext,
   PrivacyDecision,
   PrivacyEvaluation,
-  TransmissionLogEntry
+  TransmissionLogEntry,
+  TransmissionFeature,
+  IndexingBlockReason,
+  IndexingContext,
+  IndexingEvaluation,
+  PrivacyExclusionRule
 } from './types'
+
+export { IndexingGate } from './IndexingGate'
+export type { IndexingGateOptions } from './IndexingGate'
 
 import { ConsentGate } from './ConsentGate'
 import { DomainFilter } from './DomainFilter'

@@ -259,4 +259,92 @@ describe('UserSettingStore', () => {
       expect(store.getState().v04Enabled).toBe(false)
     })
   })
+
+  // Sprint 015 M4-4 — privacyExclusions (IndexingGate 사용자 추가/제외 패턴)
+  describe('privacyExclusions (Sprint 015 M4-4)', () => {
+    it('기본값 빈 배열', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().privacyExclusions).toEqual([])
+    })
+
+    it('update + persist', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      const s = await store.update({
+        privacyExclusions: [
+          { pattern: '*.example.com', type: 'block' },
+          { pattern: 'gmail.com', type: 'allow' }
+        ]
+      })
+      expect(s.privacyExclusions).toHaveLength(2)
+
+      const reloaded = new UserSettingStore(path)
+      await reloaded.load()
+      expect(reloaded.getState().privacyExclusions).toEqual([
+        { pattern: '*.example.com', type: 'block' },
+        { pattern: 'gmail.com', type: 'allow' }
+      ])
+    })
+
+    it('비-array 거부', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await expect(
+        // @ts-expect-error invalid type for test
+        store.update({ privacyExclusions: 'bogus' })
+      ).rejects.toThrow('invalid privacyExclusions')
+    })
+
+    it('잘못된 entry 거부 (pattern 빈 문자열 / type 잘못된 값)', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await expect(
+        store.update({ privacyExclusions: [{ pattern: '', type: 'block' }] })
+      ).rejects.toThrow('invalid privacyExclusions entry')
+      await expect(
+        // @ts-expect-error invalid type for test
+        store.update({ privacyExclusions: [{ pattern: 'x.com', type: 'bogus' }] })
+      ).rejects.toThrow('invalid privacyExclusions entry')
+    })
+
+    it('디스크 파일의 잘못된 entry 무시 + 중복 제거', async () => {
+      await fs.writeFile(
+        path,
+        JSON.stringify({
+          translationMode: 'panel',
+          privacyExclusions: [
+            { pattern: 'a.com', type: 'block' },
+            { pattern: 'a.com', type: 'block' }, // 중복
+            { pattern: '', type: 'allow' }, // 빈 pattern
+            { pattern: 'b.com', type: 'unknown' }, // 잘못된 type
+            'invalid', // 잘못된 entry
+            { pattern: 'c.com', type: 'allow' }
+          ]
+        })
+      )
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().privacyExclusions).toEqual([
+        { pattern: 'a.com', type: 'block' },
+        { pattern: 'c.com', type: 'allow' }
+      ])
+    })
+
+    it('getState 반환값 변경이 내부 state 에 영향 없음 (deep copy)', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await store.update({ privacyExclusions: [{ pattern: 'x.com', type: 'block' }] })
+      const s = store.getState()
+      s.privacyExclusions.push({ pattern: 'y.com', type: 'block' })
+      expect(store.getState().privacyExclusions).toHaveLength(1)
+    })
+
+    it('기존 파일에 privacyExclusions 누락 → 빈 배열 fallback', async () => {
+      await fs.writeFile(path, JSON.stringify({ translationMode: 'panel' }))
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().privacyExclusions).toEqual([])
+    })
+  })
 })
