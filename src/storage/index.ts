@@ -100,6 +100,20 @@ export type {
 } from './EmbeddingQueue'
 
 export {
+  migrateV03ToV04,
+  revertMigration,
+  V03_SOURCE_FILES,
+  V04_DB_SENTINEL,
+  V04_LOG_FILE,
+  V04_BACKUP_ROOT
+} from './migrations/v03_to_v04'
+export type {
+  MigrateOptions,
+  MigrationCounts,
+  MigrationResult
+} from './migrations/v03_to_v04'
+
+export {
   GlossaryStore,
   defaultGlossaryPath,
   validateTerm,
