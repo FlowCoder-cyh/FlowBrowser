@@ -5,7 +5,13 @@ export type {
   ProviderType as AIProviderType,
   RequestType,
   TranslationInput,
-  TranslationOutput
+  TranslationOutput,
+  // Sprint 015 M2-7 — v0.4 ProviderAdapter chat/embed 확장 타입
+  ChatMessage,
+  ChatRequest,
+  ChatResponse,
+  EmbedRequest,
+  EmbedResponse
 } from './types'
 export { OpenAIApiKeyProvider, CodexLoginProvider } from './providers'
 export type { CodexTokenAccess } from './providers'

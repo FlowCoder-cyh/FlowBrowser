@@ -15,7 +15,15 @@
  */
 
 import { ProviderError, type ProviderAdapter } from '../ProviderAdapter'
-import type { ProviderInfo, TranslationInput, TranslationOutput } from '../types'
+import type {
+  ChatRequest,
+  ChatResponse,
+  EmbedRequest,
+  EmbedResponse,
+  ProviderInfo,
+  TranslationInput,
+  TranslationOutput
+} from '../types'
 import {
   DeviceCodeFlow,
   type TokenBundle,
@@ -58,7 +66,10 @@ export class CodexLoginProvider implements ProviderAdapter {
       'summary'
     ],
     defaultModel: DEFAULT_MODEL,
-    availableModels: AVAILABLE_MODELS
+    availableModels: AVAILABLE_MODELS,
+    // Sprint 015 M2-7 — v0.4 ProviderAdapter chat 지원 (Responses API). embed 는 ChatGPT 백엔드 미공개.
+    supportsChat: true,
+    supportsEmbed: false
   }
 
   private readonly tokenAccess: CodexTokenAccess
@@ -212,6 +223,171 @@ export class CodexLoginProvider implements ProviderAdapter {
       estimatedCostUsd: 0,
       durationMs: Date.now() - startedAt
     }
+  }
+
+  /**
+   * Sprint 015 M2-7 — Chat 호출. Codex Responses API (chatgpt.com/backend-api/codex/responses).
+   *
+   * messages 의 system role 은 instructions 필드로 합쳐 보냄 (Responses API 규약, M3-8 패턴).
+   * user/assistant role 은 input 배열로 직렬 전달 (multi-turn).
+   * 401 시 refresh_token 으로 1회 재시도 (translate 와 동일 패턴).
+   * 비용: ChatGPT 구독 한도 내 0 (한도 초과 시 429 → rate_limit error). G-003 강화 — 자동 호출 X.
+   */
+  async chat(request: ChatRequest): Promise<ChatResponse> {
+    if (request.messages.length === 0) {
+      throw new ProviderError('Codex chat: messages 가 비어 있습니다.', 'bad_request', false)
+    }
+    const startedAt = Date.now()
+    const model = this.resolveModel(request.modelHint)
+    const { instructions, inputMessages } = this.splitMessagesForResponsesApi(request.messages)
+
+    let token = await this.ensureFreshToken()
+    let identity = resolveCodexAuthIdentity(token.accessToken)
+    if (!identity.accountId) {
+      throw new ProviderError(
+        'Codex Login 토큰에서 ChatGPT account_id를 찾지 못했습니다. 재로그인 필요.',
+        'auth_invalid',
+        false
+      )
+    }
+
+    let res = await this.callResponsesRaw(
+      token.accessToken,
+      identity.accountId,
+      model,
+      instructions,
+      inputMessages
+    )
+
+    if (res.status === 401 || res.status === 403) {
+      try {
+        const fresh = await this.flow.refreshTokens(token.refreshToken)
+        this.tokenAccess.update(fresh)
+        token = fresh
+        identity = resolveCodexAuthIdentity(token.accessToken)
+        if (!identity.accountId) {
+          throw new Error('refresh 후 account_id 추출 실패')
+        }
+        res = await this.callResponsesRaw(
+          token.accessToken,
+          identity.accountId,
+          model,
+          instructions,
+          inputMessages
+        )
+      } catch (err) {
+        throw new ProviderError(
+          `Codex Login 인증 만료: ${err instanceof Error ? err.message : String(err)}`,
+          'auth_invalid',
+          false
+        )
+      }
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      throw new ProviderError('Codex Login 인증 만료 (refresh 후도 실패)', 'auth_invalid', false)
+    }
+    if (res.status === 429) {
+      throw new ProviderError(
+        'ChatGPT 구독 사용 한도 도달. 잠시 후 다시 시도하세요.',
+        'rate_limit',
+        true
+      )
+    }
+    if (res.status >= 500) {
+      throw new ProviderError(`Codex Login 서버 오류: ${res.status}`, 'server_error', true)
+    }
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '')
+      throw new ProviderError(
+        `Codex Login 요청 실패: ${res.status} ${errBody}`,
+        'bad_request',
+        false
+      )
+    }
+
+    if (!res.body) {
+      throw new ProviderError('Codex Login 응답 body가 비어 있습니다.', 'server_error', true)
+    }
+    const accumulated = await accumulateResponsesStream(res.body)
+    if (!accumulated.text) {
+      throw new ProviderError('Codex Login 응답에 결과가 없습니다.', 'server_error', true)
+    }
+    return {
+      text: accumulated.text,
+      modelUsed: accumulated.model ?? model,
+      inputTokens: accumulated.inputTokens ?? 0,
+      outputTokens: accumulated.outputTokens ?? 0,
+      // ChatGPT 구독 한도 내 호출은 별도 비용 청구 없음 (translate 와 동일 가정).
+      estimatedCostUsd: 0,
+      durationMs: Date.now() - startedAt
+    }
+  }
+
+  /**
+   * Sprint 015 M2-7 — Embedding 호출 미지원. ChatGPT 백엔드는 임베딩 endpoint 미공개.
+   * 자동 인덱싱 (M3 EmbeddingClient) 은 OpenAIApiKeyProvider 만 사용 — BYOK 디폴트 (G-003 강화).
+   */
+  async embed(_request: EmbedRequest): Promise<EmbedResponse> {
+    throw new ProviderError(
+      'Codex Login Provider 는 embedding 을 지원하지 않습니다. OpenAI API Key 를 설정하세요.',
+      'unsupported',
+      false
+    )
+  }
+
+  /**
+   * Responses API 규약: system role 메시지는 instructions 필드로 합치고 나머지는 input 배열로 전달.
+   * 여러 system 메시지가 있으면 줄바꿈으로 join.
+   */
+  private splitMessagesForResponsesApi(messages: ChatRequest['messages']): {
+    instructions: string
+    inputMessages: Array<{ role: 'user' | 'assistant'; text: string }>
+  } {
+    const systems: string[] = []
+    const inputMessages: Array<{ role: 'user' | 'assistant'; text: string }> = []
+    for (const msg of messages) {
+      if (msg.role === 'system') {
+        systems.push(msg.content)
+      } else {
+        inputMessages.push({ role: msg.role, text: msg.content })
+      }
+    }
+    return { instructions: systems.join('\n\n'), inputMessages }
+  }
+
+  /**
+   * chat() 전용 Responses API 호출 (multi-turn input). translate() 와 별개 — translate 는 단일 user 입력만 처리.
+   */
+  private async callResponsesRaw(
+    accessToken: string,
+    accountId: string,
+    model: string,
+    instructions: string,
+    inputMessages: Array<{ role: 'user' | 'assistant'; text: string }>
+  ): Promise<Response> {
+    return this.fetchImpl(`${CODEX_RESPONSES_BASE_URL}/responses`, {
+      method: 'POST',
+      headers: this.buildHeaders(accessToken, accountId),
+      body: JSON.stringify({
+        model,
+        instructions,
+        input: inputMessages.map((m) => ({
+          type: 'message',
+          role: m.role,
+          content: [
+            { type: m.role === 'user' ? 'input_text' : 'output_text', text: m.text }
+          ]
+        })),
+        tools: [],
+        tool_choice: 'auto',
+        parallel_tool_calls: true,
+        store: false,
+        stream: true,
+        reasoning: { effort: 'low', summary: null },
+        include: []
+      })
+    })
   }
 
   /**
