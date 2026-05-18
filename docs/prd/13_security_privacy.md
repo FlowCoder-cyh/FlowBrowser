@@ -140,17 +140,21 @@ Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 | **외부 Provider 호출 차단** | Privacy Filter 5단계 (§13.2) | API Key / Codex OAuth / Local LLM 모든 외부 호출 |
 | **인덱싱 차단** (M4 NEW) | IndexingGate (§13.2.2) | Page·Visit·Embedding 누적 자체 차단 (외부 호출과 별개) |
 
-### 13.5.2 디폴트 차단 list (11 패턴, [§08 §8.6.1](./08_indexing.md#861-디폴트-차단-list-v04-direction-§17-p1-9-pr-b61-강화) 인용)
+### 13.5.2 디폴트 차단 list (11 카테고리 / 15 concrete matcher, [§08 §8.6.1](./08_indexing.md#861-디폴트-차단-list-v04-direction-§17-p1-9-pr-b61-강화--m4-4-정합) 인용)
 
-본 list 는 v0.3 `DomainFilter.ts` 패턴과 정합 + v0.4 확장:
+본 list 는 v0.3 `DomainFilter.ts` 패턴과 정합 + v0.4 확장 (M4-4 정정 — `banking.*` 명시 + 카운트 분리):
 
-`*.bank.*` / `mail.*` / `gmail.com` / `*.paypal.com` / `*.icloud.com` / `accounts.*` / `signin.*` / `login.*` / `oauth.*` / `id.*` / `payment.*` / `pay.*` / `checkout.*` / `*.naver.com/mail/*` (path glob, M3 PathMatcher 도입)
+`*.bank.*` / `banking.*` / `mail.*` / `gmail.com` / `*.paypal.com` / `*.icloud.com` / `accounts.*` / `signin.*` / `login.*` / `oauth.*` / `id.*` / `payment.*` / `pay.*` / `checkout.*` / `*.naver.com/mail/*` (path glob, M4-4 IndexingGate 본격 도입)
+
+**카운트 표기**: 위는 **11 카테고리** (사용자 의도 분류), concrete matcher 카운트는 **15** (`defaultBlacklistPatterns()` 13 RegExp + IndexingGate 전용 `*.icloud.com` + path glob 1). M4-4 PR #141 commit `7fd9410` 정합.
 
 ### 13.5.3 사용자 명시 override
 
-- 컨텍스트 메뉴 "이 페이지 인덱싱" 클릭 시 1회 override
+- 컨텍스트 메뉴 "이 페이지 인덱싱" 클릭 시 1회 override token 발급 (`IndexingGate.issueOverrideToken(url)`)
 - override 결정 영속 X (재방문 시 다시 차단) — Phase 2+ "이 도메인 항상 인덱싱" 옵션 검토
+- override token: 1회 소비 + URL **완전 일치** 강제 (query / hash 차이 시 거부) + TTL 디폴트 5분
 - override 시 [§07 §7.4.2 MemoryStatsPanel](./07_ui_layout.md#742-memorystatspanel-m6) 에 차단 해제 인디케이터 + 감사 로그 (TransmissionLogger)
+- **`privacyExclusions[].type='allow'` 와 override 의 차이**: allow 는 영속 + `<input type='password'>` 감지도 bypass (사용자 명시 신뢰), override 는 1회 + password 감지는 별개 (M4-1 IndexingService 가 hasPasswordField 주입 — 단, **user_block 은 override 보다 우선**: 사용자가 차단을 영속화한 경우 override 무력)
 
 ## 13.6 데이터 위치 + 백업·복구
 

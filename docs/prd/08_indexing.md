@@ -156,24 +156,27 @@ Phase 1 시점: 탭 활성 + focus 만으로 충분 (b4.1 학습 — 외부 호�
 
 [§13 보안·프라이버시](./13_security_privacy.md) 본문 + A1 §E `src/privacy/IndexingGate.ts` 신규.
 
-### 8.6.1 디폴트 차단 list (v04-direction §17 P1-9, PR b6.1 강화)
+### 8.6.1 디폴트 차단 list (v04-direction §17 P1-9, PR b6.1 강화 + M4-4 정합)
 
-본 list 는 v0.3 `src/privacy/DomainFilter.ts` (KEEP, A1 §C) 패턴 기준 + PR b6.1 보강. 실제 코드의 매칭 범위 (mail.*/accounts?/payment/pay/checkout/signin/oauth/id/*.bank/gmail/paypal) 반영.
+본 list 는 v0.3 `src/privacy/DomainFilter.ts` (KEEP, A1 §C) 패턴 기준 + PR b6.1 보강 + M4-4 IndexingGate 전용 1패턴 추가 + path glob 1종. 실제 코드의 매칭 범위 (mail.*/accounts?/banking.*/payment/pay/checkout/signin/oauth/id/*.bank/gmail/paypal/icloud + naver mail path) 반영.
 
 | 패턴 | 매칭 방식 | 사유 |
 |---|---|---|
 | `*.bank.com` / `*.bank.*` | domain | 은행 |
+| `banking.*` | domain prefix | 은행 일반 (DomainFilter `^banking\.`) |
 | `mail.*` | domain prefix | 메일 서비스 일반 |
 | `gmail.com` | domain | Gmail |
 | `*.paypal.com` | domain | 결제 |
-| `*.icloud.com` | domain | iCloud |
+| `*.icloud.com` | domain (IndexingGate 전용 — DomainFilter 미포함) | iCloud 메모/사진/메일 |
 | `accounts.*` / `accounts?.*` | domain prefix | 계정 페이지 일반 |
 | `signin.*` / `login.*` | domain prefix | 로그인 페이지 |
 | `oauth.*` / `id.*` | domain prefix | OAuth / SSO / Passkey |
 | `payment.*` / `pay.*` / `checkout.*` | domain prefix | 결제 흐름 |
-| `*.naver.com/mail/*` | **path glob** (M3 PoC PathMatcher 도입) | 네이버 메일 — 현재 DomainFilter 는 domain 매칭만, M3 path 매칭 확장 |
+| `*.naver.com/mail/*` | **path glob** (M4-4 IndexingGate 본격 도입) | 네이버 메일 — DomainFilter 는 domain 매칭만, IndexingGate 가 path 매칭 확장 |
 
-사용자 settings 추가/제외 가능 (`UserSetting.privacyExclusions[]`).
+**카운트 표기**: 위 표는 **11 카테고리**, concrete matcher 카운트는 **15** (`defaultBlacklistPatterns()` 13 RegExp + IndexingGate 전용 1 + path glob 1). 카테고리 = 사용자 의도 분류, concrete matcher = 실 코드 매칭 단위.
+
+사용자 settings 추가/제외 가능 (`UserSetting.privacyExclusions[]`). `type='allow'` 는 본 디폴트 list (domain + path) 외에 `<input type='password'>` 감지도 bypass — 사용자 명시 허용 신뢰 정책 (M4-4 `IndexingGate.evaluate()` 정합).
 
 ### 8.6.2 비밀번호 필드 감지
 

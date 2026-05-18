@@ -196,10 +196,33 @@ describe('IndexingGate', () => {
       expect(r2.blockReason).toBe('domain')
     })
 
-    it('token URL 불일치 → 거부', () => {
+    it('token URL path 차이 → 거부', () => {
       const token = gate.issueOverrideToken('https://gmail.com/inbox')
       const r = gate.evaluate({
         url: 'https://gmail.com/different',
+        hasPasswordField: false,
+        overrideToken: token
+      })
+      expect(r.allowed).toBe(false)
+      expect(r.blockReason).toBe('domain')
+    })
+
+    it('token URL query string 차이 → 거부 (raw URL 완전 일치 강제)', () => {
+      // codex NB-4: 발급 URL `https://gmail.com/inbox` 이후 `?utm=...` 추가 시 거부 정합 검증.
+      const token = gate.issueOverrideToken('https://gmail.com/inbox')
+      const r = gate.evaluate({
+        url: 'https://gmail.com/inbox?utm=1',
+        hasPasswordField: false,
+        overrideToken: token
+      })
+      expect(r.allowed).toBe(false)
+      expect(r.blockReason).toBe('domain')
+    })
+
+    it('token URL hash 차이 → 거부', () => {
+      const token = gate.issueOverrideToken('https://gmail.com/inbox')
+      const r = gate.evaluate({
+        url: 'https://gmail.com/inbox#section1',
         hasPasswordField: false,
         overrideToken: token
       })
@@ -241,6 +264,41 @@ describe('IndexingGate', () => {
       expect(gate.activeOverrideCount()).toBe(2)
       gate.clearOverrideTokens()
       expect(gate.activeOverrideCount()).toBe(0)
+    })
+  })
+
+  describe('DomainFilter 의도적 결합 (codex NB-6 계약)', () => {
+    // IndexingGate 는 DomainFilter.defaultBlacklistPatterns() 를 매 평가마다 직접 사용한다.
+    // 외부 호출 차단 list 가 강화되면 인덱싱 차단도 자동 강화 — 의도적 설계.
+    // 본 테스트는 그 결합을 명시 계약화한다 (의도와 다르게 분리될 경우 회귀 검출).
+    it('DomainFilter `defaultBlacklistPatterns()` 의 모든 RegExp 가 IndexingGate 디폴트 차단에 포함', async () => {
+      const { defaultBlacklistPatterns } = await import('../../../src/privacy/DomainFilter')
+      const gate = new IndexingGate()
+      const patterns = defaultBlacklistPatterns()
+      expect(patterns.length).toBe(13)
+
+      // 각 DomainFilter RegExp 가 매칭하는 hostname 샘플을 IndexingGate 가 동일하게 차단해야 한다
+      const samples: Array<{ host: string; expectedSource: string }> = [
+        { host: 'mail.test', expectedSource: '^mail\\.' },
+        { host: 'accounts.google.com', expectedSource: '^accounts?\\.' },
+        { host: 'banking.foo.com', expectedSource: '^banking\\.' },
+        { host: 'payment.foo.com', expectedSource: '^payment\\.' },
+        { host: 'pay.foo.com', expectedSource: '^pay\\.' },
+        { host: 'checkout.foo.com', expectedSource: '^checkout\\.' },
+        { host: 'login.foo.com', expectedSource: '^login\\.' },
+        { host: 'signin.foo.com', expectedSource: '^signin\\.' },
+        { host: 'oauth.foo.com', expectedSource: '^oauth\\.' },
+        { host: 'id.foo.com', expectedSource: '^id\\.' },
+        { host: 'something.bank', expectedSource: '\\.bank$' },
+        { host: 'gmail.com', expectedSource: '\\bgmail\\.com$' },
+        { host: 'paypal.com', expectedSource: '\\bpaypal\\.com$' }
+      ]
+
+      for (const { host } of samples) {
+        const r = gate.evaluate({ url: `https://${host}/`, hasPasswordField: false })
+        expect(r.allowed, host).toBe(false)
+        expect(r.blockReason, host).toBe('domain')
+      }
     })
   })
 
