@@ -17,6 +17,26 @@ export {
   defaultAIResponseCachePath,
   AI_CACHE_TTL_DEFAULTS
 } from './AIResponseCache'
+
+export {
+  IndexedPageStore,
+  defaultIndexedPagePath,
+  normalizeIndexedUrl,
+  contentHashOf,
+  DEFAULT_WORKSPACE_ID
+} from './IndexedPageStore'
+export type {
+  Page,
+  Visit,
+  UpsertPageInput,
+  UpsertAction,
+  UpsertPageResult,
+  CreateVisitInput,
+  RecordVisitInput,
+  RecordVisitResult,
+  IndexedPageStoreOptions,
+  IndexedPageStats
+} from './IndexedPageStore'
 export type {
   AICacheKind,
   AICacheEntry,
