@@ -476,32 +476,7 @@ const translateApi = {
     ipcRenderer.on('translate:page-error', listener)
     return () => ipcRenderer.removeListener('translate:page-error', listener)
   },
-  /**
-   * @deprecated Sprint 015 M2-3 — 페이지 요약 use case 폐기 (PRD §00 §0.2 / §01 §1.2.1).
-   *   M2-4 PR 에서 본 API + IPC handler (`translate:summarize-page`) + SummarizationPlanner 모듈 제거.
-   *   대체: ChatPanel + RAG retrieval (Sprint 015 M5+, `docs/prd/10_ai_chat.md` §10.1).
-   *   UI 분기 (`TranslationPanel.tsx` mode='summary') 는 M5 ChatPanel 전환 시 제거.
-   */
-  summarizePage: (
-    args: ParagraphsRequest
-  ): Promise<{
-    ok: boolean
-    summary?: string
-    chunkSummaries?: string[]
-    combined?: boolean
-    combinedPath?: 'single' | 'direct' | 'resplit' | 'truncated'
-    combinedInputChars?: number
-    combineCharLimit?: number
-    chunks?: number
-    reason?: string
-    blockReason?: string
-  }> => ipcRenderer.invoke('translate:summarize-page', args),
-  /**
-   * @deprecated Sprint 015 M2-3 — `summarizePage` 와 함께 폐기.
-   *   M2-4 PR 에서 본 API + IPC handler (`translate:summarize-abort`) 제거.
-   */
-  abortSummarize: (): Promise<{ ok: true }> =>
-    ipcRenderer.invoke('translate:summarize-abort'),
+  // Sprint 015 M2-4 — 페이지 요약 API/listener 제거. 상세: PRD §19.5.1 M2-4 / PR 본문.
   render: (payload: {
     mode: 'replace' | 'overlay'
     selectorPreset: 'paragraph' | 'page'
@@ -513,27 +488,7 @@ const translateApi = {
     restored?: number
     overlays?: number
     reason?: string
-  }> => ipcRenderer.invoke('translate:render-restore'),
-  onSummaryStart: (handler: (p: SummaryStartPayload) => void): (() => void) => {
-    const listener = (_e: unknown, p: SummaryStartPayload): void => handler(p)
-    ipcRenderer.on('translate:summary-start', listener)
-    return () => ipcRenderer.removeListener('translate:summary-start', listener)
-  },
-  onSummaryDone: (handler: (p: SummaryDonePayload) => void): (() => void) => {
-    const listener = (_e: unknown, p: SummaryDonePayload): void => handler(p)
-    ipcRenderer.on('translate:summary-done', listener)
-    return () => ipcRenderer.removeListener('translate:summary-done', listener)
-  },
-  onSummaryError: (handler: (p: SummaryErrorPayload) => void): (() => void) => {
-    const listener = (_e: unknown, p: SummaryErrorPayload): void => handler(p)
-    ipcRenderer.on('translate:summary-error', listener)
-    return () => ipcRenderer.removeListener('translate:summary-error', listener)
-  },
-  onSummaryAborted: (handler: (p: SummaryAbortedPayload) => void): (() => void) => {
-    const listener = (_e: unknown, p: SummaryAbortedPayload): void => handler(p)
-    ipcRenderer.on('translate:summary-aborted', listener)
-    return () => ipcRenderer.removeListener('translate:summary-aborted', listener)
-  }
+  }> => ipcRenderer.invoke('translate:render-restore')
 }
 
 type PopupMode = 'translation' | 'explanation' | 'summary'
@@ -563,34 +518,7 @@ interface PopupResultPayload {
   }
 }
 
-interface SummaryStartPayload {
-  url: string
-  chunks: number
-  totalChars: number
-  sourceTabId?: string | null
-}
-
-interface SummaryDonePayload {
-  summary: string
-  chunkSummaries: string[]
-  combined: boolean
-  combinedPath?: 'single' | 'direct' | 'resplit' | 'truncated'
-  combinedInputChars?: number
-  combineCharLimit?: number
-  chunks: number
-  sourceTabId?: string | null
-}
-
-interface SummaryErrorPayload {
-  reason: string
-  blockReason?: string
-  sourceTabId?: string | null
-}
-
-interface SummaryAbortedPayload {
-  chunks: number
-  sourceTabId?: string | null
-}
+// Sprint 015 M2-4 — 페이지 요약 Payload 타입 4종 제거. 상세: PRD §19.5.1 M2-4.
 
 const popupApi = {
   onShow: (handler: (payload: PopupShowPayload) => void): (() => void) => {

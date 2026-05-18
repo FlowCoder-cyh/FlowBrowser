@@ -20,12 +20,6 @@ import {
   type RenderPayload
 } from '../perception/TranslationRenderer'
 import { nodesSignatureFromTexts } from '../storage/PageResultStore'
-// @deprecated Sprint 015 M2-3 — SummarizationPlanner 폐기 마킹. M2-4 에서 본 import + IPC handler 2개 제거.
-import {
-  planChunks,
-  summarizeChunks,
-  SummarizationAbortedError
-} from '../ai/SummarizationPlanner'
 import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
 import { ThumbnailStore, type ThumbnailEntry } from './ThumbnailStore'
 import { ThumbnailDiskStore, defaultThumbnailsPath } from './ThumbnailDiskStore'
@@ -65,8 +59,6 @@ function syncBrowserViewRef(): void {
 let paragraphsAborted = false
 // Sprint 003 M2 — page translation abort 플래그 (Sprint 010 M3에서 상단 이동)
 let pageTranslateAborted = false
-// Sprint 011 M1 — summary abort 플래그
-let summarizeAborted = false
 
 // Sprint 009 M3 — 탭 상태 영속 (debounced 200ms)
 let saveTimer: NodeJS.Timeout | null = null
@@ -224,7 +216,6 @@ ipcMain.handle('tab:switch', (_event, id: string): boolean => {
       if (setting.cancelOnTabSwitch) {
         paragraphsAborted = true
         pageTranslateAborted = true
-        summarizeAborted = true
       }
     } catch {
       // UserSettingStore가 아직 로드 안 됐을 수도 — 무시
@@ -447,14 +438,13 @@ function createTabView(tabId: string, url: string): WebContentsView {
     // TabManager url/title 동기화
     tabManager.updateUrl(tabId, wc.getURL())
   }
-  // Sprint 014 M3-14: 같은 탭 페이지 이동 시 진행 중 paragraphs/page/summarize 즉시 abort.
+  // Sprint 014 M3-14: 같은 탭 페이지 이동 시 진행 중 paragraphs/page 즉시 abort (Sprint 015 M2-4 — summarize 폐기로 제거).
   // 같은 탭 내에서 사용자가 뒤로가기 / 다른 URL 입력 / 링크 클릭 등으로 navigate하면
   // 이전 페이지 호출이 무의미해짐 + ChatGPT 한도 낭비.
   const abortInFlightOnNavigate = (): void => {
     if (tabManager.getActiveId() !== tabId) return
     paragraphsAborted = true
     pageTranslateAborted = true
-    summarizeAborted = true
   }
   view.webContents.on('did-start-navigation', abortInFlightOnNavigate)
   view.webContents.on('did-navigate', broadcastNav)
@@ -1120,143 +1110,7 @@ ipcMain.handle(
   }
 )
 
-/**
- * Sprint 011 M1 — summary abort. PRD §9.2 abort 일관성.
- *
- * @deprecated Sprint 015 M2-3 — 페이지 요약 use case 폐기 (PRD §00 §0.2 / §01 §1.2.1).
- *   M2-4 PR 에서 본 handler 제거 + SummarizationPlanner 모듈 제거 + preload API 제거.
- *   대체: ChatPanel + RAG retrieval (Sprint 015 M5+, `docs/prd/10_ai_chat.md` §10.1 채팅 파이프라인).
- *   UI 분기 (`TranslationPanel.tsx` mode='summary') 는 M5 ChatPanel 전환 시 제거.
- */
-ipcMain.handle('translate:summarize-abort', (): { ok: true } => {
-  summarizeAborted = true
-  return { ok: true }
-})
-
-/**
- * Sprint 004 M3 — 페이지 요약. PRD §9.2 P1.
- * 청크 단위 요약 → N개 합본을 통합 요약.
- * Sprint 011 M1 — abort 지원 (summarizeAborted 플래그 + abortCheck 콜백).
- *
- * @deprecated Sprint 015 M2-3 — 페이지 요약 use case 폐기 (PRD §00 §0.2 / §01 §1.2.1).
- *   M2-4 PR 에서 본 handler 제거 + SummarizationPlanner 모듈 제거 + preload API 제거.
- *   대체: ChatPanel + RAG retrieval (Sprint 015 M5+, `docs/prd/10_ai_chat.md` §10.1 채팅 파이프라인).
- *   UI 분기 (`TranslationPanel.tsx` mode='summary') 는 M5 ChatPanel 전환 시 제거.
- */
-ipcMain.handle(
-  'translate:summarize-page',
-  async (
-    _event,
-    args: { providerType: string; sourceLanguage: string; targetLanguage: string }
-  ): Promise<{
-    ok: boolean
-    summary?: string
-    chunkSummaries?: string[]
-    combined?: boolean
-    combinedPath?: 'single' | 'direct' | 'resplit' | 'truncated'
-    combinedInputChars?: number
-    combineCharLimit?: number
-    chunks?: number
-    reason?: string
-    blockReason?: string
-  }> => {
-    if (!mainWindow || !browserView) {
-      return { ok: false, reason: 'browser-not-ready' }
-    }
-    summarizeAborted = false
-    const sourceTabId = tabManager.getActiveId()
-    const url = browserView.webContents.getURL()
-    const webContentsId = browserView.webContents.id
-    const bundle = await extractWebContentsPageNodes(webContentsId)
-    if (bundle.nodes.length === 0) {
-      return { ok: false, reason: '페이지 노드를 찾지 못했습니다.' }
-    }
-
-    const fieldScan = await scanWebContentsFields(webContentsId)
-    const planned = planChunks(bundle)
-    if (planned.length === 0) {
-      return { ok: false, reason: '요약 가능한 청크가 없습니다.' }
-    }
-
-    mainWindow.webContents.send('translate:summary-start', {
-      url,
-      chunks: planned.length,
-      totalChars: planned.reduce((sum, c) => sum + c.text.length, 0),
-      sourceTabId
-    })
-
-    let blockReason: string | undefined
-    let summaryReason: string | undefined
-
-    try {
-      const result = await summarizeChunks(
-        planned.map((p) => p.text),
-        async (text: string) => {
-          if (!mainWindow) throw new Error('window-closed')
-          const r = await executeTranslateRequest({
-            providerType: args.providerType as 'openai',
-            input: {
-              sourceText: text,
-              sourceLanguage: args.sourceLanguage,
-              targetLanguage: args.targetLanguage,
-              requestType: 'summary',
-              context: { url }
-            },
-            context: {
-              url,
-              hasPasswordField: fieldScan.hasPasswordField,
-              hasCardField: fieldScan.hasCardField
-            }
-          })
-          if (r.decision === 'blocked') {
-            blockReason = r.blockReason
-            throw new Error(r.reason ?? '차단됨')
-          }
-          if (!r.ok || !r.output) {
-            summaryReason = r.reason
-            throw new Error(r.reason ?? '요약 실패')
-          }
-          return r.output.translatedText
-        },
-        { abortCheck: () => summarizeAborted }
-      )
-
-      mainWindow.webContents.send('translate:summary-done', {
-        summary: result.summary,
-        chunkSummaries: result.chunkSummaries,
-        combined: result.combined,
-        combinedPath: result.combinedPath,
-        combinedInputChars: result.combinedInputChars,
-        combineCharLimit: result.combineCharLimit,
-        chunks: planned.length,
-        sourceTabId
-      })
-      return {
-        ok: true,
-        summary: result.summary,
-        chunkSummaries: result.chunkSummaries,
-        combined: result.combined,
-        combinedPath: result.combinedPath,
-        combinedInputChars: result.combinedInputChars,
-        combineCharLimit: result.combineCharLimit,
-        chunks: planned.length
-      }
-    } catch (err) {
-      // Sprint 011 M1 — abort 시 aborted 이벤트 발송 후 done 없이 종료
-      if (err instanceof SummarizationAbortedError) {
-        mainWindow.webContents.send('translate:summary-aborted', {
-          chunks: planned.length,
-          sourceTabId
-        })
-        return { ok: false, reason: 'aborted' }
-      }
-      const reason =
-        summaryReason ?? (err instanceof Error ? err.message : String(err))
-      mainWindow.webContents.send('translate:summary-error', { reason, blockReason, sourceTabId })
-      return { ok: false, reason, blockReason }
-    }
-  }
-)
+// Sprint 015 M2-4 — 페이지 요약 use case 폐기. 상세: PRD §19.5.1 M2-4 / PR 본문.
 
 async function handleContextMenuTranslate(
   selectionText: string,

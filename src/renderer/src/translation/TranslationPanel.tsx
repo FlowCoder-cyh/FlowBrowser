@@ -12,27 +12,9 @@ interface NodeRow {
   fromCache: boolean
 }
 
-type Mode = 'paragraph' | 'page' | 'summary'
+// Sprint 015 M2-4 — Mode 축소 (페이지 요약 폐기). 상세: PRD §19.5.1 M2-4.
+type Mode = 'paragraph' | 'page'
 type DisplayMode = 'panel' | 'replace' | 'overlay'
-
-interface SummaryState {
-  status: 'idle' | 'loading' | 'done' | 'error'
-  summary: string | null
-  chunkSummaries: string[]
-  combined: boolean
-  combinedPath?: 'single' | 'direct' | 'resplit' | 'truncated'
-  combinedInputChars?: number
-  combineCharLimit?: number
-  chunks: number
-  reason: string | null
-}
-
-const PATH_LABELS: Record<NonNullable<SummaryState['combinedPath']>, string> = {
-  single: '단일 청크',
-  direct: '직접 통합',
-  resplit: '재분할 통합',
-  truncated: '재분할 + truncate'
-}
 
 interface Props {
   open: boolean
@@ -54,15 +36,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
   const [stoppedReason, setStoppedReason] = useState<
     'aborted' | 'page_wide_block' | null
   >(null)
-  const [summary, setSummary] = useState<SummaryState>({
-    status: 'idle',
-    summary: null,
-    chunkSummaries: [],
-    combined: false,
-    chunks: 0,
-    reason: null
-  })
-  const [chunksExpanded, setChunksExpanded] = useState(false)
+  // Sprint 015 M2-4 — summary state / chunksExpanded 제거 (페이지 요약 UI 폐기)
   const [displayMode, setDisplayMode] = useState<DisplayMode>('panel')
   // Sprint 014 M3-8 핫픽스 — listener closure의 stale displayMode 회피 (의존성 재실행 미스 안전망)
   const displayModeRef = useRef<DisplayMode>('panel')
@@ -115,14 +89,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       setBusy(false)
       setRestoreHint(null)
       setRestoreResult(null)
-      setSummary({
-        status: 'idle',
-        summary: null,
-        chunkSummaries: [],
-        combined: false,
-        chunks: 0,
-        reason: null
-      })
+      // Sprint 015 M2-4 — summary state reset 제거 (페이지 요약 폐기)
 
       // 2) 외부 페이지 원문 복원 시도 (Sprint 006 M3 패턴 유지)
       void window.translateApi.renderRestore()
@@ -363,54 +330,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       setBusy(false)
     })
 
-    const offSummaryStart = window.translateApi.onSummaryStart((p) => {
-      if (!isCurrentTab(p)) return
-      setSummary({
-        status: 'loading',
-        summary: null,
-        chunkSummaries: [],
-        combined: false,
-        chunks: p.chunks,
-        reason: null
-      })
-    })
-
-    const offSummaryDone = window.translateApi.onSummaryDone((p) => {
-      if (!isCurrentTab(p)) return
-      setSummary({
-        status: 'done',
-        summary: p.summary,
-        chunkSummaries: p.chunkSummaries,
-        combined: p.combined,
-        combinedPath: p.combinedPath,
-        combinedInputChars: p.combinedInputChars,
-        combineCharLimit: p.combineCharLimit,
-        chunks: p.chunks,
-        reason: null
-      })
-      setBusy(false)
-    })
-
-    const offSummaryError = window.translateApi.onSummaryError((p) => {
-      if (!isCurrentTab(p)) return
-      setSummary((prev) => ({
-        ...prev,
-        status: 'error',
-        reason: p.reason
-      }))
-      setBusy(false)
-    })
-
-    // Sprint 011 M1 — summary aborted listener (cancel 버튼 또는 cancelOnTabSwitch)
-    const offSummaryAborted = window.translateApi.onSummaryAborted((p) => {
-      if (!isCurrentTab(p)) return
-      setSummary((prev) => ({
-        ...prev,
-        status: 'idle',
-        reason: '요약이 취소되었습니다.'
-      }))
-      setBusy(false)
-    })
+    // Sprint 015 M2-4 — onSummary{Start,Done,Error,Aborted} 리스너 제거 (페이지 요약 폐기, preload API 제거 동반).
 
     return () => {
       // Sprint 014 M3-14/15: 자동 번역 + progressive render 타이머 정리
@@ -435,10 +355,6 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       offPageDone()
       offPageAborted()
       offPageError()
-      offSummaryStart()
-      offSummaryDone()
-      offSummaryError()
-      offSummaryAborted()
     }
   }, [displayMode, defaultLanguage, sourceLanguage, defaultProviderId])
 
@@ -481,10 +397,8 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
       await window.translateApi.abortPage()
     } else if (mode === 'paragraph') {
       await window.translateApi.abortParagraphs()
-    } else if (mode === 'summary') {
-      // Sprint 011 M1 — summary abort
-      await window.translateApi.abortSummarize()
     }
+    // Sprint 015 M2-4 — summary abort 제거 (페이지 요약 폐기)
   }
 
   async function handleRestoreOriginals(): Promise<void> {
@@ -510,28 +424,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
     }
   }
 
-  async function handleStartSummary(): Promise<void> {
-    setBusy(true)
-    setError(null)
-    setMode('summary')
-    setSummary({
-      status: 'loading',
-      summary: null,
-      chunkSummaries: [],
-      combined: false,
-      chunks: 0,
-      reason: null
-    })
-    const result = await window.translateApi.summarizePage({
-      providerType: defaultProviderId,
-      sourceLanguage,
-      targetLanguage: defaultLanguage
-    })
-    if (!result.ok) {
-      setError(result.reason ?? '페이지 요약 시작 실패')
-      setBusy(false)
-    }
-  }
+  // Sprint 015 M2-4 — handleStartSummary 제거 (페이지 요약 use case 폐기, ChatPanel M5 대체)
 
   if (!open) return null
 
@@ -561,15 +454,8 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         >
           {busy && mode === 'page' ? '진행 중…' : '페이지 전체 번역'}
         </button>
-        <button
-          type="button"
-          className="panel-btn"
-          onClick={() => void handleStartSummary()}
-          disabled={busy}
-        >
-          {busy && mode === 'summary' ? '요약 중…' : '페이지 요약'}
-        </button>
-        {busy && (mode === 'page' || mode === 'paragraph' || mode === 'summary') && (
+        {/* Sprint 015 M2-4 — 페이지 요약 버튼 제거 (use case 폐기, ChatPanel M5 대체) */}
+        {busy && (mode === 'page' || mode === 'paragraph') && (
           <button type="button" className="panel-btn danger" onClick={() => void handleAbort()}>
             취소
           </button>
@@ -635,60 +521,7 @@ export default function TranslationPanel({ open, onClose }: Props): JSX.Element 
         </div>
       )}
 
-      {mode === 'summary' && summary.status !== 'idle' && (
-        <div className="panel-summary">
-          {summary.status === 'loading' && (
-            <div className="panel-summary-loading">
-              요약 중… ({summary.chunks}개 청크)
-            </div>
-          )}
-          {summary.status === 'done' && summary.summary && (
-            <>
-              <div className="panel-summary-text">{summary.summary}</div>
-              <div className="panel-summary-meta">
-                {summary.chunks}개 청크 ·{' '}
-                {summary.combinedPath ? PATH_LABELS[summary.combinedPath] : '단일 요약'}
-                {summary.combinedInputChars !== undefined &&
-                  summary.combineCharLimit !== undefined && (
-                    <span
-                      className={
-                        summary.combinedPath === 'truncated'
-                          ? 'panel-summary-chars warn'
-                          : 'panel-summary-chars'
-                      }
-                    >
-                      {' '}
-                      · 통합 입력 {summary.combinedInputChars.toLocaleString()}자 / limit{' '}
-                      {summary.combineCharLimit.toLocaleString()}자
-                    </span>
-                  )}
-                {summary.chunkSummaries.length > 1 && (
-                  <button
-                    type="button"
-                    className="panel-chunk-toggle"
-                    onClick={() => setChunksExpanded((v) => !v)}
-                  >
-                    {chunksExpanded ? '청크 요약 접기' : '청크 요약 펼치기'}
-                  </button>
-                )}
-              </div>
-              {chunksExpanded && summary.chunkSummaries.length > 1 && (
-                <ol className="panel-chunk-list">
-                  {summary.chunkSummaries.map((cs, i) => (
-                    <li key={i} className="panel-chunk-item">
-                      <span className="panel-chunk-idx">청크 {i + 1}</span>
-                      <p className="panel-chunk-text">{cs}</p>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </>
-          )}
-          {summary.status === 'error' && summary.reason && (
-            <div className="panel-summary-error">요약 실패: {summary.reason}</div>
-          )}
-        </div>
-      )}
+      {/* Sprint 015 M2-4 — 페이지 요약 UI 블록 제거 (use case 폐기, ChatPanel M5 대체) */}
 
       <ul className="panel-rows">
         {rows.map((row) => (
