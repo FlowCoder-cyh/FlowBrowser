@@ -28,6 +28,7 @@
     "src/ai/**/*.ts",
     "src/privacy/**/*.ts",
     "src/perception/**/*.ts",
+    "src/types/**/*.d.ts",
     "tests/**/*.ts"
   ]
 }

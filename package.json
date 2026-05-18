@@ -18,14 +18,17 @@
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "engines": {
     "node": ">=20",
     "npm": ">=10"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@eslint/js": "^9.18.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.13.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
@@ -44,7 +47,9 @@
     "vitest": "^2.1.8"
   },
   "dependencies": {
+    "better-sqlite3": "^12.10.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "sqlite-vec": "^0.1.9"
   }
 }
