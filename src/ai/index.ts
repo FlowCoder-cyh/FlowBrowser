@@ -26,3 +26,15 @@ export type {
   TokenBundle,
   DeviceCodeFlowOptions
 } from './codex/DeviceCodeFlow'
+
+export {
+  EmbeddingClient,
+  DEFAULT_EMBEDDING_MODEL,
+  processNextEmbeddingJob
+} from './embedding/EmbeddingClient'
+export type {
+  EmbeddingClientOptions,
+  EmbedTextsResult,
+  ProcessJobDeps,
+  ProcessJobResult
+} from './embedding/EmbeddingClient'
