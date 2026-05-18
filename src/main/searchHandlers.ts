@@ -22,6 +22,7 @@ import {
   DEFAULT_TOP_K
 } from './SearchService'
 import type { IndexedPageStoreSqlite } from '../storage/IndexedPageStoreSqlite'
+import { buildExcerpt, type ExcerptMatch } from './excerpt'
 
 export interface SearchResultPayload {
   pageId: string
@@ -31,6 +32,12 @@ export interface SearchResultPayload {
   visitedAt: number
   dwellMs: number
   excerpt: string
+  /**
+   * Sprint 015 M5-4 — excerpt 내 query 토큰 매칭 위치 (start inclusive / end exclusive).
+   * renderer 가 `<mark>` 로 highlight (PRD §9.5.2 매칭 발췌 알고리즘 정합).
+   * 매칭 0 건 (시간 표현만 입력 등) 시 빈 배열.
+   */
+  matchPositions: ExcerptMatch[]
   score: number
 }
 
@@ -156,7 +163,9 @@ export async function handleSearchQuery(
 
   // 7. paginate — pageIndex=0, pageSize=topN (PRD §9.8 1차 표시)
   const paged = paginate(hits, 0, topN)
-  const results = paged.hits.map(hitToPayload)
+  // 8. SearchResultPayload 매핑 — 매칭 발췌는 의미 검색 query (remainingQuery) 기준
+  //    시간 표현 ("지난주") 만 입력 시 semanticQuery = rawQuery (fallback) — 매칭 0 건 가능
+  const results = paged.hits.map((hit) => hitToPayload(hit, semanticQuery))
 
   return {
     results,
@@ -189,10 +198,14 @@ export function handleSearchGetContent(
   }
 }
 
-function hitToPayload(hit: SearchHit): SearchResultPayload {
+function hitToPayload(hit: SearchHit, semanticQuery: string): SearchResultPayload {
   // type='note' 시 자신 noteId 를 pageId 컬럼에 노출 (SearchBar 가 navigate 시 url 만 사용 → pageId 는 식별자 역할).
   // type='page' 시 자신 pageId 노출. anchor page 가 없는 글로사리 노트는 url=''.
   const identifier = hit.type === 'page' ? hit.pageId : hit.noteId
+  // M5-4 매칭 발췌 — PRD §9.5.2 ±100 자 + matchPositions (renderer 가 <mark> highlight)
+  const { text, matchPositions } = buildExcerpt(hit.contentSnippet, semanticQuery, {
+    windowSize: EXCERPT_LENGTH / 2
+  })
   return {
     pageId: identifier ?? '',
     type: hit.type,
@@ -200,7 +213,8 @@ function hitToPayload(hit: SearchHit): SearchResultPayload {
     url: hit.url,
     visitedAt: hit.visitedAt ?? 0,
     dwellMs: hit.dwellMs,
-    excerpt: hit.contentSnippet.slice(0, EXCERPT_LENGTH),
+    excerpt: text,
+    matchPositions,
     score: hit.score
   }
 }

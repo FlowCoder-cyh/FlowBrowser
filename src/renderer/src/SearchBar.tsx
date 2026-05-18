@@ -7,6 +7,8 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
+import { SearchResultCard, type SearchResultMatch } from './search/SearchResultCard'
+
 interface SearchResultPayload {
   pageId: string
   type: 'page' | 'note'
@@ -15,6 +17,7 @@ interface SearchResultPayload {
   visitedAt: number
   dwellMs: number
   excerpt: string
+  matchPositions: SearchResultMatch[]
   score: number
 }
 
@@ -170,35 +173,31 @@ export default function SearchBar(): JSX.Element {
           )}
           {status === 'ok' &&
             results.map((item, idx) => (
-              <button
+              <div
                 key={`${item.type}-${item.pageId}-${idx}`}
-                type="button"
                 role="option"
                 aria-selected={idx === selectedIndex}
-                className={`search-bar-result${idx === selectedIndex ? ' search-bar-result-selected' : ''}`}
                 onMouseEnter={() => setSelectedIndex(idx)}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => selectResult(item)}
               >
-                <span className="search-bar-result-type">
-                  {item.type === 'note' ? '📝' : '📄'}
-                </span>
-                <span className="search-bar-result-title">{item.title}</span>
-                <span className="search-bar-result-url">
-                  {safeHost(item.url)}
-                </span>
-              </button>
+                <SearchResultCard
+                  pageId={item.pageId}
+                  type={item.type}
+                  title={item.title}
+                  url={item.url}
+                  visitedAt={item.visitedAt}
+                  dwellMs={item.dwellMs}
+                  excerpt={item.excerpt}
+                  matchPositions={item.matchPositions}
+                  score={item.score}
+                  now={Date.now()}
+                  selected={idx === selectedIndex}
+                  onClick={() => selectResult(item)}
+                />
+              </div>
             ))}
         </div>
       )}
     </div>
   )
-}
-
-function safeHost(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return url
-  }
 }
