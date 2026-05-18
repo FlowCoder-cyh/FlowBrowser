@@ -778,28 +778,7 @@ body {
   font-size: 11px;
 }
 
-.panel-restore-hint {
-  margin: 8px 16px;
-  padding: 10px 12px;
-  background: #1a2a3a;
-  color: #aaccff;
-  border-left: 3px solid #4a9eff;
-  border-radius: 4px;
-  font-size: 12px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.panel-restore-result {
-  margin: 8px 16px;
-  padding: 6px 10px;
-  background: #1a3a2a;
-  color: #aaffcc;
-  border-radius: 4px;
-  font-size: 11px;
-}
+/* Sprint 015 M2-5 — .panel-restore-hint / .panel-restore-result 제거 (TranslationPanel stub 화) */
 
 .general-panel .gp-row {
   margin: 12px 0;
@@ -1179,171 +1158,18 @@ body {
   color: #fff;
 }
 
-.panel-toolbar {
-  padding: 12px 16px;
-  border-bottom: 1px solid #2a2a2a;
-}
+/* Sprint 015 M2-5 — .panel-toolbar / .panel-btn* / .panel-error / .panel-pagewide-block / .panel-status-note /
+ *   .panel-progress* / .panel-rows / .panel-row* / .panel-tag / .panel-source / .panel-translated /
+ *   .panel-cache-badge / .panel-pending / .panel-blocked / .panel-failed (21 스타일) 제거 — TranslationPanel stub 화.
+ * Sprint 015 M2-4 — .panel-summary*/.panel-chunk* 스타일 11종 제거 (페이지 요약 UI 폐기). */
 
-.panel-btn {
-  height: 32px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+/* Sprint 015 M2-5 — TranslationPanel stub 안내 영역 */
+.panel-empty {
+  padding: 24px 16px;
+  color: #888;
   font-size: 13px;
-}
-
-.panel-btn.primary {
-  background: #4a9eff;
-  color: white;
-}
-
-.panel-btn.primary:hover:not(:disabled) {
-  background: #3a8eef;
-}
-
-.panel-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.panel-btn.danger {
-  background: #6a2222;
-  color: #ffd0d0;
-}
-
-.panel-btn.danger:hover:not(:disabled) {
-  background: #882a2a;
-}
-
-.panel-error {
-  margin: 8px 16px;
-  padding: 8px 12px;
-  background: #4a1a1a;
-  color: #ffaaaa;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.panel-pagewide-block {
-  margin: 8px 16px;
-  padding: 10px 12px;
-  background: #4a2a1a;
-  color: #ffcc88;
-  border-left: 3px solid #ff8844;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.panel-status-note {
-  margin: 8px 16px;
-  padding: 8px 12px;
-  background: #2a2a3a;
-  color: #aaaadd;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-/* Sprint 015 M2-4 — .panel-summary*/.panel-chunk* 스타일 11종 제거 (페이지 요약 UI 폐기, ChatPanel M5 신규 작성) */
-
-.panel-progress {
-  padding: 8px 16px;
-  border-bottom: 1px solid #2a2a2a;
-}
-
-.panel-progress-bar {
-  height: 4px;
-  background: #2a2a2a;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.panel-progress-fill {
-  height: 100%;
-  background: #4a9eff;
-  transition: width 0.2s ease;
-}
-
-.panel-progress-text {
-  margin-top: 6px;
-  font-size: 11px;
-  color: #999;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-}
-
-.panel-rows {
-  flex: 1;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  overflow-y: auto;
-}
-
-.panel-row {
-  padding: 12px 16px;
-  border-bottom: 1px solid #2a2a2a;
-  font-size: 13px;
-}
-
-.panel-tag {
-  font-size: 10px;
-  color: #777;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-}
-
-.panel-source {
-  color: #999;
-  margin-bottom: 6px;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.panel-translated {
-  color: #e0e0e0;
-  line-height: 1.5;
-}
-
-.panel-cache-badge {
-  background: #1a4a2a;
-  color: #88ffaa;
-  padding: 1px 5px;
-  border-radius: 3px;
-  margin-right: 6px;
-  font-size: 9px;
-  font-weight: 500;
-}
-
-.panel-pending {
-  color: #666;
-  font-style: italic;
-  font-size: 12px;
-}
-
-.panel-blocked {
-  color: #ffaa66;
-  font-size: 12px;
-}
-
-.panel-failed {
-  color: #ff8888;
-  font-size: 12px;
-}
-
-.panel-row.status-done {
-  border-left: 3px solid #88ffaa;
-  padding-left: 13px;
-}
-
-.panel-row.status-blocked {
-  border-left: 3px solid #ffaa66;
-  padding-left: 13px;
-}
-
-.panel-row.status-failed {
-  border-left: 3px solid #ff8888;
-  padding-left: 13px;
+  line-height: 1.6;
+  text-align: center;
 }
 
 /* Sprint 014 M2 — Codex Login Panel */

@@ -1,18 +1,17 @@
 import { app, BrowserWindow, Menu, WebContentsView, clipboard, ipcMain } from 'electron'
 import { join } from 'node:path'
+// Sprint 015 M2-5 — legacy page-translation imports removed.
+//   The old tab-switch auto-cancel branch no longer uses user settings here.
 import {
   initServices,
   rebuildAllProviders,
   WebContentsRegistry,
   executeTranslateRequest,
   scanWebContentsFields,
-  extractWebContentsParagraphs,
   extractWebContentsPageNodes,
-  persistPageResult,
   pageResultLookup,
   loadTabState,
-  saveTabState,
-  getUserSetting
+  saveTabState
 } from './services'
 import {
   renderTranslationsScript,
@@ -55,10 +54,7 @@ function syncBrowserViewRef(): void {
   browserView = getActiveTabView()
 }
 
-// Sprint 004 M1 — paragraph abort 플래그 (Sprint 010 M3에서 cancelOnTabSwitch 지원 위해 상단 이동)
-let paragraphsAborted = false
-// Sprint 003 M2 — page translation abort 플래그 (Sprint 010 M3에서 상단 이동)
-let pageTranslateAborted = false
+// Sprint 015 M2-5 — legacy page-translation abort flags removed.
 
 // Sprint 009 M3 — 탭 상태 영속 (debounced 200ms)
 let saveTimer: NodeJS.Timeout | null = null
@@ -207,20 +203,8 @@ ipcMain.handle('tab:close', (_event, id: string): boolean => {
 })
 
 ipcMain.handle('tab:switch', (_event, id: string): boolean => {
-  // Sprint 010 M3 — cancelOnTabSwitch=true이면 진행 중 paragraphs/page 작업 자동 abort.
-  // 실제 탭 전환이 일어나는 경우에만 abort (같은 탭으로 switch는 noop).
-  const prevId = tabManager.getActiveId()
-  if (prevId !== null && prevId !== id) {
-    try {
-      const setting = getUserSetting()
-      if (setting.cancelOnTabSwitch) {
-        paragraphsAborted = true
-        pageTranslateAborted = true
-      }
-    } catch {
-      // UserSettingStore가 아직 로드 안 됐을 수도 — 무시
-    }
-  }
+  // Sprint 015 M2-5 — old page-translation auto-abort branch removed.
+  // The user setting is reserved for M4 indexing cancellation semantics.
   const ok = tabManager.switch(id)
   if (ok) setActiveTabView(id)
   return ok
@@ -438,15 +422,7 @@ function createTabView(tabId: string, url: string): WebContentsView {
     // TabManager url/title 동기화
     tabManager.updateUrl(tabId, wc.getURL())
   }
-  // Sprint 014 M3-14: 같은 탭 페이지 이동 시 진행 중 paragraphs/page 즉시 abort (Sprint 015 M2-4 — summarize 폐기로 제거).
-  // 같은 탭 내에서 사용자가 뒤로가기 / 다른 URL 입력 / 링크 클릭 등으로 navigate하면
-  // 이전 페이지 호출이 무의미해짐 + ChatGPT 한도 낭비.
-  const abortInFlightOnNavigate = (): void => {
-    if (tabManager.getActiveId() !== tabId) return
-    paragraphsAborted = true
-    pageTranslateAborted = true
-  }
-  view.webContents.on('did-start-navigation', abortInFlightOnNavigate)
+  // Sprint 015 M2-5 — same-tab navigate no longer cancels removed page-translation flows.
   view.webContents.on('did-navigate', broadcastNav)
   view.webContents.on('did-navigate-in-page', broadcastNav)
   view.webContents.on('did-finish-load', broadcastNav)
@@ -854,262 +830,8 @@ ipcMain.handle(
   }
 )
 
-/**
- * Sprint 004 M1 / S004-T02 — paragraph abort 일관성.
- * Sprint 010 M3 — paragraphsAborted 플래그는 파일 상단에서 선언 (cancelOnTabSwitch 분기에서 set).
- */
-ipcMain.handle('translate:paragraphs-abort', (): { ok: true } => {
-  paragraphsAborted = true
-  return { ok: true }
-})
-
-ipcMain.handle(
-  'translate:paragraphs',
-  async (
-    _event,
-    args: { providerType: string; sourceLanguage: string; targetLanguage: string }
-  ): Promise<{ ok: boolean; total: number; reason?: string }> => {
-    if (!mainWindow || !browserView) {
-      mainWindow?.webContents.send('translate:paragraphs-error', { reason: 'browser-not-ready' })
-      return { ok: false, total: 0, reason: 'browser-not-ready' }
-    }
-    paragraphsAborted = false
-    const sourceTabId = tabManager.getActiveId() // Sprint 009 M2 — 진입 시점 활성 탭 캡처
-    const url = browserView.webContents.getURL()
-    const webContentsId = browserView.webContents.id
-    const paragraphs = await extractWebContentsParagraphs(webContentsId)
-    if (paragraphs.length === 0) {
-      const reason = '문단을 찾지 못했습니다.'
-      mainWindow.webContents.send('translate:paragraphs-error', { reason, sourceTabId })
-      return { ok: false, total: 0, reason }
-    }
-
-    const fieldScan = await scanWebContentsFields(webContentsId)
-
-    mainWindow.webContents.send('translate:paragraphs-start', {
-      url,
-      total: paragraphs.length,
-      paragraphs,
-      sourceTabId
-    })
-
-    let completed = 0
-    let blocked = 0
-    let failed = 0
-    let stoppedReason: 'aborted' | 'page_wide_block' | null = null
-
-    for (const p of paragraphs) {
-      if (!mainWindow) break
-      if (paragraphsAborted) {
-        stoppedReason = 'aborted'
-        break
-      }
-      const result = await executeTranslateRequest({
-        providerType: args.providerType as 'openai',
-        input: {
-          sourceText: p.text,
-          sourceLanguage: args.sourceLanguage,
-          targetLanguage: args.targetLanguage,
-          requestType: 'paragraph',
-          context: { url }
-        },
-        context: {
-          url,
-          hasPasswordField: fieldScan.hasPasswordField,
-          hasCardField: fieldScan.hasCardField
-        }
-      })
-
-      if (result.ok && result.output) {
-        completed++
-      } else if (result.decision === 'blocked') {
-        blocked++
-      } else {
-        failed++
-      }
-
-      mainWindow.webContents.send('translate:paragraph-progress', {
-        id: p.id,
-        completed,
-        blocked,
-        failed,
-        total: paragraphs.length,
-        translatedText: result.output?.translatedText,
-        fromCache: result.fromCache,
-        reason: result.reason,
-        decision: result.decision,
-        blockReason: result.blockReason,
-        pageWideBlock: result.pageWideBlock,
-        sourceTabId
-      })
-
-      if (result.decision === 'blocked' && result.pageWideBlock) {
-        stoppedReason = 'page_wide_block'
-        break
-      }
-    }
-
-    if (stoppedReason === 'aborted') {
-      mainWindow.webContents.send('translate:paragraphs-aborted', {
-        total: paragraphs.length,
-        completed,
-        blocked,
-        failed,
-        sourceTabId
-      })
-    }
-
-    mainWindow.webContents.send('translate:paragraphs-done', {
-      total: paragraphs.length,
-      completed,
-      blocked,
-      failed,
-      stoppedReason,
-      sourceTabId
-    })
-    return { ok: true, total: paragraphs.length }
-  }
-)
-
-/**
- * Sprint 003 M2 — 페이지 전체 번역. PRD §9.2 P1.
- * paragraph보다 광범위한 블록 노드 집합. abort 지원.
- * Sprint 010 M3 — pageTranslateAborted 플래그는 파일 상단에서 선언 (cancelOnTabSwitch 분기에서 set).
- */
-ipcMain.handle('translate:page-abort', (): { ok: true } => {
-  pageTranslateAborted = true
-  return { ok: true }
-})
-
-ipcMain.handle(
-  'translate:page',
-  async (
-    _event,
-    args: { providerType: string; sourceLanguage: string; targetLanguage: string }
-  ): Promise<{
-    ok: boolean
-    total: number
-    chunks?: number
-    reason?: string
-  }> => {
-    if (!mainWindow || !browserView) {
-      mainWindow?.webContents.send('translate:page-error', { reason: 'browser-not-ready' })
-      return { ok: false, total: 0, reason: 'browser-not-ready' }
-    }
-    pageTranslateAborted = false
-    const sourceTabId = tabManager.getActiveId()
-    const url = browserView.webContents.getURL()
-    const webContentsId = browserView.webContents.id
-    const bundle = await extractWebContentsPageNodes(webContentsId)
-    if (bundle.nodes.length === 0) {
-      const reason = '페이지 노드를 찾지 못했습니다.'
-      mainWindow.webContents.send('translate:page-error', { reason, sourceTabId })
-      return { ok: false, total: 0, reason }
-    }
-
-    const fieldScan = await scanWebContentsFields(webContentsId)
-
-    mainWindow.webContents.send('translate:page-start', {
-      url,
-      total: bundle.nodes.length,
-      chunks: bundle.chunks.length,
-      nodes: bundle.nodes,
-      sourceTabId
-    })
-
-    let completed = 0
-    let blocked = 0
-    let failed = 0
-    let stoppedReason: 'aborted' | 'page_wide_block' | null = null
-    const persistInstructions: Array<{ id: string; translatedText: string }> = []
-
-    for (const node of bundle.nodes) {
-      if (!mainWindow) break
-      if (pageTranslateAborted) {
-        stoppedReason = 'aborted'
-        break
-      }
-
-      const result = await executeTranslateRequest({
-        providerType: args.providerType as 'openai',
-        input: {
-          sourceText: node.text,
-          sourceLanguage: args.sourceLanguage,
-          targetLanguage: args.targetLanguage,
-          requestType: 'page',
-          context: { url }
-        },
-        context: {
-          url,
-          hasPasswordField: fieldScan.hasPasswordField,
-          hasCardField: fieldScan.hasCardField
-        }
-      })
-
-      if (result.ok && result.output) {
-        completed++
-        persistInstructions.push({ id: node.id, translatedText: result.output.translatedText })
-      } else if (result.decision === 'blocked') {
-        blocked++
-      } else {
-        failed++
-      }
-
-      mainWindow.webContents.send('translate:page-progress', {
-        id: node.id,
-        completed,
-        blocked,
-        failed,
-        total: bundle.nodes.length,
-        translatedText: result.output?.translatedText,
-        fromCache: result.fromCache,
-        reason: result.reason,
-        decision: result.decision,
-        blockReason: result.blockReason,
-        pageWideBlock: result.pageWideBlock,
-        sourceTabId
-      })
-
-      if (result.decision === 'blocked' && result.pageWideBlock) {
-        stoppedReason = 'page_wide_block'
-        break
-      }
-    }
-
-    if (stoppedReason === 'aborted') {
-      mainWindow.webContents.send('translate:page-aborted', {
-        total: bundle.nodes.length,
-        completed,
-        blocked,
-        failed,
-        sourceTabId
-      })
-    }
-
-    mainWindow.webContents.send('translate:page-done', {
-      total: bundle.nodes.length,
-      completed,
-      blocked,
-      failed,
-      stoppedReason,
-      sourceTabId
-    })
-
-    // Sprint 006 M3 — 정상 완료(미차단/미취소)일 때만 페이지 결과 영속.
-    if (stoppedReason === null && persistInstructions.length > 0) {
-      await persistPageResult({
-        url,
-        targetLanguage: args.targetLanguage,
-        providerType: args.providerType,
-        selectorPreset: 'page',
-        nodes: bundle.nodes,
-        instructions: persistInstructions
-      })
-    }
-    return { ok: true, total: bundle.nodes.length, chunks: bundle.chunks.length }
-  }
-)
-
+// Sprint 015 M2-5 — legacy page-translation IPC handlers and push events removed.
+//   Details: PRD §19.5.1 M2-5 / PR body.
 // Sprint 015 M2-4 — 페이지 요약 use case 폐기. 상세: PRD §19.5.1 M2-4 / PR 본문.
 
 async function handleContextMenuTranslate(
