@@ -54,6 +54,18 @@ describe('parseTimeRange — 상대 recent (PRD §9.2.1 표 행 1)', () => {
     const r = parseTimeRange('작년 본 자료', { now: NOW })
     expect(r.range?.from).toBe(NOW - YEAR_MS)
   })
+
+  it('"이번주" → {now-7d, now}', () => {
+    const r = parseTimeRange('이번주 본 글', { now: NOW })
+    expect(r.range?.from).toBe(NOW - 7 * DAY_MS)
+    expect(r.range?.to).toBe(NOW)
+  })
+
+  it('"이번달" → {now-30d, now}', () => {
+    const r = parseTimeRange('이번달 자료', { now: NOW })
+    expect(r.range?.from).toBe(NOW - 30 * DAY_MS)
+    expect(r.range?.to).toBe(NOW)
+  })
 })
 
 describe('parseTimeRange — 상대 fix window (PRD §9.2.1 표 행 3)', () => {
@@ -103,6 +115,15 @@ describe('parseTimeRange — 상대 older approx (PRD §9.2.1 표 행 2)', () =>
     const r = parseTimeRange('3개월 전쯤', { now: NOW })
     expect(r.matched).toBe('3개월 전쯤')
     // approx range (-30d margin) 확인 — fix window 라면 to == NOW - 2*MONTH_MS
+    const target = NOW - 3 * MONTH_MS
+    expect(r.range?.from).toBe(target - MONTH_MS)
+    expect(r.range?.to).toBe(target + MONTH_MS)
+  })
+
+  it('"전 쯤" 공백 포함도 approx 로 분류 (fix window 가 잡지 않음)', () => {
+    // 공백 포함된 자연어. codex NB 정정 — fix lookahead `(?!\s*쯤)` 로 공백 허용.
+    const r = parseTimeRange('3개월 전 쯤 메모', { now: NOW })
+    expect(r.matched).toBe('3개월 전 쯤')
     const target = NOW - 3 * MONTH_MS
     expect(r.range?.from).toBe(target - MONTH_MS)
     expect(r.range?.to).toBe(target + MONTH_MS)

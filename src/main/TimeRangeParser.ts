@@ -82,8 +82,9 @@ const PATTERNS: InternalPattern[] = [
   // 3. 상대 fix window — N개월/년 전 (쯤 없음)
   //    "3개월 전" → {now-90d, now-60d}
   //    "2년 전" → {now-2*365d, now-1*365d}
+  //    negative lookahead `(?!\s*쯤)` — 공백 허용 ("3개월 전 쯤" 도 approx 로 분류).
   {
-    regex: /(\d+)\s*개월\s*전(?!쯤)/,
+    regex: /(\d+)\s*개월\s*전(?!\s*쯤)/,
     build: (m, now) => {
       const n = parseInt(m[1], 10)
       if (n < 1 || n > 240) return null
@@ -91,7 +92,7 @@ const PATTERNS: InternalPattern[] = [
     }
   },
   {
-    regex: /(\d+)\s*년\s*전(?!쯤)/,
+    regex: /(\d+)\s*년\s*전(?!\s*쯤)/,
     build: (m, now) => {
       const n = parseInt(m[1], 10)
       if (n < 1 || n > 50) return null
