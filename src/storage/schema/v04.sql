@@ -170,16 +170,19 @@ CREATE TABLE IF NOT EXISTS schema_meta (
 -- 주의: 본 DDL 적용 전 sqlite-vec extension 이 로드되어 있어야 함 (Database.ts 가 순서 보장).
 -- M3 spike 검증 (.flowset/specs/m3-spike-decisions.md §3.3): partition key 는 space 구분 (underscore 아님).
 -- ============================================================
+-- distance_metric=cosine 명시 강제 (PRD §9.4 b6.1 정정 — vec0 디폴트는 L2 이며 cosine 변환 불가능).
+-- 미명시 시 sqlite-vec 0.1.9 디폴트 L2 로 동작 → SearchService 의 `cosineSim = 1 - distance` 변환에서 score scale 손상.
+-- 실측 (`node vec-probe.mjs` 2026-05-19): orthogonal 벡터 distance = 1.4142 (L2) vs 1.0 (cosine) — codex BLOCKING PR #154 정정 박힘.
 CREATE VIRTUAL TABLE IF NOT EXISTS vec_pages USING vec0(
   page_id TEXT,
   workspace_id TEXT partition key,
-  embedding float[1024]
+  embedding float[1024] distance_metric=cosine
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS vec_notes USING vec0(
   note_id TEXT,
   workspace_id TEXT partition key,
-  embedding float[1024]
+  embedding float[1024] distance_metric=cosine
 );
 
 -- ============================================================

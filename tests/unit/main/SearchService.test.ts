@@ -77,6 +77,73 @@ function setup(): Fx {
   return { fb, vec, pageStore, noteStore, service, wsA, wsB }
 }
 
+describe('SearchService — schema cosine metric 강제 (codex BLOCKING PR #154 정정)', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setup()
+  })
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  it('identical 벡터 distance = 0 → cosineSim = 1', async () => {
+    const now = 1_000_000_000_000
+    const { page } = await fx.pageStore.recordVisit({
+      workspace_id: fx.wsA,
+      url: 'https://a',
+      content: 'b',
+      visited_at: now
+    })
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    const hits = fx.service.search({
+      workspaceId: fx.wsA,
+      queryEmbedding: makeVec({ 0: 1 }),
+      now
+    })
+    expect(hits[0].distance).toBeCloseTo(0, 5)
+    expect(hits[0].cosineSim).toBeCloseTo(1, 5)
+  })
+
+  it('orthogonal 벡터 distance ≈ 1 (L2 였다면 ≈ 1.414 — cosine metric 강제 검증)', async () => {
+    const now = 1_000_000_000_000
+    const { page } = await fx.pageStore.recordVisit({
+      workspace_id: fx.wsA,
+      url: 'https://a',
+      content: 'b',
+      visited_at: now
+    })
+    // [1,0,...] 등록 vs [0,1,...] 질의 → cosine distance = 1.0 (L2 였다면 √2 ≈ 1.414)
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    const hits = fx.service.search({
+      workspaceId: fx.wsA,
+      queryEmbedding: makeVec({ 1: 1 }),
+      now
+    })
+    expect(hits[0].distance).toBeCloseTo(1, 4)
+    expect(hits[0].cosineSim).toBeCloseTo(0, 4)
+  })
+
+  it('45도 사이각 벡터 distance ≈ 1 - cos(45°) ≈ 0.293 (cosine 정합)', async () => {
+    const now = 1_000_000_000_000
+    const { page } = await fx.pageStore.recordVisit({
+      workspace_id: fx.wsA,
+      url: 'https://a',
+      content: 'b',
+      visited_at: now
+    })
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    // 질의 = [1,1,0,...] 정규화 = [1/√2, 1/√2, 0, ...]
+    // cos(angle) = 1/√2 → cosine distance = 1 - 1/√2 ≈ 0.2929
+    const hits = fx.service.search({
+      workspaceId: fx.wsA,
+      queryEmbedding: makeVec({ 0: 1, 1: 1 }),
+      now
+    })
+    expect(hits[0].distance).toBeCloseTo(1 - 1 / Math.sqrt(2), 4)
+    expect(hits[0].cosineSim).toBeCloseTo(1 / Math.sqrt(2), 4)
+  })
+})
+
 describe('SearchService — 빈 워크스페이스', () => {
   let fx: Fx
   beforeEach(() => {
