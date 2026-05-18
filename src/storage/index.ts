@@ -59,6 +59,14 @@ export type {
 } from './Database'
 
 export {
+  VectorIndex,
+  EMBEDDING_DIMENSIONS,
+  embeddingToBuffer,
+  bufferToEmbedding
+} from './VectorIndex'
+export type { VectorSearchResult, EmbeddingInput } from './VectorIndex'
+
+export {
   GlossaryStore,
   defaultGlossaryPath,
   validateTerm,

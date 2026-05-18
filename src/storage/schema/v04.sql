@@ -159,3 +159,23 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_notes USING vec0(
   workspace_id TEXT partition key,
   embedding float[1024]
 );
+
+-- ============================================================
+-- vec0 정리 트리거 (PRD §04.6 cascade — vec_pages·vec_notes 동반 삭제)
+-- 외래키는 virtual table 미지원 → AFTER DELETE trigger 로 보완.
+-- pages / notes 삭제 시 (workspace cascade 포함) 자동 정리.
+-- M3-2 (Sprint 015) 진입 시 추가.
+-- ============================================================
+CREATE TRIGGER IF NOT EXISTS pages_after_delete_vec_pages
+  AFTER DELETE ON pages
+  FOR EACH ROW
+  BEGIN
+    DELETE FROM vec_pages WHERE page_id = OLD.id;
+  END;
+
+CREATE TRIGGER IF NOT EXISTS notes_after_delete_vec_notes
+  AFTER DELETE ON notes
+  FOR EACH ROW
+  BEGIN
+    DELETE FROM vec_notes WHERE note_id = OLD.id;
+  END;
