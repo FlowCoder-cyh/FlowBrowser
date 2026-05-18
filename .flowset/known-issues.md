@@ -78,13 +78,38 @@
 - **처리 예정 Sprint**: 015 M5-8 (정합 contract) 또는 Phase 3 종료 후 MVP 직전 정리
 - **상태**: `open`
 
+### KI-003 [open] AutoTagger G-003 BYOK provider 검증 wiring 필요
+
+- **Severity**: HIGH
+- **Phase**: 1
+- **Sprint**: 015 (M4-2 codex 핫픽스 시점 등록)
+- **Component**: `src/main/IndexingService.ts` (M4-5 wiring 시점) + `src/ai/tagging/AutoTagger.ts` (호출자 책임 명시)
+- **영향**: AutoTagger 자체는 호출자가 어떤 provider 주입했는지 모름 — Codex OAuth 가 주입되면 자동 백그라운드 호출이 ChatGPT 한도를 묵시 소진. G-003 강화 (BYOK 디폴트, 자동 호출은 OpenAI API Key 만) 가 wiring 단계에서 강제되지 않으면 사용자 동의 없이 ChatGPT 할당 소비 가능 — 보안·UX 위협.
+- **발견 출처**: M4-2 PR #146 codex 정밀 검토 KI 후보 1 (Severity HIGH)
+- **재현 절차**: IndexingService 가 AutoTagger 호출 시 provider = CodexLoginProvider 주입 → 자동 인덱싱마다 ChatGPT 호출 발생
+- **권고 해소 방향**: M4-5 wiring 또는 후속 단계에서 `IndexingService.tagPage` 호출 시 `UserSetting.defaultProviderId === 'openai-key'` 또는 사용자 명시 동의 검증. AutoTagger.constructor 에 BYOK 가드 add (`opts.provider.info.providerType === 'openai'` 또는 옵션 `enforceByokOnly: true`)
+- **처리 예정 Sprint**: 015 M4-5 또는 M5 (wiring 시점)
+- **상태**: `open`
+
+### KI-004 [open] ChatRequest.response_format JSON 강제 API-level 미구현
+
+- **Severity**: MEDIUM
+- **Phase**: 1
+- **Sprint**: 015 (M4-2 codex 핫픽스 시점 등록)
+- **Component**: `src/ai/types.ts` (ChatRequest) + `src/ai/providers/OpenAIApiKeyProvider.ts` (chat 호출)
+- **영향**: PRD §8.8.3 "OpenAI Provider 응답을 JSON 강제" — 현재는 system prompt 의존 (모델이 schema 따르도록 지시만). OpenAI API 의 `response_format: { type: 'json_object' }` 또는 `json_schema` 미사용 → 모델이 JSON 외 출력 시 freeform fallback 트리거되어 정확도 저하 가능.
+- **발견 출처**: M4-2 PR #146 codex 정밀 검토 NB-3 / KI 후보 2 (Severity MEDIUM)
+- **권고 해소 방향**: (1) `ChatRequest` 에 `responseFormat?: 'text' | 'json_object'` 추가 (2) OpenAIApiKeyProvider body 에 `response_format` 전달 (3) AutoTagger 가 `responseFormat: 'json_object'` 지정. M5 ChatService 도입 시점에 본 contract 함께 처리.
+- **처리 예정 Sprint**: 015 M5-5 (ChatService 도입) 또는 Sprint 016 정확도 측정 시점
+- **상태**: `open`
+
 ---
 
 ## 통계 (Phase 단위)
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 0 | 1 | 1 | 0 | 2 |
+| Phase 1 | 1 | 2 | 1 | 0 | 4 |
 | Phase 2 | — | — | — | — | — |
 | Phase 3 | — | — | — | — | — |
 
@@ -100,3 +125,4 @@
 
 - 2026-05-16: 등록 정책 + Severity 정의 + KI 형식 초기 등록 (Sprint 015 진입 시점, KI 0건)
 - 2026-05-18 (M3 종료 핫픽스): KI-001 MEDIUM (sqlite-vec macOS 미검증) + KI-002 LOW (PageCachePanel PARTIAL) 등록. evaluator + codex 병렬 평가에서 추출. Sprint 015 누적 0건 → 2건 (KI 등록 정책 본격 발동).
+- 2026-05-18 (M4-2 핫픽스): KI-003 HIGH (G-003 BYOK wiring 강제) + KI-004 MEDIUM (ChatRequest.response_format JSON 강제 API-level) 등록. M4-2 codex 정밀 검토 KI 후보 1/2 추출. Sprint 015 누적 2건 → 4건. HIGH 첫 등록 — M4-5 wiring 시점 즉시 처리 정책 적용.
