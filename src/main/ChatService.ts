@@ -156,8 +156,11 @@ export class ChatService {
     try {
       response = await this.provider.chat(request)
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      // 실패 메시지 영속 (role='error' — schema CHECK 정합). user 메시지 보다 created_at + 1 보장.
+      const rawErrorMsg = err instanceof Error ? err.message : String(err)
+      // codex M5-5 PR #157 NEEDS_CHANGES 정정 — 빈 errorMsg ('') 시 AiChatHistoryStore.create 가
+      // `content required` throw → uncaught 예외 유출. fallback placeholder 보장.
+      const errorMsg = rawErrorMsg.trim() || 'Provider chat failed'
+      // 실패 메시지 영속 (role='error' — schema CHECK 정합). monotonic timestamp 보장.
       const errorChat = this.historyStore.create({
         workspace_id: input.workspaceId,
         page_id: input.pageId ?? null,

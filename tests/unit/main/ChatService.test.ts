@@ -145,6 +145,22 @@ describe('ChatService — graceful error', () => {
     if (!r.ok) expect(r.errorCode).toBe('chat_unsupported')
   })
 
+  it('provider.chat throw 빈 message ("") → fallback placeholder 영속 (codex PR #157 NEEDS_CHANGES 회귀)', async () => {
+    // err.message === '' 또는 String(err) === '' 시 AiChatHistoryStore.create 가 throw — fallback 보장.
+    const provider = makeMockProvider({ chatThrows: new Error('') })
+    const service = new ChatService({ provider, historyStore: fx.history })
+    const r = await service.chat({ workspaceId: fx.workspaceId, userMessage: 'hi' })
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.errorCode).toBe('provider_error')
+      expect(r.error).toBe('Provider chat failed')
+    }
+    const history = fx.history.listByWorkspace(fx.workspaceId)
+    expect(history).toHaveLength(2)
+    expect(history[1].role).toBe('error')
+    expect(history[1].content).toBe('Provider chat failed')
+  })
+
   it('provider.chat throw → user 메시지 + error 메시지 영속, errorCode=provider_error', async () => {
     const provider = makeMockProvider({ chatThrows: new Error('rate limit') })
     const service = new ChatService({ provider, historyStore: fx.history })
