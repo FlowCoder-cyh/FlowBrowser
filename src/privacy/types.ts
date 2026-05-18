@@ -76,3 +76,47 @@ export interface TransmissionLogEntry {
   providerId?: string
   reason?: string
 }
+
+/**
+ * Sprint 015 M4-4 — IndexingGate 전용 차단 사유.
+ * Privacy Filter 5단계(`BlockReason`)와 별도. 인덱싱은 외부 호출이 아닌 메모리 누적 차단.
+ * - `none`: 차단 아님 (allowed)
+ * - `domain`: 디폴트 도메인 차단 list 매칭
+ * - `path`: 디폴트 path glob 매칭 (예: `*.naver.com/mail/*`)
+ * - `password`: `<input type="password">` 감지
+ * - `user_block`: 사용자 명시 추가 차단 패턴 (`UserSetting.privacyExclusions[].type === 'block'`)
+ */
+export type IndexingBlockReason = 'none' | 'domain' | 'path' | 'password' | 'user_block'
+
+/**
+ * Sprint 015 M4-4 — IndexingGate 입력 컨텍스트.
+ * `evaluatePrivacy`(외부 호출)의 `PrivacyContext`와 별개 — 인덱싱 경로 전용.
+ */
+export interface IndexingContext {
+  url: string
+  hasPasswordField: boolean
+  /** 사용자 컨텍스트 메뉴 "이 페이지 인덱싱" override 1회 토큰. */
+  overrideToken?: string
+}
+
+/**
+ * Sprint 015 M4-4 — IndexingGate 평가 결과.
+ * `allowed=true` 인 경우만 자동 인덱싱 진행 (IndexingService M4-1).
+ */
+export interface IndexingEvaluation {
+  allowed: boolean
+  blockReason: IndexingBlockReason
+  /** 매칭된 패턴 소스 — 사용자 알림/감사 로그용. */
+  matchedBy?: 'default_domain' | 'default_path' | 'user_block' | 'password_field' | 'override'
+  /** 매칭된 실제 패턴 문자열 — 매칭 시점에만 채움. */
+  matchedPattern?: string
+}
+
+/**
+ * Sprint 015 M4-4 — 사용자 명시 인덱싱 차단/허용 룰.
+ * `UserSetting.privacyExclusions[]` 컬럼 구조.
+ */
+export interface PrivacyExclusionRule {
+  pattern: string
+  type: 'block' | 'allow'
+}
