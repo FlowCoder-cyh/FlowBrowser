@@ -6,11 +6,11 @@
 ## 메타
 
 - **Phase**: **1** (AI 콘텐츠 메모리 + 워크스페이스 베이스 인프라, Sprint 015 진행 중)
-- **Sprint**: **015 M0~M4 완료 + M4 evaluator/codex 핫픽스 3회** (M5 진입 대기 — T21~T27 검색 + 채팅 + 노트 + ChatService 8 PR)
+- **Sprint**: **015 M0~M4 완료 + M5 진행 중 (2/8 PR)** (M5-1 Shortcut+SearchBar + M5-2 TimeRangeParser 완료, M5-3 SearchService 진입 대기)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.0 본문 완성** (19 섹션, 약 5,200+ lines + M4-2/M4-4 §8.6.1/§8.8.3/§13.5.2/§13.5.3 정정 — 정식 release tag 는 Sprint 015 M6 종료 시점)
-- **최근 갱신**: 2026-05-18 (M4 5/5 + 2 hotfix + 핸드오프 종합 evaluator 완료 — evaluator 4종 Pass / codex NB 15건 모두 본 PR 해소 / 단위 681 (+111) / KI 2 → 4 등록 (HIGH 1 첫 등록) / M4 종합 evaluator BLOCKING 2건 자연 해소 (PR #148 머지) + NB-3 단위 카운트 정정 / 51 PR 누적)
-- **다음 세션 진입점**: `.flowset/handoffs/2026-05-18.md` §16 (M4 종합) + `.flowset/contracts/sprint-015.md` §2 T21~T27 (M5 범위) + `docs/prd/19_migration_v03_v04.md` §19.5.4 M5 8 PR spec + `.flowset/known-issues.md` KI-001~004 (KI-003 HIGH 우선)
+- **최근 갱신**: 2026-05-19 (M5-1 + M5-2 + 각 hotfix 완료 — evaluator + codex 병렬 평가 2회 모두 통과 / 단위 681 → **778 (+97)** / KI 누적 4건 유지 / M5-1 IPC 4종 (shortcut 2 + search stub 2) / M5-2 TimeRangeParser 5종 표현 / 53 PR 누적)
+- **다음 세션 진입점**: `.flowset/handoffs/2026-05-19.md` §1~§2 (M5-1 + M5-2 종합) + `.flowset/contracts/sprint-015.md` §2 T23 (M5-3 SearchService) + `docs/prd/19_migration_v03_v04.md` §19.5.4 M5-3~M5-8 spec + `.flowset/known-issues.md` KI-001~004 (KI-003 HIGH 우선)
 
 ## 현재 작업
 
@@ -232,7 +232,15 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
   - M4-3 ✅ DwellTracker + IndexedPageStoreSqlite.updateVisitDwell (PR #144, +21)
   - M4-2 ✅ AutoTagger + JSON schema 6 kind + freeform fallback (PR #146 + #148 hotfix, +23) / KI-003 HIGH + KI-004 MEDIUM 등록
   - M4-5 ✅ M4 통합 회귀 시나리오 1+3 + DwellTracker + Privacy 차단 매트릭스 (PR #147, +10)
-- **M5** (다음, 4~5일): 검색바 (Cmd+K) + AI 채팅 패널 (ChatPanel) + 노트 + 수준 옵션 + KI-003 wiring 자연 결합 (M5-5 ChatService)
+- **M5** 진행 중 (2/8 PR — 단위 681 → **778 (+97)** / 53 PR 누적)
+  - M5-1 ✅ Shortcut + SearchBar UI (PR #150 + 본 PR 내 hotfix, +61) — IPC 4종 (shortcut 2 + search stub 2) + main process before-input-event 캡처 + SearchBar UrlBar 통합 (codex BLOCKING 2건 본 PR 해소)
+  - M5-2 ✅ TimeRangeParser (PR #151 + 본 PR 내 hotfix, +37) — PRD §9.2 자연어 시간 5종 (어제 / 지난주 / N개월 전 / 절대 날짜 / YYYY년 N월) + remainingQuery 정규화 + pure 함수
+  - M5-3 (다음 진입) — SearchService sqlite-vec top-k + 정렬 공식 (0.85 × cosine + 0.15 × exp(-days/180)) + TimeRangeParser 연결 + search:query stub → 실 구현
+  - M5-4 SearchResultCard + PreviewPane (시간 시그널 / 매칭 발췌 / dwell 표시)
+  - M5-5 PromptComposer + ChatService + executeTranslateRequest → ChatService.chat() 마이그레이션 (KI-003 wiring 자연 결합)
+  - M5-6 ChatPanel (TranslationPanel 교체) + chat_meta 표 schema
+  - M5-7 NoteService + NotePanel
+  - M5-8 어댑터 일괄 제거 + ProviderAdapter.translate() 메서드 자체 제거 + fetchImpl 통일
 - **M6** (2~3일): 워크스페이스 사이드바 + 메모리 통계 UI + Sprint 종합 핸드오프
 
 ### 시나리오 cover 목표
@@ -242,7 +250,8 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 
 ## 최근 핸드오프
 
-- **[2026-05-18](./handoffs/2026-05-18.md) — Sprint 015 M4 5/5 + 2 hotfix 완료 + M5 진입 준비 §16 (필독)**
+- **[2026-05-19](./handoffs/2026-05-19.md) — Sprint 015 M5-1 + M5-2 완료 + M5-3 진입 준비 (필독)**
+- [2026-05-18](./handoffs/2026-05-18.md) — Sprint 015 M4 5/5 + 2 hotfix 완료
 - [2026-05-17](./handoffs/2026-05-17.md) — Sprint 015 M0~M1 완료
 - [2026-05-16](./handoffs/2026-05-16.md) — 🔴 방향 전환 결정
 - [2026-05-15](./handoffs/2026-05-15.md) — Sprint 003~014 진행 종합
