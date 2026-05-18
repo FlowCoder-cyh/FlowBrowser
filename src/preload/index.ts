@@ -12,15 +12,7 @@ interface NavStatePayload {
   canGoForward: boolean
 }
 
-type TabColorPayload =
-  | 'red'
-  | 'orange'
-  | 'yellow'
-  | 'green'
-  | 'blue'
-  | 'purple'
-  | 'gray'
-  | null
+type TabColorPayload = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'gray' | null
 
 interface TabSessionPayload {
   id: string
@@ -45,10 +37,8 @@ const tabApi = {
   active: (): Promise<TabSessionPayload | null> => ipcRenderer.invoke('tab:active'),
   reorder: (id: string, newIndex: number): Promise<boolean> =>
     ipcRenderer.invoke('tab:reorder', id, newIndex),
-  closeOthers: (keepId: string): Promise<boolean> =>
-    ipcRenderer.invoke('tab:close-others', keepId),
-  closeRight: (fromId: string): Promise<boolean> =>
-    ipcRenderer.invoke('tab:close-right', fromId),
+  closeOthers: (keepId: string): Promise<boolean> => ipcRenderer.invoke('tab:close-others', keepId),
+  closeRight: (fromId: string): Promise<boolean> => ipcRenderer.invoke('tab:close-right', fromId),
   duplicate: (id: string): Promise<TabSessionPayload | null> =>
     ipcRenderer.invoke('tab:duplicate', id),
   showContextMenu: (tabId: string): Promise<void> =>
@@ -144,10 +134,8 @@ const privacyApi = {
     ipcRenderer.invoke('privacy:approve', domain),
   addRule: (rule: DomainRule): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('privacy:add-rule', rule),
-  removeRule: (args: DomainRule): Promise<void> =>
-    ipcRenderer.invoke('privacy:remove-rule', args),
-  getRules: (): Promise<{ userRules: DomainRule[] }> =>
-    ipcRenderer.invoke('privacy:get-rules'),
+  removeRule: (args: DomainRule): Promise<void> => ipcRenderer.invoke('privacy:remove-rule', args),
+  getRules: (): Promise<{ userRules: DomainRule[] }> => ipcRenderer.invoke('privacy:get-rules'),
   setRules: (rules: DomainRule[]): Promise<{ accepted: number; rejected: number }> =>
     ipcRenderer.invoke('privacy:set-rules', rules),
   exportPolicy: (): Promise<DomainPolicyExportPayload> =>
@@ -173,52 +161,19 @@ const usageApi = {
 }
 
 const cacheApi = {
-  stats: (): Promise<{ count: number; hitTotal: number }> =>
-    ipcRenderer.invoke('cache:stats'),
+  stats: (): Promise<{ count: number; hitTotal: number }> => ipcRenderer.invoke('cache:stats'),
   clearAll: (): Promise<void> => ipcRenderer.invoke('cache:clear-all'),
   invalidateGlossary: (version: string): Promise<number> =>
     ipcRenderer.invoke('cache:invalidate-glossary', version)
 }
 
-interface PageResultLookupArgs {
-  url: string
-  targetLanguage: string
-  providerType: string
-  glossaryVersion?: string
-  nodesSignature?: string
-}
-
-interface PageResultEntryPayload {
-  id: string
-  key: string
-  url: string
-  targetLanguage: string
-  providerType: string
-  glossaryVersion: string
-  nodesSignature: string
-  selectorPreset: 'paragraph' | 'page'
-  instructions: Array<{ id: string; translatedText: string }>
-  createdAt: number
-  updatedAt: number
-  lastAccessedAt: number
-  expiresAt: number
-}
+// Sprint 015 M2-8 — retired page-result lookup/store payload types 제거.
+// Sprint 015 M2-6 — pageResult:restore-current API 제거 (render IPC 폐기 동반).
 
 const pageResultApi = {
+  // Sprint 015 M2-8 — retired lookup/store methods 제거. renderer 호출자 0. PageCachePanel 은 stats/clear 만 사용.
   stats: (): Promise<{ count: number }> => ipcRenderer.invoke('pageResult:stats'),
-  clear: (): Promise<void> => ipcRenderer.invoke('pageResult:clear'),
-  lookup: (args: PageResultLookupArgs): Promise<PageResultEntryPayload | null> =>
-    ipcRenderer.invoke('pageResult:lookup', args),
-  store: (args: {
-    url: string
-    targetLanguage: string
-    providerType: string
-    glossaryVersion?: string
-    nodesSignature: string
-    selectorPreset: 'paragraph' | 'page'
-    instructions: Array<{ id: string; translatedText: string }>
-  }): Promise<PageResultEntryPayload> => ipcRenderer.invoke('pageResult:store', args)
-  // Sprint 015 M2-6 — pageResult:restore-current API 제거 (render IPC 폐기 동반).
+  clear: (): Promise<void> => ipcRenderer.invoke('pageResult:clear')
 }
 
 interface GlossaryTermPayload {

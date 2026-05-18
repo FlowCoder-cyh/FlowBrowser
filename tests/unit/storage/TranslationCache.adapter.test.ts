@@ -352,4 +352,69 @@ describe('TranslationCache (adapter mode, backend = AIResponseCache)', () => {
     expect(adapterHit1?.hitCount).toBe(legacyHit1?.hitCount)
     expect(adapterHit2?.hitCount).toBe(legacyHit2?.hitCount)
   })
+
+  // M2-8 codex NB-F 핫픽스 — v0.3 단위 테스트 (TranslationCache.test) 제거에 따른 backend 미주입 path 회귀 보완.
+  describe('legacy mode (backend 미주입, v0.3 호환 경로 회귀)', () => {
+    it('legacy: persistence — disk round-trip + TTL 디폴트 90일', async () => {
+      const tc1 = new TranslationCache(legacyPath)
+      await tc1.load()
+      const before = Date.now()
+      const stored = await tc1.store({
+        sourceText: 'hello',
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'selection',
+        translatedText: '안녕'
+      })
+      await tc1.flush()
+      // 디폴트 TTL 90일 (DEFAULT_TTL_MS) 정합 검증
+      const ninetyDays = 90 * 24 * 60 * 60 * 1000
+      expect(stored.expiresAt - before).toBeGreaterThanOrEqual(ninetyDays - 1000)
+      expect(stored.expiresAt - before).toBeLessThan(ninetyDays + 1000)
+
+      // 신규 인스턴스 disk 복원
+      const tc2 = new TranslationCache(legacyPath)
+      await tc2.load()
+      const hit = await tc2.lookup({
+        sourceText: 'hello',
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'selection'
+      })
+      expect(hit?.translatedText).toBe('안녕')
+      expect(hit?.hitCount).toBe(1)
+    })
+
+    it('legacy: LRU trim — maxBytes 초과 시 절반 제거 (가장 오래된 항목)', async () => {
+      // 각 entry 직렬화 = ~400 bytes (id/timestamps/text 등). 8 entries × 400 = ~3200 bytes.
+      // maxBytes 2000 → 1회 trim 후 절반 (4) 보존 정도.
+      const tc = new TranslationCache(legacyPath, { maxBytes: 2000 })
+      await tc.load()
+      for (let i = 0; i < 8; i++) {
+        await tc.store({
+          sourceText: `text-${i}-${'x'.repeat(40)}`,
+          sourceLanguage: 'en',
+          targetLanguage: 'ko',
+          providerType: 'openai',
+          requestType: 'selection',
+          translatedText: 'y'.repeat(40)
+        })
+        await new Promise((r) => setTimeout(r, 2))
+      }
+      // LRU trim 동작 — 일부 제거 후 일부 보존
+      expect(tc.size()).toBeLessThan(8)
+      expect(tc.size()).toBeGreaterThan(0)
+      // 가장 최근 store 된 항목은 보존
+      const recent = await tc.lookup({
+        sourceText: `text-7-${'x'.repeat(40)}`,
+        sourceLanguage: 'en',
+        targetLanguage: 'ko',
+        providerType: 'openai',
+        requestType: 'selection'
+      })
+      expect(recent).not.toBeNull()
+    })
+  })
 })

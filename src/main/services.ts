@@ -38,7 +38,6 @@ import {
   defaultUserSettingPath,
   defaultPageResultPath,
   defaultTabStatePath,
-  nodesSignatureFromTexts,
   formatGlossaryContext,
   type CredentialRecord,
   type CredentialProviderType,
@@ -59,12 +58,8 @@ import {
   type TokenBundle,
   type UserCodeResult
 } from '../ai'
-import { extractParagraphsScript } from '../perception/ParagraphExtractor'
-import {
-  extractPageNodesScript,
-  validatePageNodes,
-  type PageNodeBundle
-} from '../perception/PageNodeExtractor'
+// Sprint 015 M2-8 — retired page-translation extraction imports 제거.
+//   M2-5/M2-6 페이지 번역 폐기 후 호출자 0. perception/* 모듈 자체는 M3 IndexingService 가 활용 예정.
 
 interface DiskConsentState {
   globalConsented: boolean
@@ -135,79 +130,21 @@ export async function initServices(): Promise<void> {
 }
 
 function registerPageResultIpc(): void {
+  // Sprint 015 M2-8 — retired page-result lookup/store IPC handlers 제거.
+  //   M2-5/M2-6 페이지 번역 폐기 후 renderer 호출 0. stats/clear 는 PageCachePanel 유지.
   ipcMain.handle('pageResult:stats', () => pageResultStore.stats())
   ipcMain.handle('pageResult:clear', async (): Promise<void> => pageResultStore.clearAll())
-  ipcMain.handle(
-    'pageResult:lookup',
-    async (
-      _event,
-      args: {
-        url: string
-        targetLanguage: string
-        providerType: string
-        glossaryVersion?: string
-        nodesSignature?: string
-      }
-    ) => pageResultStore.lookup(args)
-  )
-  ipcMain.handle(
-    'pageResult:store',
-    async (
-      _event,
-      args: {
-        url: string
-        targetLanguage: string
-        providerType: string
-        glossaryVersion?: string
-        nodesSignature: string
-        selectorPreset: 'paragraph' | 'page'
-        instructions: Array<{ id: string; translatedText: string }>
-      }
-    ) => pageResultStore.store(args)
-  )
 }
 
-/**
- * Sprint 006 M3 — 페이지 번역 결과 누적 저장 (선택 헬퍼). main/index.ts 사용.
- */
-export async function persistPageResult(args: {
-  url: string
-  targetLanguage: string
-  providerType: string
-  selectorPreset: 'paragraph' | 'page'
-  nodes: Array<{ id: string; text: string }>
-  instructions: Array<{ id: string; translatedText: string }>
-}): Promise<void> {
-  if (args.instructions.length === 0) return
-  const nodesSignature = nodesSignatureFromTexts(args.nodes)
-  await pageResultStore.store({
-    url: args.url,
-    targetLanguage: args.targetLanguage,
-    providerType: args.providerType,
-    glossaryVersion: glossaryStore.getVersion(),
-    nodesSignature,
-    selectorPreset: args.selectorPreset,
-    instructions: args.instructions
-  })
-}
-
-export async function pageResultLookup(args: {
-  url: string
-  targetLanguage: string
-  providerType: string
-  glossaryVersion?: string
-  nodesSignature?: string
-}): Promise<import('../storage/PageResultStore').PageResultEntry | null> {
-  return pageResultStore.lookup({
-    ...args,
-    glossaryVersion: args.glossaryVersion ?? glossaryStore.getVersion()
-  })
-}
+// Sprint 015 M2-8 — retired page-result helper exports 제거.
+//   M2-5/M2-6 폐기 후 호출자 0. M5 어댑터 제거 시 pageResultStore 인스턴스 자체 폐기.
 
 /**
  * Sprint 009 M3 — TabStateStore 접근 헬퍼.
  */
-export async function loadTabState(): Promise<import('../storage/TabStateStore').PersistedTabState> {
+export async function loadTabState(): Promise<
+  import('../storage/TabStateStore').PersistedTabState
+> {
   return tabStateStore.load()
 }
 
@@ -278,7 +215,9 @@ function registerGlossaryIpc(): void {
       _event,
       args: {
         id: string
-        patch: Partial<Pick<GlossaryTerm, 'sourceTerm' | 'targetTerm' | 'description' | 'domain' | 'isActive'>>
+        patch: Partial<
+          Pick<GlossaryTerm, 'sourceTerm' | 'targetTerm' | 'description' | 'domain' | 'isActive'>
+        >
       }
     ): Promise<{ ok: boolean; term?: GlossaryTerm }> => {
       const prevVersion = glossaryStore.getVersion()
@@ -290,17 +229,14 @@ function registerGlossaryIpc(): void {
     }
   )
 
-  ipcMain.handle(
-    'glossary:remove',
-    async (_event, id: string): Promise<boolean> => {
-      const prevVersion = glossaryStore.getVersion()
-      const removed = await glossaryStore.remove(id)
-      if (removed) {
-        await translationCache.invalidateByGlossaryVersion(prevVersion)
-      }
-      return removed
+  ipcMain.handle('glossary:remove', async (_event, id: string): Promise<boolean> => {
+    const prevVersion = glossaryStore.getVersion()
+    const removed = await glossaryStore.remove(id)
+    if (removed) {
+      await translationCache.invalidateByGlossaryVersion(prevVersion)
     }
-  )
+    return removed
+  })
 
   ipcMain.handle('glossary:clear', async (): Promise<void> => {
     const prevVersion = glossaryStore.getVersion()
@@ -365,89 +301,93 @@ function registerConsentIpc(): void {
 function registerCredentialIpc(): void {
   ipcMain.handle('credential:list', (): CredentialRecord[] => credentialsStore.list())
 
-  ipcMain.handle('credential:save', async (
-    _event,
-    args: {
-      providerType: CredentialProviderType
-      displayName: string
-      secret: string
-      authType: 'oauth' | 'api_key' | 'local'
+  ipcMain.handle(
+    'credential:save',
+    async (
+      _event,
+      args: {
+        providerType: CredentialProviderType
+        displayName: string
+        secret: string
+        authType: 'oauth' | 'api_key' | 'local'
+      }
+    ): Promise<CredentialRecord> => {
+      const rec = await credentialsStore.upsert(args)
+      rebuildProvider(args.providerType)
+      return rec
     }
-  ): Promise<CredentialRecord> => {
-    const rec = await credentialsStore.upsert(args)
-    rebuildProvider(args.providerType)
-    return rec
-  })
+  )
 
-  ipcMain.handle('credential:delete', async (
-    _event,
-    providerType: CredentialProviderType
-  ): Promise<boolean> => {
-    providers.delete(providerType)
-    return credentialsStore.remove(providerType)
-  })
+  ipcMain.handle(
+    'credential:delete',
+    async (_event, providerType: CredentialProviderType): Promise<boolean> => {
+      providers.delete(providerType)
+      return credentialsStore.remove(providerType)
+    }
+  )
 
-  ipcMain.handle('credential:validate', async (
-    _event,
-    providerType: CredentialProviderType
-  ): Promise<{ ok: boolean; reason?: string }> => {
-    const provider = providers.get(providerType)
-    if (!provider) return { ok: false, reason: 'Provider 미초기화. credential:save 먼저.' }
-    const result = await provider.validate()
-    await credentialsStore.markValidated(providerType, result.ok ? 'active' : 'invalid')
-    return result
-  })
+  ipcMain.handle(
+    'credential:validate',
+    async (
+      _event,
+      providerType: CredentialProviderType
+    ): Promise<{ ok: boolean; reason?: string }> => {
+      const provider = providers.get(providerType)
+      if (!provider) return { ok: false, reason: 'Provider 미초기화. credential:save 먼저.' }
+      const result = await provider.validate()
+      await credentialsStore.markValidated(providerType, result.ok ? 'active' : 'invalid')
+      return result
+    }
+  )
 }
 
 function registerPrivacyIpc(): void {
-  ipcMain.handle('privacy:scan-page', async (
-    _event,
-    webContentsId: number
-  ): Promise<{ hasPasswordField: boolean; hasCardField: boolean } | null> => {
-    const wc = WebContentsRegistry.get(webContentsId)
-    if (!wc) return null
-    try {
-      const result = (await wc.executeJavaScript(detectSensitiveFieldsScript())) as {
-        hasPasswordField: boolean
-        hasCardField: boolean
+  ipcMain.handle(
+    'privacy:scan-page',
+    async (
+      _event,
+      webContentsId: number
+    ): Promise<{ hasPasswordField: boolean; hasCardField: boolean } | null> => {
+      const wc = WebContentsRegistry.get(webContentsId)
+      if (!wc) return null
+      try {
+        const result = (await wc.executeJavaScript(detectSensitiveFieldsScript())) as {
+          hasPasswordField: boolean
+          hasCardField: boolean
+        }
+        return result
+      } catch {
+        return null
       }
-      return result
-    } catch {
-      return null
     }
-  })
+  )
 
-  ipcMain.handle('privacy:approve', (
-    _event,
-    domain: string
-  ): { token: string } => {
+  ipcMain.handle('privacy:approve', (_event, domain: string): { token: string } => {
     const token = consentGate.issueApprovalToken(domain)
     return { token }
   })
 
-  ipcMain.handle('privacy:add-rule', async (
-    _event,
-    rule: DomainFilterRule
-  ): Promise<{ ok: boolean; error?: string }> => {
-    const result = await domainPolicyStore.addRule(rule)
-    return { ok: result.ok, error: result.error }
-  })
+  ipcMain.handle(
+    'privacy:add-rule',
+    async (_event, rule: DomainFilterRule): Promise<{ ok: boolean; error?: string }> => {
+      const result = await domainPolicyStore.addRule(rule)
+      return { ok: result.ok, error: result.error }
+    }
+  )
 
-  ipcMain.handle('privacy:remove-rule', async (
-    _event,
-    args: { pattern: string; type: 'blacklist' | 'whitelist' }
-  ): Promise<void> => {
-    await domainPolicyStore.removeRule({ pattern: args.pattern, type: args.type })
-  })
+  ipcMain.handle(
+    'privacy:remove-rule',
+    async (_event, args: { pattern: string; type: 'blacklist' | 'whitelist' }): Promise<void> => {
+      await domainPolicyStore.removeRule({ pattern: args.pattern, type: args.type })
+    }
+  )
 
   ipcMain.handle('privacy:get-rules', (): DomainFilterState => domainPolicyStore.getState())
 
   ipcMain.handle(
     'privacy:set-rules',
-    async (
-      _event,
-      rules: DomainFilterRule[]
-    ): Promise<{ accepted: number; rejected: number }> => domainPolicyStore.setRules(rules)
+    async (_event, rules: DomainFilterRule[]): Promise<{ accepted: number; rejected: number }> =>
+      domainPolicyStore.setRules(rules)
   )
 
   ipcMain.handle(
@@ -470,17 +410,16 @@ function registerPrivacyIpc(): void {
 }
 
 function registerUsageIpc(): void {
-  ipcMain.handle('usage:summary', async (_event, sinceMs?: number) =>
-    usageLog.summarize(sinceMs)
-  )
+  ipcMain.handle('usage:summary', async (_event, sinceMs?: number) => usageLog.summarize(sinceMs))
   ipcMain.handle('usage:list', async (_event, sinceMs?: number) =>
     sinceMs ? usageLog.readSince(sinceMs) : usageLog.readAll()
   )
   ipcMain.handle('usage:clear-all', async (): Promise<void> => {
     await usageLog.clearAll()
   })
-  ipcMain.handle('usage:purge-older-than', async (_event, beforeMs: number): Promise<number> =>
-    usageLog.purgeOlderThan(beforeMs)
+  ipcMain.handle(
+    'usage:purge-older-than',
+    async (_event, beforeMs: number): Promise<number> => usageLog.purgeOlderThan(beforeMs)
   )
 }
 
@@ -595,9 +534,7 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
     }
   }
 
-  const usageFeature: import('../storage').Feature = featureFromRequestType(
-    args.input.requestType
-  )
+  const usageFeature: import('../storage').Feature = featureFromRequestType(args.input.requestType)
 
   const provider = providers.get(args.providerType)
   if (!provider) {
@@ -685,42 +622,8 @@ function featureFromRequestType(
   return 'translation'
 }
 
-/**
- * 외부 페이지(WebContentsView)에서 문단을 추출한다.
- */
-export async function extractWebContentsParagraphs(
-  webContentsId: number
-): Promise<Array<{ id: string; text: string; tag: string }>> {
-  const wc = WebContentsRegistry.get(webContentsId)
-  if (!wc) return []
-  try {
-    const result = (await wc.executeJavaScript(extractParagraphsScript())) as Array<{
-      id: string
-      text: string
-      tag: string
-    }>
-    return Array.isArray(result) ? result : []
-  } catch {
-    return []
-  }
-}
-
-/**
- * 외부 페이지(WebContentsView)에서 페이지 전체 노드를 추출한다.
- * Sprint 003 M2 / PRD §9.2 페이지 전체 번역.
- */
-export async function extractWebContentsPageNodes(
-  webContentsId: number
-): Promise<PageNodeBundle> {
-  const wc = WebContentsRegistry.get(webContentsId)
-  if (!wc) return { nodes: [], chunks: [] }
-  try {
-    const raw = (await wc.executeJavaScript(extractPageNodesScript())) as unknown
-    return validatePageNodes(raw)
-  } catch {
-    return { nodes: [], chunks: [] }
-  }
-}
+// Sprint 015 M2-8 — retired WebContents extraction helper exports 제거.
+//   M2-5/M2-6 페이지 번역 폐기 후 호출자 0. M3 IndexingService 가 perception/PageNodeExtractor 와 ParagraphExtractor 모듈을 직접 import 활용.
 
 /**
  * 외부 페이지(WebContentsView)에서 민감 필드를 스캔한다.
@@ -746,9 +649,12 @@ export async function scanWebContentsFields(
 }
 
 function registerTranslateIpc(): void {
-  ipcMain.handle('translate:request', async (_event, args: TranslateArgs): Promise<TranslateResult> => {
-    return executeTranslateRequest(args)
-  })
+  ipcMain.handle(
+    'translate:request',
+    async (_event, args: TranslateArgs): Promise<TranslateResult> => {
+      return executeTranslateRequest(args)
+    }
+  )
 }
 
 function rebuildProvider(providerType: CredentialProviderType): void {
@@ -811,7 +717,13 @@ function clearCodexPolling(): void {
   }
 }
 
-async function pollCodexLoop(flow: DeviceCodeFlow, deviceAuthId: string, userCode: string, intervalSec: number, deadlineMs: number): Promise<void> {
+async function pollCodexLoop(
+  flow: DeviceCodeFlow,
+  deviceAuthId: string,
+  userCode: string,
+  intervalSec: number,
+  deadlineMs: number
+): Promise<void> {
   const tick = async (): Promise<void> => {
     if (codexLoginSession.deviceAuthId !== deviceAuthId) return // 새 세션 시작됨, 종료
     if (Date.now() > deadlineMs) {
