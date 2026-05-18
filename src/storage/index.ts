@@ -5,12 +5,7 @@ export { UsageLog, defaultUsageLogPath } from './UsageLog'
 export type { UsageLogEntry, Feature, UsageStatus } from './UsageLog'
 
 export { TranslationCache, defaultTranslationCachePath } from './TranslationCache'
-export type {
-  CacheEntry,
-  CacheKeyInput,
-  CacheOptions,
-  CacheRequestType
-} from './TranslationCache'
+export type { CacheEntry, CacheKeyInput, CacheOptions, CacheRequestType } from './TranslationCache'
 
 export {
   AIResponseCache,
@@ -66,12 +61,8 @@ export type {
 export { UserSettingStore, defaultUserSettingPath } from './UserSettingStore'
 export type { UserSettingState, TranslationMode } from './UserSettingStore'
 
-export {
-  PageResultStore,
-  defaultPageResultPath,
-  normalizePageUrl,
-  nodesSignatureFromTexts
-} from './PageResultStore'
+// Sprint 015 M2-8 — retired page-node signature helper export 제거 (함수 자체 폐기).
+export { PageResultStore, defaultPageResultPath, normalizePageUrl } from './PageResultStore'
 export type {
   PageResultEntry,
   PageResultInstruction,
@@ -79,9 +70,5 @@ export type {
   PageResultStoreOptions
 } from './PageResultStore'
 
-export {
-  TabStateStore,
-  defaultTabStatePath,
-  TAB_STATE_POLICY_VERSION
-} from './TabStateStore'
+export { TabStateStore, defaultTabStatePath, TAB_STATE_POLICY_VERSION } from './TabStateStore'
 export type { PersistedTabSession, PersistedTabState } from './TabStateStore'

@@ -82,13 +82,7 @@ export function normalizePageUrl(raw: string): string {
   }
 }
 
-/**
- * 노드 ID + 원문 텍스트 해시. 페이지 변경 감지용.
- */
-export function nodesSignatureFromTexts(nodes: Array<{ id: string; text: string }>): string {
-  const joined = nodes.map((n) => `${n.id}|${n.text}`).join('\n')
-  return createHash('sha256').update(joined).digest('hex').slice(0, 32)
-}
+// Sprint 015 M2-8 — retired page-node signature helper 제거. page-result persist helper 폐기로 호출자 0.
 
 function buildKey(args: PageResultLookupKey): string {
   const normalized = normalizePageUrl(args.url)
@@ -110,7 +104,10 @@ export class PageResultStore {
   private writeQueue: Promise<void> = Promise.resolve()
   private loaded = false
 
-  constructor(private filePath: string, opts: PageResultStoreOptions = {}) {
+  constructor(
+    private filePath: string,
+    opts: PageResultStoreOptions = {}
+  ) {
     this.opts = {
       ttlMs: opts.ttlMs ?? DEFAULT_TTL_MS,
       maxBytes: opts.maxBytes ?? DEFAULT_MAX_BYTES
