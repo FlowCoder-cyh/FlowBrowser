@@ -1,3 +1,4 @@
+// Sprint 015 M2-6 — TranslationPanel 완전 제거 (render/restore IPC 폐기 동반). M5 ChatPanel 신규 시 동일 자리 도입.
 import { useEffect, useState } from 'react'
 import UrlBar from './UrlBar'
 import TabBar from './TabBar'
@@ -5,22 +6,12 @@ import Consent from './onboarding/Consent'
 import OnboardingTour from './onboarding/OnboardingTour'
 import SettingsPage from './settings/SettingsPage'
 import TranslationPopup from './translation/TranslationPopup'
-import TranslationPanel from './translation/TranslationPanel'
 
 type Stage = 'loading' | 'consent' | 'browser' | 'settings'
 
 export default function App(): JSX.Element {
   const [stage, setStage] = useState<Stage>('loading')
-  const [panelOpen, setPanelOpenState] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
-
-  function setPanelOpen(next: boolean | ((p: boolean) => boolean)): void {
-    setPanelOpenState((prev) => {
-      const value = typeof next === 'function' ? next(prev) : next
-      void window.browserApi.setPanelOpen(value)
-      return value
-    })
-  }
 
   useEffect(() => {
     void boot()
@@ -92,13 +83,9 @@ export default function App(): JSX.Element {
   return (
     <div className="app">
       <TabBar />
-      <UrlBar
-        onOpenSettings={() => setStage('settings')}
-        onTogglePanel={() => setPanelOpen((x) => !x)}
-        panelOpen={panelOpen}
-      />
+      <UrlBar onOpenSettings={() => setStage('settings')} />
       <TranslationPopup />
-      <TranslationPanel open={panelOpen} onClose={() => setPanelOpen(false)} />
+      {/* Sprint 015 M2-6 — TranslationPanel 제거. M5 ChatPanel 도입 시 동일 자리 추가. */}
       {showOnboarding && (
         <OnboardingTour
           onOpenSettings={handleOnboardingOpenSettings}

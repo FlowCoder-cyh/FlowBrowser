@@ -1111,66 +1111,12 @@ body {
   color: white;
 }
 
-/* Translation Panel (right side) */
-.translation-panel {
-  position: absolute;
-  right: 0;
-  top: 60px;
-  bottom: 0;
-  width: 420px;
-  background: #1f1f1f;
-  border-left: 1px solid #3a3a3a;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  z-index: 100;
-  user-select: text;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #3a3a3a;
-  background: #2a2a2a;
-}
-
-.panel-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e0e0e0;
-}
-
-.panel-close {
-  width: 24px;
-  height: 24px;
-  background: transparent;
-  border: none;
-  color: #999;
-  font-size: 18px;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.panel-close:hover {
-  background: #3a3a3a;
-  color: #fff;
-}
-
-/* Sprint 015 M2-5 — .panel-toolbar / .panel-btn* / .panel-error / .panel-pagewide-block / .panel-status-note /
+/* Sprint 015 M2-6 — Translation Panel 관련 스타일 전체 제거 (translation-panel/panel-header/title/close/empty 5종).
+ *   TranslationPanel.tsx 파일 삭제 동반. M5 ChatPanel 신규 시 별도 스타일 신규 작성.
+ * Sprint 015 M2-5 — .panel-toolbar / .panel-btn* / .panel-error / .panel-pagewide-block / .panel-status-note /
  *   .panel-progress* / .panel-rows / .panel-row* / .panel-tag / .panel-source / .panel-translated /
- *   .panel-cache-badge / .panel-pending / .panel-blocked / .panel-failed (21 스타일) 제거 — TranslationPanel stub 화.
+ *   .panel-cache-badge / .panel-pending / .panel-blocked / .panel-failed (21 스타일) 제거.
  * Sprint 015 M2-4 — .panel-summary*/.panel-chunk* 스타일 11종 제거 (페이지 요약 UI 폐기). */
-
-/* Sprint 015 M2-5 — TranslationPanel stub 안내 영역 */
-.panel-empty {
-  padding: 24px 16px;
-  color: #888;
-  font-size: 13px;
-  line-height: 1.6;
-  text-align: center;
-}
 
 /* Sprint 014 M2 — Codex Login Panel */
 .codex-experimental-badge {
