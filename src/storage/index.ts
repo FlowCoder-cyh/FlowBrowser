@@ -66,6 +66,9 @@ export {
 } from './VectorIndex'
 export type { VectorSearchResult, EmbeddingInput } from './VectorIndex'
 
+export { IndexedPageStoreSqlite } from './IndexedPageStoreSqlite'
+export type { IndexedPageStoreSqliteOptions } from './IndexedPageStoreSqlite'
+
 export {
   GlossaryStore,
   defaultGlossaryPath,
