@@ -5,16 +5,25 @@
  * Privacy Filter 5단계(외부 호출 차단, `evaluatePrivacy`)와 별도 게이트 —
  * 인덱싱은 외부 호출이 아니지만 페이지 본문 + 임베딩 + Visit 누적 자체가 Privacy 결정.
  *
- * 차단 정책 (우선순위):
- *   1. 사용자 명시 차단 (UserSetting.privacyExclusions[].type === 'block')
- *   2. 사용자 명시 허용 (UserSetting.privacyExclusions[].type === 'allow') → 즉시 통과
- *   3. 디폴트 도메인 차단 list (DomainFilter `defaultBlacklistPatterns` 재활용 + icloud 1종)
- *   4. 디폴트 path glob 차단 (`*.naver.com/mail/*` 등)
- *   5. `<input type="password">` 감지 (SensitiveFieldDetector 재활용)
- *   6. 사용자 1회 override token → 통과
+ * 평가 순서 (실제 `evaluate()` 코드 정합):
+ *   1. URL 파싱 실패 (http/https 외) → 차단
+ *   2. 사용자 명시 차단 (`privacyExclusions[].type='block'`) — 최우선, override 도 무력
+ *   3. 사용자 1회 override token (URL 완전 일치 + 1회 소비 + TTL) → 통과
+ *   4. 사용자 명시 허용 (`privacyExclusions[].type='allow'`) → 통과
+ *      (allow 는 default domain/path 뿐 아니라 password 감지도 bypass — 사용자 명시 신뢰)
+ *   5. 디폴트 도메인 차단 list — `defaultBlacklistPatterns()` 13 RegExp 재활용 + icloud 1
+ *   6. 디폴트 path glob 차단 (`*.naver.com/mail/*` 1종, 도메인 매칭 안 잡히는 host 의 mail path)
+ *   7. `<input type="password">` 감지 (M4-1 IndexingService 가 hasPasswordField hint 주입) → 차단
+ *   8. 그 외 → 통과
  *
  * 통과 = allowed=true, 차단 = allowed=false + blockReason / matchedPattern.
  * override 결정은 영속 X (재방문 시 다시 차단) — Phase 2+ "이 도메인 항상 인덱싱" 옵션 검토.
+ *
+ * 패턴 카운트 표기:
+ *   - PRD §8.6.1 표 = 11 카테고리 (banking 별도 표기 X / accounts? 한 행에 묶음)
+ *   - 실제 concrete matcher = 15 (`defaultBlacklistPatterns` 13 RegExp + icloud 1 + path glob 1)
+ *   - `defaultBlacklistPatterns` 변경 시 본 게이트 디폴트 차단도 자동 갱신 (의도적 결합 —
+ *     외부 호출 차단 list 가 강화되면 인덱싱 차단도 강화되도록).
  */
 
 import { randomUUID } from 'node:crypto'
@@ -26,9 +35,9 @@ import type {
 } from './types'
 
 /**
- * DomainFilter 기본 13패턴 외 IndexingGate 전용 추가 도메인 패턴.
- * PRD §8.6.1 11 카테고리 중 `*.icloud.com` 은 외부 호출 차단(DomainFilter) 대상이 아니라
- * 인덱싱 차단 전용 — DomainFilter 본체에 추가하면 외부 Provider 호출 흐름까지 영향.
+ * DomainFilter 기본 13 RegExp 외 IndexingGate 전용 추가 도메인 패턴.
+ * `*.icloud.com` 은 외부 호출 차단(DomainFilter) 대상이 아니라 인덱싱 차단 전용 —
+ * DomainFilter 본체에 추가하면 외부 Provider 호출 흐름까지 영향.
  */
 const INDEXING_EXTRA_DOMAIN_PATTERNS: readonly RegExp[] = [/\bicloud\.com$/i]
 
