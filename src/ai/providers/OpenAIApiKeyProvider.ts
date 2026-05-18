@@ -7,7 +7,15 @@
  */
 
 import { ProviderError, type ProviderAdapter } from '../ProviderAdapter'
-import type { ProviderInfo, TranslationInput, TranslationOutput } from '../types'
+import type {
+  ChatRequest,
+  ChatResponse,
+  EmbedRequest,
+  EmbedResponse,
+  ProviderInfo,
+  TranslationInput,
+  TranslationOutput
+} from '../types'
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -33,6 +41,25 @@ const MODEL_PRICING_PER_M_TOKENS: Record<string, { input: number; output: number
 const DEFAULT_MODEL = 'gpt-4o-mini'
 const AVAILABLE_MODELS: ReadonlyArray<string> = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo']
 
+// Sprint 015 M2-7 — Embedding 모델. PRD §08 EmbeddingClient + §15 비용 정합 (2026-05-16 OpenAI 공식 가격).
+const DEFAULT_EMBED_MODEL = 'text-embedding-3-small'
+const AVAILABLE_EMBED_MODELS: ReadonlyArray<string> = [
+  'text-embedding-3-small',
+  'text-embedding-3-large'
+]
+const DEFAULT_EMBED_DIMENSIONS = 1024 // PRD §07 / v04-direction §7 (1536 디폴트에서 dimensions=1024 축소)
+const EMBED_PRICING_PER_M_TOKENS: Record<string, number> = {
+  // 2026-05-16 OpenAI 공식 (https://platform.openai.com/docs/pricing). 단위: USD per 1M input tokens.
+  'text-embedding-3-small': 0.02,
+  'text-embedding-3-large': 0.13
+}
+
+interface EmbeddingResponse {
+  data: Array<{ embedding: number[]; index: number }>
+  model: string
+  usage: { prompt_tokens: number; total_tokens: number }
+}
+
 export class OpenAIApiKeyProvider implements ProviderAdapter {
   readonly info: ProviderInfo = {
     providerType: 'openai',
@@ -47,7 +74,10 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
       'summary'
     ],
     defaultModel: DEFAULT_MODEL,
-    availableModels: AVAILABLE_MODELS
+    availableModels: AVAILABLE_MODELS,
+    // Sprint 015 M2-7 — v0.4 ProviderAdapter chat/embed 지원 표기.
+    supportsChat: true,
+    supportsEmbed: true
   }
 
   constructor(private readonly secretProvider: () => string) {}
@@ -135,9 +165,149 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
     }
   }
 
+  /**
+   * Sprint 015 M2-7 — Chat 호출 (multi-turn). PRD §10.1 채팅 파이프라인.
+   * translate() 와 동일 endpoint (chat/completions) 사용. messages 직접 전달.
+   * temperature 디폴트 0.3 (번역 일관성 우선). maxOutputTokens 미주입 시 model 디폴트.
+   */
+  async chat(request: ChatRequest): Promise<ChatResponse> {
+    if (request.messages.length === 0) {
+      throw new ProviderError('OpenAI chat: messages 가 비어 있습니다.', 'bad_request', false)
+    }
+    const startedAt = Date.now()
+    const model = this.resolveModel(request.modelHint)
+    const body: Record<string, unknown> = {
+      model,
+      messages: request.messages,
+      temperature: request.temperature ?? 0.3,
+      stream: false
+    }
+    if (request.maxOutputTokens !== undefined) {
+      body.max_tokens = request.maxOutputTokens
+    }
+
+    let res: Response
+    try {
+      res = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.secretProvider()}`
+        },
+        body: JSON.stringify(body)
+      })
+    } catch (err) {
+      throw new ProviderError(
+        `OpenAI chat 네트워크 오류: ${err instanceof Error ? err.message : String(err)}`,
+        'network',
+        true
+      )
+    }
+
+    throwForHttpStatus(res, 'OpenAI chat')
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '')
+      throw new ProviderError(
+        `OpenAI chat 요청 실패: ${res.status} ${errBody}`,
+        'bad_request',
+        false
+      )
+    }
+
+    const data = (await res.json()) as ChatCompletionResponse
+    const text = data.choices[0]?.message?.content?.trim() ?? ''
+    if (!text) {
+      throw new ProviderError('OpenAI chat 응답에 결과가 없습니다.', 'server_error', true)
+    }
+    const inputTokens = data.usage?.prompt_tokens ?? 0
+    const outputTokens = data.usage?.completion_tokens ?? 0
+    const cost = estimateCost(model, inputTokens, outputTokens)
+    return {
+      text,
+      modelUsed: data.model ?? model,
+      inputTokens,
+      outputTokens,
+      estimatedCostUsd: cost,
+      durationMs: Date.now() - startedAt
+    }
+  }
+
+  /**
+   * Sprint 015 M2-7 — Embedding 호출. PRD §08 EmbeddingClient base.
+   * 디폴트 모델 text-embedding-3-small, 디폴트 차원 1024 (PRD §07 정합).
+   * BYOK 정책 (G-003) — 자동 인덱싱은 본 메서드 호출.
+   */
+  async embed(request: EmbedRequest): Promise<EmbedResponse> {
+    if (request.texts.length === 0) {
+      throw new ProviderError('OpenAI embed: texts 가 비어 있습니다.', 'bad_request', false)
+    }
+    const startedAt = Date.now()
+    const model = this.resolveEmbedModel(request.modelHint)
+    const dimensions = request.dimensions ?? DEFAULT_EMBED_DIMENSIONS
+    const body = {
+      model,
+      input: request.texts,
+      dimensions
+    }
+
+    let res: Response
+    try {
+      res = await fetch(`${OPENAI_BASE_URL}/embeddings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.secretProvider()}`
+        },
+        body: JSON.stringify(body)
+      })
+    } catch (err) {
+      throw new ProviderError(
+        `OpenAI embed 네트워크 오류: ${err instanceof Error ? err.message : String(err)}`,
+        'network',
+        true
+      )
+    }
+
+    throwForHttpStatus(res, 'OpenAI embed')
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '')
+      throw new ProviderError(
+        `OpenAI embed 요청 실패: ${res.status} ${errBody}`,
+        'bad_request',
+        false
+      )
+    }
+
+    const data = (await res.json()) as EmbeddingResponse
+    if (!Array.isArray(data.data) || data.data.length !== request.texts.length) {
+      throw new ProviderError(
+        `OpenAI embed 응답 길이 불일치 (expected=${request.texts.length}, got=${data.data?.length ?? 0})`,
+        'server_error',
+        true
+      )
+    }
+    // 응답이 index 순서대로 정렬되지 않을 수 있으므로 명시 정렬.
+    const sorted = [...data.data].sort((a, b) => a.index - b.index)
+    const vectors = sorted.map((d) => d.embedding)
+    const inputTokens = data.usage?.prompt_tokens ?? 0
+    const cost = estimateEmbedCost(model, inputTokens)
+    return {
+      vectors,
+      modelUsed: data.model ?? model,
+      inputTokens,
+      estimatedCostUsd: cost,
+      durationMs: Date.now() - startedAt
+    }
+  }
+
   private resolveModel(hint?: string): string {
     if (hint && AVAILABLE_MODELS.includes(hint)) return hint
     return DEFAULT_MODEL
+  }
+
+  private resolveEmbedModel(hint?: string): string {
+    if (hint && AVAILABLE_EMBED_MODELS.includes(hint)) return hint
+    return DEFAULT_EMBED_MODEL
   }
 
   private buildMessages(input: TranslationInput): ChatMessage[] {
@@ -207,4 +377,30 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number):
   const inputCost = (inputTokens / 1_000_000) * pricing.input
   const outputCost = (outputTokens / 1_000_000) * pricing.output
   return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000
+}
+
+/**
+ * Sprint 015 M2-7 — Embedding 비용 추정. text-embedding-3-small $0.02/M (2026-05-16 공식).
+ */
+function estimateEmbedCost(model: string, inputTokens: number): number {
+  const pricePerM = EMBED_PRICING_PER_M_TOKENS[model] ?? EMBED_PRICING_PER_M_TOKENS[DEFAULT_EMBED_MODEL]
+  const cost = (inputTokens / 1_000_000) * pricePerM
+  return Math.round(cost * 1_000_000) / 1_000_000
+}
+
+/**
+ * Sprint 015 M2-7 — HTTP status → ProviderError 매핑 (translate/chat/embed 공통).
+ * 401/403 = auth_invalid / 429 = rate_limit / 5xx = server_error.
+ * 본 함수는 매핑된 status 가 발견되면 throw, 그 외 status (200 / 4xx) 는 호출자 처리.
+ */
+function throwForHttpStatus(res: Response, context: string): void {
+  if (res.status === 401 || res.status === 403) {
+    throw new ProviderError(`${context} 인증 실패`, 'auth_invalid', false)
+  }
+  if (res.status === 429) {
+    throw new ProviderError(`${context} rate limit`, 'rate_limit', true)
+  }
+  if (res.status >= 500) {
+    throw new ProviderError(`${context} 서버 오류: ${res.status}`, 'server_error', true)
+  }
 }
