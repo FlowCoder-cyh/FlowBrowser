@@ -119,16 +119,20 @@ export class IndexingService {
       return result
     }
 
+    // PRD §8.4 정합 — whitespace-only 본문은 '빈 본문' 으로 normalize.
+    // contentHashOf('') === null 이라 Page.content_hash = NULL 로 영속 (재방문 시 동일 처리).
+    // codex M4-1 hotfix NB-1: 이전엔 raw '   ' 가 그대로 저장되어 hash 가 비-NULL 이 되는 SSOT 미정합.
+    const rawContent = input.content ?? ''
+    const trimmedEmpty = rawContent.trim().length === 0
+    const persistedContent = trimmedEmpty ? '' : rawContent
+
     const visit = await this.pageStore.recordVisit({
       url: input.url,
       title: input.title ?? '',
-      content: input.content ?? '',
+      content: persistedContent,
       lang: input.lang,
       workspace_id: input.workspaceId
     })
-
-    const content = input.content ?? ''
-    const trimmedEmpty = content.trim().length === 0
 
     let embeddingJobId: string | undefined
     let embeddingSkipReason: 'empty_content' | 'unchanged' | undefined
