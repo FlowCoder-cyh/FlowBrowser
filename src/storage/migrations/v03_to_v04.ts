@@ -31,7 +31,7 @@ import type { NoteStore } from '../NoteStore'
 import type { IndexedPageStoreSqlite } from '../IndexedPageStoreSqlite'
 import type { EmbeddingQueue } from '../EmbeddingQueue'
 
-/** A3 §B1 트리거 입력 5개 파일 + flowbrowser.db sentinel. */
+/** A3 §B1 트리거 입력 5개 파일. */
 export const V03_SOURCE_FILES = [
   'translation-cache.json',
   'page-results.json',
@@ -40,7 +40,24 @@ export const V03_SOURCE_FILES = [
   'tabs.json'
 ] as const
 
+/**
+ * M3 핫픽스 (2026-05-18 codex BLOCKING) — sentinel 은 더 이상 file 파일이 아닌
+ * `schema_meta.migration_v04_applied` 키로 판정.
+ *
+ * **이유**: file-mode `FlowbrowserDatabase.open()` 가 빈 `flowbrowser.db` 파일을 먼저 생성하기 때문에
+ * 파일 존재 자체가 sentinel 일 수 없음. 빈 DB → migration 호출 시 `already_migrated` 로 잘못 분기 →
+ * 실제 v0.3 사용자 데이터 영구 미이전 위험.
+ *
+ * 해소: 마이그레이션이 실제로 완료된 시점에 `schema_meta` 테이블에 키-값 (ISO timestamp) 박음.
+ * - 마이그레이션 진입 검사: `fb.getSchemaMeta(MIGRATION_SCHEMA_META_KEY)` 결과 존재 시 skip
+ * - 마이그레이션 종료: `fb.setSchemaMeta(MIGRATION_SCHEMA_META_KEY, ISO timestamp)` 박음
+ * - revert: 키 삭제 (마이그레이션이 throw 한 경우 일반적으로 키 미박힘 — 안전 보강)
+ */
+export const MIGRATION_SCHEMA_META_KEY = 'migration_v04_applied'
+
+/** @deprecated 본 상수는 file-mode 부팅 경로에서 영구 skip 위험으로 사용 금지. `MIGRATION_SCHEMA_META_KEY` 사용. */
 export const V04_DB_SENTINEL = 'flowbrowser.db'
+
 export const V04_LOG_FILE = 'migration-v04.log'
 export const V04_BACKUP_ROOT = 'backup/v03'
 
@@ -141,19 +158,25 @@ function isoTimestamp(): string {
 /**
  * Public entry — A3 §B 5단계 마이그레이션 실행.
  *
- * 멱등성: flowbrowser.db sentinel 존재 시 'already_migrated' 반환 (skip).
+ * 멱등성: `schema_meta.migration_v04_applied` 키 존재 시 'already_migrated' 반환 (skip).
+ *   - **M3 핫픽스 (2026-05-18 codex BLOCKING)**: 기존 file-sentinel (`<userDataDir>/flowbrowser.db`) 방식은
+ *     file-mode `FlowbrowserDatabase.open()` 이 빈 DB 를 먼저 생성하면 sentinel 의미 상실. 영구 skip 위험.
  * 5개 source 파일 모두 없으면 'fresh_install' (백업/마이그레이션 skip).
  *
- * 호출자: services.ts rebuildAllStores 직전. 사용자 알림은 호출자 책임.
+ * **호출 순서 contract (services.ts wiring 시점)**:
+ *   1. `const fb = FlowbrowserDatabase.bootstrap({ path })` — schema 적용 완료 보장
+ *   2. `const defaultWs = fb.ensureDefaultWorkspace()` — workspace 준비
+ *   3. `const noteStore = new NoteStore(fb)` / `pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: defaultWs.id })`
+ *   4. `await migrateV03ToV04({ userDataDir, fb, noteStore, pageStore, ... })` — schema_meta 기반 멱등 진입
+ *   5. 사용자 알림은 호출자 책임
  */
 export async function migrateV03ToV04(opts: MigrateOptions): Promise<MigrationResult> {
   const { userDataDir, fb, noteStore, pageStore, embeddingQueue, dryRunOnly = false } = opts
   const logPath = join(userDataDir, V04_LOG_FILE)
   const counts = emptyCounts()
 
-  // 1. trigger 조건 — sentinel + source 5개 존재 검사
-  const dbSentinelPath = join(userDataDir, V04_DB_SENTINEL)
-  const sentinelExists = await exists(dbSentinelPath)
+  // 1. trigger 조건 — schema_meta key (M3 핫픽스) + source 5개 존재 검사
+  const sentinelMeta = fb.getSchemaMeta(MIGRATION_SCHEMA_META_KEY)
   const sourceExistence = await Promise.all(
     V03_SOURCE_FILES.map((f) => exists(join(userDataDir, f)))
   )
@@ -162,9 +185,9 @@ export async function migrateV03ToV04(opts: MigrateOptions): Promise<MigrationRe
   await ensureDirForFile(logPath)
   await appendLog(logPath, [`[${isoTimestamp()}] migration v03 → v04 trigger check`])
 
-  if (sentinelExists) {
+  if (sentinelMeta) {
     await appendLog(logPath, [
-      `[skip] ${V04_DB_SENTINEL} already exists → already_migrated (idempotent)`
+      `[skip] schema_meta.${MIGRATION_SCHEMA_META_KEY}=${sentinelMeta.value} → already_migrated (idempotent)`
     ])
     return { status: 'already_migrated', log_path: logPath, counts }
   }
@@ -230,15 +253,9 @@ export async function migrateV03ToV04(opts: MigrateOptions): Promise<MigrationRe
       }
     }
 
-    // 5. SQLite 파일 sentinel 생성 — flowbrowser.db 가 실제 SQLite 라면 fb open 시점 생성됨 (file mode)
-    //    in-memory mode (테스트) 의 경우 sentinel 파일 명시적 생성 — 멱등성 보장
-    if (!(await exists(dbSentinelPath))) {
-      await fs.writeFile(
-        dbSentinelPath,
-        '# v04 migration sentinel (in-memory FlowbrowserDatabase 경우)\n',
-        'utf-8'
-      )
-    }
+    // 5. schema_meta sentinel 박힘 — 마이그레이션 완료 시점 (in-memory / file mode 동일).
+    //    M3 핫픽스: file sentinel 폐기. schema_meta key 가 안전한 멱등성 sentinel.
+    fb.setSchemaMeta(MIGRATION_SCHEMA_META_KEY, isoTimestamp())
 
     await appendLog(logPath, [
       `[${isoTimestamp()}] migration v03 → v04 complete`,
@@ -250,7 +267,7 @@ export async function migrateV03ToV04(opts: MigrateOptions): Promise<MigrationRe
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     await appendLog(logPath, [`[error] ${message} — initiating revert`])
-    await revertMigration(userDataDir, backupPath, logPath)
+    await revertMigration(userDataDir, backupPath, logPath, fb)
     return {
       status: 'reverted',
       backup_path: backupPath,
@@ -465,14 +482,19 @@ async function migrateTabState(
 }
 
 /**
- * 오류 발생 시 revert — 백업에서 원본 복원 + flowbrowser.db / ai-response-cache.json 삭제.
+ * 오류 발생 시 revert — 백업에서 원본 복원 + ai-response-cache.json 삭제 + schema_meta sentinel key 삭제.
  *
- * idempotent — 재시도 시 다시 트리거 (sentinel 파일 없음 보장).
+ * **M3 핫픽스 (2026-05-18 codex BLOCKING)**: 기존 `flowbrowser.db` 파일 삭제 로직 폐기.
+ * `fb` 인자가 주입되면 schema_meta key 삭제로 sentinel 초기화 (재시도 시 다시 트리거).
+ * `fb` 미주입 시 (기존 호출자 호환) key 정리 skip — 마이그레이션 실패 시점은 일반적으로 key 미박힘이므로 안전.
+ *
+ * idempotent — 재시도 시 다시 트리거.
  */
 export async function revertMigration(
   userDataDir: string,
   backupPath: string,
-  logPath: string
+  logPath: string,
+  fb?: FlowbrowserDatabase
 ): Promise<void> {
   for (const f of V03_SOURCE_FILES) {
     const backupFile = join(backupPath, f)
@@ -488,11 +510,14 @@ export async function revertMigration(
     const dep = join(userDataDir, `${f}.deprecated`)
     if (await exists(dep)) await fs.unlink(dep)
   }
-  const sentinel = join(userDataDir, V04_DB_SENTINEL)
-  if (await exists(sentinel)) await fs.unlink(sentinel)
   const aiCache = join(userDataDir, 'ai-response-cache.json')
   if (await exists(aiCache)) await fs.unlink(aiCache)
+  if (fb) {
+    fb.getDb()
+      .prepare('DELETE FROM schema_meta WHERE key = ?')
+      .run(MIGRATION_SCHEMA_META_KEY)
+  }
   await appendLog(logPath, [
-    `[revert] restored from ${backupPath} + cleaned ${V04_DB_SENTINEL} + ai-response-cache.json`
+    `[revert] restored from ${backupPath} + cleaned ai-response-cache.json + schema_meta.${MIGRATION_SCHEMA_META_KEY}`
   ])
 }

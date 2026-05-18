@@ -7,7 +7,7 @@
 ## 메타
 
 - **작성일**: 2026-05-18
-- **PoC 실행 환경**: Windows 11 Pro / Node 24.12.0 / Electron 39.8.10 (Node 22.22.1 / V8 142)
+- **PoC 실행 환경**: Windows 11 Pro / Node 24.12.0 / Electron 39.8.10 (Node 22.22.1 / Chromium 142 / V8 14.2 — codex 핫픽스 2026-05-18 표기 정정)
 - **PoC 작업 위치**: `spike/m3-poc/` (gitignored, P-002 정합)
 - **PoC 스크립트**:
   - `spike/m3-poc/test-poc.mjs` — Node 24 단독 검증 (8 케이스)

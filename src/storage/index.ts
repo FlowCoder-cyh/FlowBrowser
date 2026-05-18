@@ -105,7 +105,8 @@ export {
   V03_SOURCE_FILES,
   V04_DB_SENTINEL,
   V04_LOG_FILE,
-  V04_BACKUP_ROOT
+  V04_BACKUP_ROOT,
+  MIGRATION_SCHEMA_META_KEY
 } from './migrations/v03_to_v04'
 export type {
   MigrateOptions,

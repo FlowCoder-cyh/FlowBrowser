@@ -24,7 +24,7 @@ import { IndexedPageStoreSqlite } from '../../../../src/storage/IndexedPageStore
 import { EmbeddingQueue } from '../../../../src/storage/EmbeddingQueue'
 import {
   migrateV03ToV04,
-  V04_DB_SENTINEL,
+  MIGRATION_SCHEMA_META_KEY,
   V04_LOG_FILE
 } from '../../../../src/storage/migrations/v03_to_v04'
 
@@ -275,8 +275,8 @@ describe('migrateV03ToV04 — 8 회귀 케이스', () => {
     })
     expect(result.status).toBe('reverted')
     expect(result.error).toMatch(/simulated migration failure/)
-    // sentinel 미생성
-    expect(await exists(join(fx.userDataDir, V04_DB_SENTINEL))).toBe(false)
+    // M3 핫픽스 — schema_meta sentinel 키 미박힘 검증
+    expect(fx.fb.getSchemaMeta(MIGRATION_SCHEMA_META_KEY)).toBeNull()
     // 백업 보존
     expect(result.backup_path).toBeDefined()
     expect(await exists(result.backup_path!)).toBe(true)
@@ -314,7 +314,7 @@ describe('migrateV03ToV04 — 8 회귀 케이스', () => {
   })
 
   // 추가: backup + log 산출 검증
-  it('full migration 후 backup + log + sentinel 생성', async () => {
+  it('full migration 후 backup + log + schema_meta sentinel 박힘', async () => {
     await writeJson(join(fx.userDataDir, 'glossary.json'), {
       terms: [{ id: 't', sourceTerm: 'x', targetTerm: 'ㅈ' }]
     })
@@ -332,7 +332,10 @@ describe('migrateV03ToV04 — 8 회귀 케이스', () => {
     expect(log).toMatch(/\[backup\] glossary\.json/)
     expect(log).toMatch(/\[migrate\] glossary: 1 → notes/)
     expect(log).toMatch(/migration v03 → v04 complete/)
-    expect(await exists(join(fx.userDataDir, V04_DB_SENTINEL))).toBe(true)
+    // M3 핫픽스 — schema_meta sentinel key 박힘 (file sentinel 폐기)
+    const sentinel = fx.fb.getSchemaMeta(MIGRATION_SCHEMA_META_KEY)
+    expect(sentinel).not.toBeNull()
+    expect(sentinel!.value).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
 
   // 추가: embedding queue enqueue 검증 (필수 의존성 옵션)
@@ -353,5 +356,143 @@ describe('migrateV03ToV04 — 8 회귀 케이스', () => {
     // v0.3 본문 없음 → enqueue 0 (M4 재방문 인덱싱 hook 시점에 enqueue 권고)
     expect(result.counts.embedding_jobs_enqueued).toBe(0)
     expect(fx.queue.stats().pending).toBe(0)
+  })
+})
+
+// ============================================================
+// M3 핫픽스 (2026-05-18 codex BLOCKING) — file-mode 회귀 케이스
+// ============================================================
+//
+// 기존 8 회귀 케이스는 모두 openInMemory(). 그러나 실 v0.3 사용자의 부팅 경로는
+// file-mode FlowbrowserDatabase.open(path) — better-sqlite3 가 빈 flowbrowser.db 파일을 먼저 생성.
+// 기존 file-sentinel 방식에서는 sentinel 의미 상실 → 영구 skip → 데이터 손실.
+// 본 회귀 케이스는 file-mode 부팅 경로에서 sentinel 이 schema_meta 키로 정상 동작함을 검증.
+//
+describe('migrateV03ToV04 — file-mode 회귀 (M3 핫픽스)', () => {
+  let userDataDir: string
+  let dbPath: string
+
+  beforeEach(async () => {
+    userDataDir = join(tmpdir(), `fb-migr-file-${Date.now()}-${randomUUID().slice(0, 8)}`)
+    await fs.mkdir(userDataDir, { recursive: true })
+    dbPath = join(userDataDir, 'flowbrowser.db')
+  })
+
+  afterEach(async () => {
+    await fs.rm(userDataDir, { recursive: true, force: true }).catch(() => {})
+  })
+
+  it('file-mode bootstrap 후 첫 migrate → migrated + schema_meta key 박힘', async () => {
+    await writeJson(join(userDataDir, 'glossary.json'), {
+      terms: [{ id: 't', sourceTerm: 'CAR-T', targetTerm: '카티세포치료', domain: 'medicine' }]
+    })
+    const fb = FlowbrowserDatabase.bootstrap({ path: dbPath })
+    try {
+      // 빈 DB 파일 생성됨 (better-sqlite3 file mode), WAL 모드 활성, schema 적용 완료
+      expect(await exists(dbPath)).toBe(true)
+      // 그러나 schema_meta 에 마이그레이션 키 미박힘 → 마이그레이션 진입 가능
+      expect(fb.getSchemaMeta(MIGRATION_SCHEMA_META_KEY)).toBeNull()
+      const defaultWs = fb.ensureDefaultWorkspace()
+      const noteStore = new NoteStore(fb)
+      const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: defaultWs.id })
+      const result = await migrateV03ToV04({
+        userDataDir,
+        fb,
+        noteStore,
+        pageStore
+      })
+      expect(result.status).toBe('migrated')
+      expect(result.counts.glossary_to_notes).toBe(1)
+      // 마이그레이션 후 schema_meta sentinel 박힘
+      expect(fb.getSchemaMeta(MIGRATION_SCHEMA_META_KEY)).not.toBeNull()
+    } finally {
+      fb.close()
+    }
+  })
+
+  it('file-mode 두 번째 bootstrap → schema_meta sentinel 존재 → already_migrated (회귀 차단)', async () => {
+    await writeJson(join(userDataDir, 'glossary.json'), {
+      terms: [{ id: 't', sourceTerm: 'one', targetTerm: '하나' }]
+    })
+    // 1차 부팅 — 마이그레이션 실행
+    {
+      const fb = FlowbrowserDatabase.bootstrap({ path: dbPath })
+      try {
+        const defaultWs = fb.ensureDefaultWorkspace()
+        const noteStore = new NoteStore(fb)
+        const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: defaultWs.id })
+        const first = await migrateV03ToV04({
+          userDataDir,
+          fb,
+          noteStore,
+          pageStore
+        })
+        expect(first.status).toBe('migrated')
+      } finally {
+        fb.close()
+      }
+    }
+    // 2차 부팅 — DB 파일 존재 + schema_meta sentinel 존재 → already_migrated
+    {
+      const fb = FlowbrowserDatabase.bootstrap({ path: dbPath })
+      try {
+        const defaultWs = fb.ensureDefaultWorkspace()
+        const noteStore = new NoteStore(fb)
+        const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: defaultWs.id })
+        const second = await migrateV03ToV04({
+          userDataDir,
+          fb,
+          noteStore,
+          pageStore
+        })
+        expect(second.status).toBe('already_migrated')
+        expect(second.counts.glossary_to_notes).toBe(0)
+        // Note 는 1차 호출에서만 생성됨 (총 1개 — 영속 정합)
+        expect(noteStore.countByWorkspace(defaultWs.id)).toBe(1)
+      } finally {
+        fb.close()
+      }
+    }
+  })
+
+  it('file-mode revert → schema_meta sentinel key 정리 → 재시도 시 다시 트리거', async () => {
+    await writeJson(join(userDataDir, 'glossary.json'), {
+      terms: [{ id: 't', sourceTerm: 'ok', targetTerm: '오케이' }]
+    })
+    await writeJson(join(userDataDir, 'page-results.json'), {
+      entries: [{ id: 'p1', url: 'https://x.test/a', createdAt: 100 }]
+    })
+    const fb = FlowbrowserDatabase.bootstrap({ path: dbPath })
+    try {
+      const defaultWs = fb.ensureDefaultWorkspace()
+      const noteStore = new NoteStore(fb)
+      const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: defaultWs.id })
+      const brokenPageStore: IndexedPageStoreSqlite = {
+        ...pageStore,
+        recordVisit: async () => {
+          throw new Error('simulated failure')
+        }
+      } as unknown as IndexedPageStoreSqlite
+      const failed = await migrateV03ToV04({
+        userDataDir,
+        fb,
+        noteStore,
+        pageStore: brokenPageStore
+      })
+      expect(failed.status).toBe('reverted')
+      // schema_meta sentinel key 미박힘 (revert 가 정리)
+      expect(fb.getSchemaMeta(MIGRATION_SCHEMA_META_KEY)).toBeNull()
+      // 재시도 가능 — 정상 pageStore 로 다시 호출
+      const retry = await migrateV03ToV04({
+        userDataDir,
+        fb,
+        noteStore,
+        pageStore
+      })
+      expect(retry.status).toBe('migrated')
+      expect(retry.counts.glossary_to_notes).toBe(1)
+    } finally {
+      fb.close()
+    }
   })
 })

@@ -38,7 +38,7 @@ vec_notes (note_id, workspace_id, embedding) — sqlite-vec virtual
 | **Note** | **`page_id?` + `visit_id?` + `workspace_id` (3중 anchor, page/visit nullable)** | 검색 결과 클릭 시 "그때 작성한 노트" 복원. Glossary 마이그레이션 시 page·visit NULL |
 | **AiChatHistory** | **`workspace_id` 필수 + `page_id?` + `visit_id?`** | 워크스페이스 단독 대화 가능 (페이지 컨텍스트 없이) |
 | Tag | `id` + `workspace_id` | 워크스페이스 단위 격리 |
-| Embedding | `workspace_id` (partition) + `page_id` 또는 `note_id` | sqlite-vec partition_key, top-k 전 워크스페이스 격리 |
+| Embedding | `workspace_id` (partition) + `page_id` 또는 `note_id` | sqlite-vec `partition key` (M3 spike 정정 — space 표기), top-k 전 워크스페이스 격리 |
 
 ## 4.3 Entity 컬럼 spec (Phase 1)
 
@@ -156,7 +156,7 @@ CREATE TABLE NoteTag (
 ```sql
 -- 차원: 1024 (OpenAI text-embedding-3-small `dimensions=1024` 축소, 기본 1536에서 축소)
 -- 결정 SSOT: v04-direction §7
--- partition_key: workspace_id (top-k 전 워크스페이스 격리)
+-- partition key (M3 spike — space 구분): workspace_id (top-k 전 워크스페이스 격리)
 -- rowid (integer PK) + UUID metadata 패턴 (sqlite-vec 제약)
 
 CREATE VIRTUAL TABLE vec_pages USING vec0(
@@ -205,6 +205,8 @@ Phase 1 schema에 외래키 컬럼을 미리 nullable 로 박아두면 Phase 2/3
 | `idx_chat_workspace_time` | AiChatHistory (workspace_id, created_at DESC) | 워크스페이스 대화 히스토리 |
 | `idx_chat_status` | AiChatHistory (status) WHERE status != 'ok' | 실패/중간 응답 재시도 큐 |
 | `idx_tag_workspace_kind` | Tag (workspace_id, kind, name) | UNIQUE 보장 + 자동 태깅 lookup |
+| `idx_embedding_queue_status_priority` | EmbeddingQueue (status, priority DESC, created_at ASC) | 백그라운드 큐 claim 우선순위 정렬 (M3-4 추가) |
+| `idx_embedding_queue_target` | EmbeddingQueue (target_type, target_id) | 잡 단위 lookup / 재 enqueue 중복 검사 (M3-4 추가) |
 | `vec_pages` | Page embedding | sqlite-vec top-k retrieval (workspace_id partition) |
 | `vec_notes` | Note embedding | sqlite-vec top-k retrieval (workspace_id partition) |
 
@@ -235,7 +237,7 @@ Phase 1 schema에 외래키 컬럼을 미리 nullable 로 박아두면 Phase 2/3
 - `.flowset/specs/v04-direction.md` §5 (Entity 그래프 + anchor 키 + forward-compatibility) + §7 (임베딩 모델·차원)
 - `.flowset/specs/v04-data-migration.md` §A (마이그레이션 매핑)
 - `.flowset/specs/v04-migration-matrix.md` §E (신규 storage 모듈 — IndexedPageStore / VectorIndex / EmbeddingQueue 등)
-- sqlite-vec 공식 문서 ([https://alexgarcia.xyz/sqlite-vec/](https://alexgarcia.xyz/sqlite-vec/)) — `vec0` 가상 모듈 + partition_key
+- sqlite-vec 공식 문서 ([https://alexgarcia.xyz/sqlite-vec/](https://alexgarcia.xyz/sqlite-vec/)) — `vec0` 가상 모듈 + `partition key` (M3 spike — space 구분)
 - OpenAI Embeddings ([https://platform.openai.com/docs/guides/embeddings](https://platform.openai.com/docs/guides/embeddings)) — `text-embedding-3-small` 기본 1536 + `dimensions` 축소
 
 본 §04 와 SSOT 충돌 시 SSOT 우선 (G-012).
@@ -245,3 +247,4 @@ Phase 1 schema에 외래키 컬럼을 미리 nullable 로 박아두면 Phase 2/3
 - 2026-05-16 (PR b3): stub → 본문 작성. 7 entity + M:N + vector + anchor + 컬럼 spec + Phase 2/3 forward-compat + 인덱스 + 마이그레이션.
 - 2026-05-16 (PR b3.1): codex 24건 + evaluator 2건 핫픽스. 차원 1024 명시 (SSOT direction §7 갱신 동반) / sqlite-vec rowid+metadata+partition_key 정확화 / vec workspace_id partition 추가 / 인덱스 8→11개 (note_workspace_time, note_page_visit, page_workspace_content_hash, chat_status, tag_workspace_kind 추가) / PageTag·NoteTag 컬럼 spec 신규 / retrieved_page_ids → retrieved_items (Page+Note 둘 다 cover) / chat_meta sources 형식 명시 / ai_tags prefix 정책 명시 / Note created_by / AiChatHistory status / Page content 빈값 허용 / 실패·재시도 시나리오 §4.6 신규.
 - 2026-05-18 (M3-1): §4.3.8 sqlite-vec 문법 정정 — `partition_key` (underscore) → **`partition key`** (space) + `rowid INTEGER PRIMARY KEY` 명시 제거. M3-2 spike (`.flowset/specs/m3-spike-decisions.md` §3.3) 결과 인용. sqlite-vec 0.1.9 실측 정합.
+- 2026-05-18 (M3 핫픽스, codex BLOCKING+NB): (1) §4.2/§4.3.8/§4.8 본문 잔존 `partition_key` 표기 → `partition key` (M3 spike — space) 동기 / (2) §4.5 인덱스 목록에 `idx_embedding_queue_status_priority` + `idx_embedding_queue_target` 2종 추가 (schema/v04.sql 정합).

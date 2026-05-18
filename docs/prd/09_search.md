@@ -86,9 +86,9 @@ LIMIT :top_k;  -- Phase 1 디폴트 20
 
 Note retrieval 도 동일 패턴 (`vec_notes` + Note + Visit join).
 
-### 9.3.2 partition_key 활용
+### 9.3.2 partition key 활용 (M3 spike — space 구분)
 
-sqlite-vec `workspace_id partition_key` 로 다른 워크스페이스 retrieval 차단 — top-k 전 필터 (post-filter 아닌 pre-filter 로 recall 손실 방지).
+sqlite-vec `workspace_id partition key` (space — m3-spike-decisions.md §3.3 실측 정합) 로 다른 워크스페이스 retrieval 차단 — top-k 전 필터 (post-filter 아닌 pre-filter 로 recall 손실 방지).
 
 ### 9.3.3 결합 정렬
 
