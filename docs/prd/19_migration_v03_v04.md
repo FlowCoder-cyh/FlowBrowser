@@ -147,8 +147,8 @@ Step 5: 로그 + 알림
 ### 19.5.1 M2 폐기 + 일반화 (8 PR)
 
 ```
-M2-1 ✅ AIResponseCache 신규 + TranslationCache 어댑터 + feature flag (PR #122 — UserSetting.v04Enabled + FLOWBROWSER_V04 env + AIResponseCache 4 kind / 17 테스트 + TC adapter 회귀 10 테스트 + featureFlags 7 테스트 + UserSetting v04 4 테스트, +38 단위 테스트)
-M2-2 IndexedPageStore base 신규 + PageResultStore 어댑터
+M2-1 ✅ AIResponseCache 신규 + TranslationCache 어댑터 + feature flag (PR #122 — UserSetting.v04Enabled + FLOWBROWSER_V04 env + AIResponseCache 4 kind / 17 테스트 + TC adapter 회귀 10 테스트 + featureFlags 7 테스트 + UserSetting v04 4 테스트 + codex 핫픽스 (peek/parseEntry/LRU 주석) 14 테스트, +52 단위 테스트)
+M2-2 ✅ IndexedPageStore base 신규 + PageResultStore 어댑터 (PR #123) — Page + Visit 분리 + workspace_id (DEFAULT_WORKSPACE_ID='default') + content_hash dedupe + visited_count denormalized + cascade DELETE + side-write 어댑터 + **recordVisit() 단일 TX 원자 메서드 (PRD §05.4.1 정합, codex 핫픽스)** + parseEntry epoch-ms Integer 검증 + Visit↔Page workspace 동기화 검증 + sideWriteFailureCount 관측 가능성 (+49 단위 = 30 IndexedPageStore + 10 PRS.adapter + 9 codex 핫픽스)
 M2-3 SummarizationPlanner DEPRECATE
 M2-4 translate:summarize-* IPC 폐기 (handler 2개)
 M2-5 translate:paragraphs / page IPC 폐기 (handler 4개)

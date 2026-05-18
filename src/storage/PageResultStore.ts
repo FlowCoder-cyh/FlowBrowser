@@ -7,11 +7,20 @@
  *
  * TTL 30일, 디스크 한도 500MB (초과 시 LRU 절반 trim).
  * 정규화: 쿼리/프래그먼트 제외 (오직 origin + pathname).
+ *
+ * Sprint 015 M2-2 — IndexedPageStore 어댑터 모드 추가.
+ *   - 생성자 `opts.indexedPageStoreBackend` 미주입: 기존 v0.3 JSON 동작 100% 보존
+ *   - 생성자 `opts.indexedPageStoreBackend` 주입: store() 시 IndexedPageStore 에 Page + Visit side-write
+ *     (instructions / nodesSignature / selectorPreset 은 v0.3 JSON 그대로 — TranslationRenderer 가 M5 폐기)
+ *     workspace_id 미주입 시 `DEFAULT_WORKSPACE_ID` ('default') 사용 — M3 마이그레이션 시 "📥 기본" UUID 로 일괄 갱신
+ *   - 본 어댑터는 M5 종료 시 PageResultStore 자체와 함께 제거 (PRD §19.5.4)
  */
 
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import { dirname, join } from 'node:path'
+
+import { IndexedPageStore, DEFAULT_WORKSPACE_ID } from './IndexedPageStore'
 
 export interface PageResultInstruction {
   id: string
@@ -44,6 +53,16 @@ export interface PageResultLookupKey {
 export interface PageResultStoreOptions {
   ttlMs?: number
   maxBytes?: number
+  /**
+   * Sprint 015 M2-2 — 주입 시 store() 호출이 IndexedPageStore 에 Page + Visit side-write.
+   * lookup / clearAll 등 v0.3 인터페이스는 변경 X (instructions 는 v0.3 JSON 그대로).
+   */
+  indexedPageStoreBackend?: IndexedPageStore
+  /**
+   * IndexedPageStore side-write 시 사용할 workspace_id. 미주입 시 `DEFAULT_WORKSPACE_ID` ('default').
+   * M3 마이그레이션 시점에 "📥 기본" 워크스페이스 UUID 로 일괄 갱신.
+   */
+  defaultWorkspaceId?: string
 }
 
 const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -84,7 +103,10 @@ function buildKey(args: PageResultLookupKey): string {
 
 export class PageResultStore {
   private memory = new Map<string, PageResultEntry>()
-  private opts: Required<PageResultStoreOptions>
+  private opts: Required<Pick<PageResultStoreOptions, 'ttlMs' | 'maxBytes'>>
+  private backend: IndexedPageStore | null
+  private defaultWorkspaceId: string
+  private sideWriteFailures = 0
   private writeQueue: Promise<void> = Promise.resolve()
   private loaded = false
 
@@ -93,6 +115,23 @@ export class PageResultStore {
       ttlMs: opts.ttlMs ?? DEFAULT_TTL_MS,
       maxBytes: opts.maxBytes ?? DEFAULT_MAX_BYTES
     }
+    this.backend = opts.indexedPageStoreBackend ?? null
+    this.defaultWorkspaceId = opts.defaultWorkspaceId ?? DEFAULT_WORKSPACE_ID
+  }
+
+  /**
+   * Sprint 015 M2-2 — IndexedPageStore side-write 어댑터 모드 활성 여부.
+   */
+  isAdapterMode(): boolean {
+    return this.backend !== null
+  }
+
+  /**
+   * Sprint 015 M2-2 — IndexedPageStore side-write 실패 누적 카운트 (codex 핫픽스 관측 가능성).
+   * 어댑터 모드 운영 중 v0.4 데이터 누락 추적용. M5 어댑터 제거 시 본 카운터도 제거.
+   */
+  sideWriteFailureCount(): number {
+    return this.sideWriteFailures
   }
 
   async load(): Promise<void> {
@@ -145,6 +184,22 @@ export class PageResultStore {
     nodesSignature: string
     selectorPreset: 'paragraph' | 'page'
     instructions: PageResultInstruction[]
+    /**
+     * Sprint 015 M2-2 — IndexedPageStore side-write 시 사용. 미주입 시 어댑터의 defaultWorkspaceId.
+     */
+    workspaceId?: string
+    /**
+     * Sprint 015 M2-2 — IndexedPageStore Page.title side-write. 미주입 시 빈 문자열.
+     */
+    pageTitle?: string
+    /**
+     * Sprint 015 M2-2 — IndexedPageStore Page.content side-write. 미주입 시 빈 문자열 (마이그레이션 케이스 정합 §04 §4.3.2).
+     */
+    pageContent?: string
+    /**
+     * Sprint 015 M2-2 — IndexedPageStore Page.lang side-write.
+     */
+    pageLang?: string | null
   }): Promise<PageResultEntry> {
     this.ensureLoaded()
     const key = buildKey(args)
@@ -177,7 +232,46 @@ export class PageResultStore {
         }
     this.memory.set(key, entry)
     await this.scheduleWrite()
+    if (this.backend) {
+      await this.sideWriteIndexedPage({
+        workspace_id: args.workspaceId ?? this.defaultWorkspaceId,
+        url: args.url,
+        title: args.pageTitle ?? '',
+        content: args.pageContent ?? '',
+        lang: args.pageLang ?? null
+      })
+    }
     return entry
+  }
+
+  /**
+   * IndexedPageStore Page UPSERT + Visit INSERT side-write.
+   * v0.3 호출자가 backend 주입한 경우만 실행. backend 실패 시 PageResultStore.store() 결과는 영향 X (로깅 + 카운터).
+   *
+   * M2-2 codex 핫픽스: PRD §05.4.1 단일 TX 정합 — IndexedPageStore.recordVisit() (Page UPSERT + Visit INSERT 원자) 사용.
+   * 기존 upsertPage + createVisit 분리 호출은 두 작업 중 한쪽만 성공하는 부분 실패 위험.
+   */
+  private async sideWriteIndexedPage(input: {
+    workspace_id: string
+    url: string
+    title: string
+    content: string
+    lang: string | null
+  }): Promise<void> {
+    if (!this.backend) return
+    try {
+      await this.backend.recordVisit({
+        workspace_id: input.workspace_id,
+        url: input.url,
+        title: input.title,
+        content: input.content,
+        lang: input.lang
+      })
+    } catch (err) {
+      // M2-2 어댑터 side-write 실패는 v0.3 결과에 영향 X — 콘솔 경고 + 카운터 (codex 핫픽스 관측 가능성)
+      this.sideWriteFailures += 1
+      console.warn('[PageResultStore] IndexedPageStore side-write failed:', err)
+    }
   }
 
   async clearAll(): Promise<void> {
