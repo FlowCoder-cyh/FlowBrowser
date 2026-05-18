@@ -59,7 +59,7 @@
 | top-k | 20 → 정렬 후 10 표시 | **Phase 1 디폴트 5, 사용자 능동 호출 시 10/15 adaptive** (PR b6.1 정정 — 5 만으로 recall 부족 우려 해소) — page_id 강제 포함 옵션 시 일반 retrieval 4개로 감소 |
 | Page + Note 결합 | ✓ | ✓ |
 | 시간 필터 | 자연어 시간 있으면 적용 | 사용자 질의에 시간 표현 있으면 적용 (TimeRangeParser 호출) |
-| 워크스페이스 격리 | partition_key | partition_key 동일 |
+| 워크스페이스 격리 | `partition key` (M3 spike — space) | `partition key` 동일 |
 | 사용자 명시 페이지 | X | optional page_id (활성 탭 컨텍스트 주입 옵션) |
 
 ### 10.2.1 page_id 옵션

@@ -51,9 +51,32 @@
 
 ---
 
-## KI 누적 (Sprint 015 진입 시점, 0건)
+## KI 누적
 
-(아직 등록된 known issue 없음. Sprint 015 진행 중 evaluator 약점에서 추출 시작.)
+### KI-001 [open] sqlite-vec macOS native 빌드 미검증
+
+- **Severity**: MEDIUM
+- **Phase**: 1
+- **Sprint**: 015 (M3-6 codex/evaluator 핫픽스 시점 등록)
+- **Component**: `package.json` (sqlite-vec optional dep) + `src/storage/Database.ts` (sqlite-vec 로드 호출)
+- **영향**: macOS 사용자 install 시 `sqlite-vec-darwin-x64` / `sqlite-vec-darwin-arm64` prebuilt 동작 미검증. `better-sqlite3@12.10` Electron 39 macOS ABI rebuild 도 PoC 부재. M4 인덱싱 hook 시점에 macOS 사용자에서 sqlite-vec load 실패 시 인덱싱 전체 차단 가능.
+- **발견 출처**: M3-spike (`.flowset/specs/m3-spike-decisions.md` §1 "macOS 검증: 본 세션 환경 한정 → 미검증") + 핸드오프 2026-05-18 §13.8 + 2026-05-18 M3 종합 evaluator §3 KI 후보 1 권고
+- **재현 절차**: macOS x64 또는 arm64 환경에서 `npm install` + `npx electron-rebuild -f -w better-sqlite3 -v 39.x.x` 실행 후 `spike/m3-poc/electron-main.cjs` 동일 PoC 재실행
+- **권고 해소 방향**: (1) macOS CI runner 추가 (`.github/workflows/*.yml` 에 `runs-on: macos-latest` 매트릭스) (2) 또는 사용자 macOS 환경에서 PoC 1회 수동 실행 후 결과 본 KI 에 기록
+- **처리 예정 Sprint**: 016 (macOS CI 추가 시 해소) — Phase 1 종료 전 권고
+- **상태**: `open`
+
+### KI-002 [open] PageCachePanel PARTIAL — v0.3 어댑터 의존 잔존
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M3-7 PARTIAL 적용 + codex/evaluator 핫픽스 시점 등록)
+- **Component**: `src/renderer/src/settings/PageCachePanel.tsx` + `src/storage/PageResultStore.ts` 어댑터
+- **영향**: 본 패널은 M3-7 에서 copy 만 "페이지 본문 캐시" 로 갱신되었으나 컴포넌트 자체는 v0.3 `pageResultApi` 의존. M5-8 어댑터 일괄 제거 시점에 본 패널도 동반 폐기 (MemoryStatsPanel 흡수 contract). 현재 UX 영향 없음 (정상 동작).
+- **발견 출처**: PR #138 본문 + 2026-05-18 M3 종합 evaluator §3 KI 후보 2 권고
+- **권고 해소 방향**: M5-8 ChatService 도입 시점에 `pageResultApi` + `PageResultStore` 어댑터 + 본 패널 동시 제거 + 신규 `MemoryStatsPanel` (M6) 으로 흡수
+- **처리 예정 Sprint**: 015 M5-8 (정합 contract) 또는 Phase 3 종료 후 MVP 직전 정리
+- **상태**: `open`
 
 ---
 
@@ -61,7 +84,7 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 0 | 0 | 0 | 0 | 0 |
+| Phase 1 | 0 | 1 | 1 | 0 | 2 |
 | Phase 2 | — | — | — | — | — |
 | Phase 3 | — | — | — | — | — |
 
@@ -76,3 +99,4 @@
 ## 변경 이력
 
 - 2026-05-16: 등록 정책 + Severity 정의 + KI 형식 초기 등록 (Sprint 015 진입 시점, KI 0건)
+- 2026-05-18 (M3 종료 핫픽스): KI-001 MEDIUM (sqlite-vec macOS 미검증) + KI-002 LOW (PageCachePanel PARTIAL) 등록. evaluator + codex 병렬 평가에서 추출. Sprint 015 누적 0건 → 2건 (KI 등록 정책 본격 발동).

@@ -6,11 +6,11 @@
 ## 메타
 
 - **Phase**: **1** (AI 콘텐츠 메모리 + 워크스페이스 베이스 인프라, Sprint 015 진행 중)
-- **Sprint**: **015 M0~M3 완료** (M4 진입 대기 — T16~T20 인덱싱 hook + AutoTagger + DwellTracker + IndexingGate PR 5개)
+- **Sprint**: **015 M0~M3 완료 + M3 evaluator/codex 핫픽스** (M4 진입 대기 — T16~T20 인덱싱 hook + AutoTagger + DwellTracker + IndexingGate PR 5개)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.0 본문 완성** (19 섹션, 약 5,200+ lines — 정식 release tag 는 Sprint 015 M6 종료 시점)
-- **최근 갱신**: 2026-05-18 (M3 7/7 완료 + spike — KI 누적 0건 유지 / 40 PR 연속)
-- **다음 세션 진입점**: `.flowset/handoffs/2026-05-18.md` §M3 (M3 종합) + `.flowset/contracts/sprint-015.md` §2 T16~T20 (M4 범위) + `docs/prd/19_migration_v03_v04.md` §19.5.3 M4 5 PR spec
+- **최근 갱신**: 2026-05-18 (M3 7/7 완료 + spike + 핫픽스 — evaluator Pass 8/0/0 + codex BLOCKING 1 + NB 4 본 PR 해소 / KI 0 → 2 등록 정책 본격 발동 / 42 PR 누적)
+- **다음 세션 진입점**: `.flowset/handoffs/2026-05-18.md` §14 (evaluator+codex 결과) + §13 (M3 종합) + `.flowset/contracts/sprint-015.md` §2 T16~T20 (M4 범위) + `docs/prd/19_migration_v03_v04.md` §19.5.3 M4 5 PR spec + `.flowset/known-issues.md` KI-001/002
 
 ## 현재 작업
 
@@ -233,7 +233,7 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
   - M2-6 ✅ translate:render/restore IPC + TranslationRenderer/Panel 완전 제거 (PR #127)
   - M2-7 ✅ ProviderAdapter chat/embed PARTIAL (PR #128)
   - M2-8 ✅ v0.3 테스트 재작성 + services.ts dead cleanup (PR #129)
-- **M3** ✅ (spike + 7 PR, #131~#138) — IndexedPageStore SQLite + sqlite-vec + 임베딩 + 데이터 마이그레이션 / 단위 417 → 567 (+150) / KI 0건 유지 / 40 PR 연속
+- **M3** ✅ (spike + 7 PR + docs + 핫픽스, #131~#140) — IndexedPageStore SQLite + sqlite-vec + 임베딩 + 데이터 마이그레이션 + evaluator/codex 핫픽스 / 단위 417 → 570 (+153) / KI 0 → 2 등록 (KI-001 MEDIUM macOS / KI-002 LOW PageCachePanel) / 42 PR 누적
   - M3-spike ✅ sqlite-vec native build PoC (Windows 6/6 PASS, macOS 미검증 KI 후보, PR #131)
   - M3-1 ✅ SQLite v04.sql schema + FlowbrowserDatabase 통합 진입점 (PR #132, +25)
   - M3-2 ✅ VectorIndex 모듈 + vec_pages/vec_notes cascade trigger (PR #133, +19)

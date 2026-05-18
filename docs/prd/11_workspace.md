@@ -24,7 +24,7 @@
 | 자산 | 격리 방식 | 구현 |
 |---|---|---|
 | 탭 | TabState.workspace_id 메타 + 전환 시 활성 탭 그룹 교체 | M6 TabManager PARTIAL |
-| 페이지 메모리 | Page.workspace_id NOT NULL + sqlite-vec partition_key | M3 IndexedPageStore |
+| 페이지 메모리 | Page.workspace_id NOT NULL + sqlite-vec `partition key` (M3 spike — space) | M3 IndexedPageStore |
 | AI 컨텍스트 | AiChatHistory.workspace_id NOT NULL + 채팅 history 워크스페이스 필터 | M5 ChatService |
 | 노트 | Note.workspace_id NOT NULL + 검색 retrieval 필터 | M5 NoteService |
 | 태그 | Tag.workspace_id NOT NULL + UNIQUE (workspace_id, kind, name) | M3 TagStore |
@@ -218,7 +218,7 @@ Phase 1 시점: mock (회귀 셋 통과만, 실제 학습 로직 X).
 | 지표 | 임계 | 측정 |
 |---|---|---|
 | 워크스페이스 전환 시간 | < 1초 (10 탭 기준) | M6 종료 stopwatch 측정 |
-| 워크스페이스별 격리 (회귀 셋 S1-C5) | 100% (다른 워크스페이스 retrieval 0) | sqlite-vec partition_key 검증 |
+| 워크스페이스별 격리 (회귀 셋 S1-C5) | 100% (다른 워크스페이스 retrieval 0) | sqlite-vec `partition key` (M3 spike — space) 검증 |
 | 마지막 1개 삭제 시 자동 재생성 | 100% | 단위 테스트 |
 
 [§18 평가](./18_evaluation.md) 시나리오 1 회귀 셋 S1-C5 (워크스페이스 격리) 통과 필수.

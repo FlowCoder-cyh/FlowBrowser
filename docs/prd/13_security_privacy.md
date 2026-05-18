@@ -207,7 +207,7 @@ OS 별 userDataDir:
 | **API Key 디스크 평문 노출** | ✓ | safeStorage (OS Keychain 위임) |
 | **민감 페이지 외부 전송** | ✓ | Privacy Filter 5단계 |
 | **민감 페이지 인덱싱 (메모리 누적)** | ✓ | IndexingGate (M4) |
-| **워크스페이스간 데이터 누출** | ✓ Phase 1 메타 격리 / Phase 2 cookies·storage 격리 | sqlite-vec workspace_id partition_key + Phase 2 session.fromPartition |
+| **워크스페이스간 데이터 누출** | ✓ Phase 1 메타 격리 / Phase 2 cookies·storage 격리 | sqlite-vec workspace_id `partition key` (M3 spike — space) + Phase 2 session.fromPartition |
 | **사용자 디스크 접근 시 데이터 평문 노출** | ✗ Phase 1 / 검토 Phase 2+ | SQLite 평문. Phase 2+ at-rest encryption 옵션 검토 (better-sqlite3 + SQLCipher 등) |
 | **악성 확장 / Electron 취약점** | ⚠️ 부분 | 사용자 설치 확장 부재 (Chrome 확장 미지원), Electron 최신 (`^39.0.0`) 유지 |
 | **fingerprint 추적** | ⚠️ Chromium 디폴트 (변조 X) | Brave 수준 fingerprint 보호 X — Phase 3+ 검토 |
