@@ -133,6 +133,28 @@ CREATE TABLE IF NOT EXISTS note_tags (
 );
 
 -- ============================================================
+-- EmbeddingQueue (M3-4) — 백그라운드 임베딩 작업 큐
+-- PRD §15 / 백그라운드 큐 (활성 탭 우선, 동일 priority FIFO).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS embedding_queue (
+  id TEXT PRIMARY KEY,
+  target_type TEXT NOT NULL CHECK (target_type IN ('page', 'note')),
+  target_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  priority INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'succeeded', 'failed')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_embedding_queue_status_priority
+  ON embedding_queue(status, priority DESC, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_embedding_queue_target
+  ON embedding_queue(target_type, target_id);
+
+-- ============================================================
 -- Schema 메타 (마이그레이션 추적)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS schema_meta (

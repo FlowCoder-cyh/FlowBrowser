@@ -34,6 +34,7 @@ const EXPECTED_TABLES = [
   'tags',
   'page_tags',
   'note_tags',
+  'embedding_queue',
   'schema_meta'
 ]
 
@@ -46,7 +47,9 @@ const EXPECTED_INDEXES = [
   'idx_note_page_visit',
   'idx_chat_workspace_time',
   'idx_chat_status',
-  'idx_tag_workspace_kind'
+  'idx_tag_workspace_kind',
+  'idx_embedding_queue_status_priority',
+  'idx_embedding_queue_target'
 ]
 
 const EXPECTED_VEC_TABLES = ['vec_pages', 'vec_notes']

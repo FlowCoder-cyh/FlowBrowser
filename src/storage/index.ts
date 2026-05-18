@@ -69,6 +69,36 @@ export type { VectorSearchResult, EmbeddingInput } from './VectorIndex'
 export { IndexedPageStoreSqlite } from './IndexedPageStoreSqlite'
 export type { IndexedPageStoreSqliteOptions } from './IndexedPageStoreSqlite'
 
+export { NoteStore } from './NoteStore'
+export type {
+  NoteRow,
+  NoteCreatedBy,
+  CreateNoteInput,
+  UpdateNoteInput
+} from './NoteStore'
+
+export { AiChatHistoryStore } from './AiChatHistoryStore'
+export type {
+  ChatRow,
+  ChatRole,
+  ChatStatus,
+  RetrievedItem,
+  CreateChatInput,
+  UpdateChatStatusInput
+} from './AiChatHistoryStore'
+
+export { TagStore, TAG_KINDS } from './TagStore'
+export type { TagRow, TagKind, EnsureTagInput, AttachInput } from './TagStore'
+
+export { EmbeddingQueue } from './EmbeddingQueue'
+export type {
+  EmbeddingJobRow,
+  EmbeddingTargetType,
+  EmbeddingJobStatus,
+  EnqueueInput,
+  QueueStats
+} from './EmbeddingQueue'
+
 export {
   GlossaryStore,
   defaultGlossaryPath,
