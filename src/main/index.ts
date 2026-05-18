@@ -20,6 +20,7 @@ import {
   type RenderPayload
 } from '../perception/TranslationRenderer'
 import { nodesSignatureFromTexts } from '../storage/PageResultStore'
+// @deprecated Sprint 015 M2-3 — SummarizationPlanner 폐기 마킹. M2-4 에서 본 import + IPC handler 2개 제거.
 import {
   planChunks,
   summarizeChunks,
@@ -1121,6 +1122,11 @@ ipcMain.handle(
 
 /**
  * Sprint 011 M1 — summary abort. PRD §9.2 abort 일관성.
+ *
+ * @deprecated Sprint 015 M2-3 — 페이지 요약 use case 폐기 (PRD §00 §0.2 / §01 §1.2.1).
+ *   M2-4 PR 에서 본 handler 제거 + SummarizationPlanner 모듈 제거 + preload API 제거.
+ *   대체: ChatPanel + RAG retrieval (Sprint 015 M5+, `docs/prd/10_ai_chat.md` §10.1 채팅 파이프라인).
+ *   UI 분기 (`TranslationPanel.tsx` mode='summary') 는 M5 ChatPanel 전환 시 제거.
  */
 ipcMain.handle('translate:summarize-abort', (): { ok: true } => {
   summarizeAborted = true
@@ -1131,6 +1137,11 @@ ipcMain.handle('translate:summarize-abort', (): { ok: true } => {
  * Sprint 004 M3 — 페이지 요약. PRD §9.2 P1.
  * 청크 단위 요약 → N개 합본을 통합 요약.
  * Sprint 011 M1 — abort 지원 (summarizeAborted 플래그 + abortCheck 콜백).
+ *
+ * @deprecated Sprint 015 M2-3 — 페이지 요약 use case 폐기 (PRD §00 §0.2 / §01 §1.2.1).
+ *   M2-4 PR 에서 본 handler 제거 + SummarizationPlanner 모듈 제거 + preload API 제거.
+ *   대체: ChatPanel + RAG retrieval (Sprint 015 M5+, `docs/prd/10_ai_chat.md` §10.1 채팅 파이프라인).
+ *   UI 분기 (`TranslationPanel.tsx` mode='summary') 는 M5 ChatPanel 전환 시 제거.
  */
 ipcMain.handle(
   'translate:summarize-page',

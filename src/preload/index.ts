@@ -476,6 +476,12 @@ const translateApi = {
     ipcRenderer.on('translate:page-error', listener)
     return () => ipcRenderer.removeListener('translate:page-error', listener)
   },
+  /**
+   * @deprecated Sprint 015 M2-3 — 페이지 요약 use case 폐기 (PRD §00 §0.2 / §01 §1.2.1).
+   *   M2-4 PR 에서 본 API + IPC handler (`translate:summarize-page`) + SummarizationPlanner 모듈 제거.
+   *   대체: ChatPanel + RAG retrieval (Sprint 015 M5+, `docs/prd/10_ai_chat.md` §10.1).
+   *   UI 분기 (`TranslationPanel.tsx` mode='summary') 는 M5 ChatPanel 전환 시 제거.
+   */
   summarizePage: (
     args: ParagraphsRequest
   ): Promise<{
@@ -490,6 +496,10 @@ const translateApi = {
     reason?: string
     blockReason?: string
   }> => ipcRenderer.invoke('translate:summarize-page', args),
+  /**
+   * @deprecated Sprint 015 M2-3 — `summarizePage` 와 함께 폐기.
+   *   M2-4 PR 에서 본 API + IPC handler (`translate:summarize-abort`) 제거.
+   */
   abortSummarize: (): Promise<{ ok: true }> =>
     ipcRenderer.invoke('translate:summarize-abort'),
   render: (payload: {
