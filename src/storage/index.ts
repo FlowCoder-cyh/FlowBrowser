@@ -142,3 +142,13 @@ export type {
 
 export { TabStateStore, defaultTabStatePath, TAB_STATE_POLICY_VERSION } from './TabStateStore'
 export type { PersistedTabSession, PersistedTabState } from './TabStateStore'
+
+export {
+  ShortcutStore,
+  ShortcutConflictError,
+  SHORTCUT_BINDING_IDS,
+  defaultShortcutPath,
+  isValidAccelerator,
+  acceleratorsEqual
+} from './ShortcutStore'
+export type { ShortcutBinding, ShortcutBindingId } from './ShortcutStore'

@@ -31,6 +31,8 @@ import {
   UserSettingStore,
   PageResultStore,
   TabStateStore,
+  ShortcutStore,
+  ShortcutConflictError,
   defaultCredentialsPath,
   defaultUsageLogPath,
   defaultTranslationCachePath,
@@ -38,12 +40,15 @@ import {
   defaultUserSettingPath,
   defaultPageResultPath,
   defaultTabStatePath,
+  defaultShortcutPath,
   formatGlossaryContext,
   type CredentialRecord,
   type CredentialProviderType,
   type GlossaryTerm,
   type GlossaryExport,
-  type UserSettingState
+  type UserSettingState,
+  type ShortcutBinding,
+  type ShortcutBindingId
 } from '../storage'
 
 import {
@@ -80,6 +85,7 @@ let glossaryStore!: GlossaryStore
 let userSettingStore!: UserSettingStore
 let pageResultStore!: PageResultStore
 let tabStateStore!: TabStateStore
+let shortcutStore!: ShortcutStore
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 
 let consentStatePath!: string
@@ -117,6 +123,9 @@ export async function initServices(): Promise<void> {
 
   tabStateStore = new TabStateStore(defaultTabStatePath(userDataDir))
 
+  shortcutStore = new ShortcutStore(defaultShortcutPath(userDataDir))
+  await shortcutStore.load()
+
   registerConsentIpc()
   registerCredentialIpc()
   registerPrivacyIpc()
@@ -127,6 +136,56 @@ export async function initServices(): Promise<void> {
   registerUserSettingIpc()
   registerPageResultIpc()
   registerCodexIpc()
+  registerShortcutIpc()
+  registerSearchIpc()
+}
+
+/** Sprint 015 M5-1 — ShortcutStore 접근 헬퍼 (main/index.ts before-input-event 매칭에 사용). */
+export function getShortcutBindings(): ShortcutBinding[] {
+  return shortcutStore.getBindings()
+}
+
+function registerShortcutIpc(): void {
+  ipcMain.handle('shortcut:get-bindings', (): ShortcutBinding[] => shortcutStore.getBindings())
+  ipcMain.handle(
+    'shortcut:set-binding',
+    async (
+      _event,
+      args: { id: ShortcutBindingId; accelerator: string }
+    ): Promise<{ ok: true; binding: ShortcutBinding } | { ok: false; error: string; conflictsWith?: ShortcutBindingId }> => {
+      try {
+        const binding = await shortcutStore.setBinding(args.id, args.accelerator)
+        return { ok: true, binding }
+      } catch (err) {
+        if (err instanceof ShortcutConflictError) {
+          return { ok: false, error: 'conflict', conflictsWith: err.conflictsWith }
+        }
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+  )
+}
+
+/**
+ * Sprint 015 M5-1 — search IPC stub.
+ * `search:query` / `search:get-content` 채널 정의만. 실제 retrieval 은 M5-3 SearchService 도입 시 완성.
+ * 본 stub 는 빈 결과 / null 반환 — renderer SearchBar 가 empty state 를 표시.
+ */
+function registerSearchIpc(): void {
+  ipcMain.handle(
+    'search:query',
+    (_event, _args: { query: string; topN?: number }): { results: []; status: 'stub' } => {
+      // M5-3 SearchService 도입 전: 빈 결과. renderer 는 'empty' 상태로 표시.
+      return { results: [], status: 'stub' }
+    }
+  )
+  ipcMain.handle(
+    'search:get-content',
+    (_event, _args: { pageId: string }): null => {
+      // M5-3 도입 후: IndexedPageStoreSqlite.getPage(pageId).content 반환.
+      return null
+    }
+  )
 }
 
 function registerPageResultIpc(): void {
