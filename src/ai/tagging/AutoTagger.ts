@@ -1,6 +1,7 @@
 /**
  * Sprint 015 M4-2 — AutoTagger.
  *
+ * SSOT: `.flowset/contracts/sprint-015.md` §2 T18 + §3 AC-5 (Tag.kind 6종 / BYOK 디폴트).
  * PRD §8.8 — Tag.kind 6종 (topic / entity / metric / sentiment / domain / freeform) 자동 태깅.
  *
  * 흐름:
@@ -56,7 +57,10 @@ export interface TagPageInput {
   content: string
   /** model hint (provider 가 사용). 미주입 시 provider default. */
   modelHint?: string
-  /** chat call timeout 가드 — 미주입 시 provider 디폴트. (현 spec 은 ChatRequest 에 없음, AutoTagger 측 미사용 — 후속 spec 결정 시 추가) */
+  /**
+   * 최대 응답 토큰. `ChatRequest.maxOutputTokens` 에 그대로 전달 (현재 본 모듈은 미사용 —
+   * 후속 spec 결정 시 provider.chat 호출에 전달 예정). evaluator NB-1 정합 정정.
+   */
   maxOutputTokens?: number
 }
 
@@ -167,7 +171,10 @@ export class AutoTagger {
 
 function composeUserMessage(args: { title?: string; content: string }): string {
   const title = (args.title ?? '').trim()
-  const body = truncate(args.content, 4000) // 모델 입력 보수적 제한 (PRD §8.8.4 정확도 향상 목적)
+  // 모델 입력 4000자 truncate — 비용 제어 + 정확도 향상 정합.
+  // PRD §8.8.4 (회귀 셋 태그 추출 성공률 ≥ 80%) + §8.2.3 (전체 본문 1개 임베딩, 8192 tokens 한계와는 별개).
+  // 본 임계는 codex NB-5 / Phase 1 base 결정 — 정확도 측정 후 조정 가능 (KI 후보, M4-5 또는 Phase 1 종료).
+  const body = truncate(args.content, 4000)
   return title ? `제목: ${title}\n\n본문:\n${body}` : `본문:\n${body}`
 }
 
@@ -221,9 +228,13 @@ export function parseTagsResponse(
 }
 
 function stripCodeFence(s: string): string {
-  // ```json ... ``` 또는 ``` ... ```
-  const fenceMatch = s.match(/^```(?:json|JSON)?\s*\n([\s\S]*?)\n?```\s*$/)
-  if (fenceMatch) return fenceMatch[1].trim()
+  // 단일 라인: ```json{...}``` 또는 ```{...}```
+  // 멀티 라인: ```json\n...\n```
+  // codex NB-4 정합 — 두 형식 모두 strip 지원.
+  const multiline = s.match(/^```(?:json|JSON)?\s*\n([\s\S]*?)\n?```\s*$/)
+  if (multiline) return multiline[1].trim()
+  const single = s.match(/^```(?:json|JSON)?\s*([\s\S]*?)\s*```\s*$/)
+  if (single) return single[1].trim()
   return s
 }
 

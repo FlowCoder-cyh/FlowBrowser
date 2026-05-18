@@ -235,7 +235,7 @@ OpenAI Provider 응답을 JSON 강제. system prompt 에 schema 명시:
 }
 ```
 
-JSON 파싱 실패 시 → freeform fallback (전체 응답 텍스트를 `kind=freeform`, `name=<응답 전체>` 단일 태그).
+JSON 파싱 실패 시 → freeform fallback (응답 텍스트를 `kind=freeform`, `name=<응답 200자 truncate>` 단일 태그). M4-2 codex NB-2 정정 — Tag.name 저장 길이 제한 + 검색 정합 위해 200자 cap. 모델 응답이 200자 초과해도 본 fallback 은 truncate 본만 저장 (raw text 는 AutoTagResult.rawText 로 호출자 노출).
 
 ### 8.8.4 정확도 임계
 
