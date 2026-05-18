@@ -11,7 +11,9 @@ import type {
   GlossaryApi,
   UserSettingApi,
   TranslateApi,
-  PopupApi
+  PopupApi,
+  SearchApi,
+  ShortcutApi
 } from './index'
 
 declare global {
@@ -29,6 +31,8 @@ declare global {
     userSettingApi: UserSettingApi
     translateApi: TranslateApi
     popupApi: PopupApi
+    searchApi: SearchApi
+    shortcutApi: ShortcutApi
   }
 }
 

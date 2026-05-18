@@ -8,8 +8,10 @@ import {
   executeTranslateRequest,
   scanWebContentsFields,
   loadTabState,
-  saveTabState
+  saveTabState,
+  getShortcutBindings
 } from './services'
+import { inputMatchesAccelerator } from './ShortcutMatcher'
 import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
 import { ThumbnailStore, type ThumbnailEntry } from './ThumbnailStore'
 import { ThumbnailDiskStore, defaultThumbnailsPath } from './ThumbnailDiskStore'
@@ -110,6 +112,20 @@ async function createMainWindow(): Promise<void> {
   } else {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // Sprint 015 M5-1 — main window 자체에도 단축키 캡처 (renderer 포커스 시 동작).
+  // WebContentsView 내부 캡처는 createTabView 에서 별도 등록.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (!mainWindow) return
+    const bindings = getShortcutBindings()
+    for (const binding of bindings) {
+      if (inputMatchesAccelerator(input, binding.accelerator, process.platform)) {
+        event.preventDefault()
+        mainWindow.webContents.send('shortcut:invoke', binding.id)
+        return
+      }
+    }
+  })
 
   // TabManager 변동 broadcast (TabBar / UrlBar 구독) — initializeTabs 이전에 등록해야
   // 복원 emit이 push 경로로도 도달함 (renderer가 mount 직후 받음).
@@ -419,6 +435,21 @@ function createTabView(tabId: string, url: string): WebContentsView {
   view.webContents.on('did-finish-load', broadcastNav)
   view.webContents.on('page-title-updated', (_event, title) => {
     tabManager.updateTitle(tabId, title)
+  })
+
+  // Sprint 015 M5-1 — 글로벌 단축키 캡처 (PRD §7.4.3).
+  // WebContentsView 내부 Cmd/Ctrl+K (디폴트) 입력을 main 이 먼저 가로채 SearchBar 포커스 IPC 전달.
+  // 사이트 자체 Cmd+K 핸들러 (Slack/Notion 등) 충돌 시 사용자가 ShortcutSettings 에서 변경.
+  view.webContents.on('before-input-event', (event, input) => {
+    if (!mainWindow) return
+    const bindings = getShortcutBindings()
+    for (const binding of bindings) {
+      if (inputMatchesAccelerator(input, binding.accelerator, process.platform)) {
+        event.preventDefault()
+        mainWindow.webContents.send('shortcut:invoke', binding.id)
+        return
+      }
+    }
   })
 
   view.webContents.on('context-menu', (_event, params) => {

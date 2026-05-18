@@ -338,6 +338,58 @@ const codexApi = {
   status: (): Promise<'active' | 'expired' | 'none'> => ipcRenderer.invoke('codex:status')
 }
 
+// Sprint 015 M5-1 — SearchBar + Shortcut API.
+// search:* IPC 는 M5-1 시점에 stub (빈 결과). M5-3 SearchService 도입 시 완성.
+type ShortcutBindingId = 'searchBar.focus'
+
+interface ShortcutBindingPayload {
+  id: ShortcutBindingId
+  accelerator: string
+}
+
+interface SearchResultPayload {
+  pageId: string
+  type: 'page' | 'note'
+  title: string
+  url: string
+  visitedAt: number
+  dwellMs: number
+  excerpt: string
+  score: number
+}
+
+interface SearchQueryResponse {
+  results: SearchResultPayload[]
+  status: 'ok' | 'stub' | 'empty' | 'error'
+  error?: string
+}
+
+const searchApi = {
+  query: (args: { query: string; topN?: number }): Promise<SearchQueryResponse> =>
+    ipcRenderer.invoke('search:query', args),
+  getContent: (args: { pageId: string }): Promise<{ content: string; title: string; url: string } | null> =>
+    ipcRenderer.invoke('search:get-content', args)
+}
+
+const shortcutApi = {
+  getBindings: (): Promise<ShortcutBindingPayload[]> =>
+    ipcRenderer.invoke('shortcut:get-bindings'),
+  setBinding: (
+    id: ShortcutBindingId,
+    accelerator: string
+  ): Promise<
+    | { ok: true; binding: ShortcutBindingPayload }
+    | { ok: false; error: string; conflictsWith?: ShortcutBindingId }
+  > => ipcRenderer.invoke('shortcut:set-binding', { id, accelerator }),
+  onInvoke: (handler: (id: ShortcutBindingId) => void): (() => void) => {
+    const listener = (_e: unknown, id: ShortcutBindingId): void => handler(id)
+    ipcRenderer.on('shortcut:invoke', listener)
+    return () => ipcRenderer.removeListener('shortcut:invoke', listener)
+  }
+}
+
+contextBridge.exposeInMainWorld('searchApi', searchApi)
+contextBridge.exposeInMainWorld('shortcutApi', shortcutApi)
 contextBridge.exposeInMainWorld('codexApi', codexApi)
 contextBridge.exposeInMainWorld('browserApi', browserApi)
 contextBridge.exposeInMainWorld('tabApi', tabApi)
@@ -365,3 +417,5 @@ export type GlossaryApi = typeof glossaryApi
 export type UserSettingApi = typeof userSettingApi
 export type TranslateApi = typeof translateApi
 export type PopupApi = typeof popupApi
+export type SearchApi = typeof searchApi
+export type ShortcutApi = typeof shortcutApi

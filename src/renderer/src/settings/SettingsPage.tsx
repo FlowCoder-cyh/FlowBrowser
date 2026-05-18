@@ -6,6 +6,7 @@ import DisplayModePanel from './DisplayModePanel'
 import GeneralPanel from './GeneralPanel'
 import PageCachePanel from './PageCachePanel'
 import CodexLoginPanel from './CodexLoginPanel'
+import ShortcutPanel from './ShortcutPanel'
 
 interface CredentialRecord {
   id: string
@@ -154,6 +155,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
 
       <CodexLoginPanel />
       <GeneralPanel />
+      <ShortcutPanel />
       <DisplayModePanel />
       <DomainPolicyPanel />
       <GlossaryPanel />

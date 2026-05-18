@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent, type KeyboardEvent } from 'react'
+import SearchBar from './SearchBar'
 
 interface Props {
   onOpenSettings?: () => void
@@ -128,6 +129,7 @@ export default function UrlBar({
           {busy ? '...' : '이동'}
         </button>
       </form>
+      <SearchBar />
       {onTogglePanel && (
         <button
           type="button"
