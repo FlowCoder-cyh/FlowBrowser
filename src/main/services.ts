@@ -33,6 +33,10 @@ import {
   TabStateStore,
   ShortcutStore,
   ShortcutConflictError,
+  FlowbrowserDatabase,
+  VectorIndex,
+  IndexedPageStoreSqlite,
+  NoteStore,
   defaultCredentialsPath,
   defaultUsageLogPath,
   defaultTranslationCachePath,
@@ -50,6 +54,13 @@ import {
   type ShortcutBinding,
   type ShortcutBindingId
 } from '../storage'
+import { SearchService } from './SearchService'
+import {
+  handleSearchQuery,
+  handleSearchGetContent,
+  type SearchQueryArgs,
+  type SearchQueryResponse
+} from './searchHandlers'
 
 import {
   OpenAIApiKeyProvider,
@@ -86,6 +97,14 @@ let userSettingStore!: UserSettingStore
 let pageResultStore!: PageResultStore
 let tabStateStore!: TabStateStore
 let shortcutStore!: ShortcutStore
+// Sprint 015 M5-3b — v0.4 SQLite 인프라 wiring (검색 활용).
+// FlowbrowserDatabase 가 없으면 search:query graceful error 반환 (renderer 에 "검색 인덱스 미준비" 표시).
+let flowbrowserDb: FlowbrowserDatabase | null = null
+let vectorIndex: VectorIndex | null = null
+let indexedPageStore: IndexedPageStoreSqlite | null = null
+let noteStore: NoteStore | null = null
+let searchService: SearchService | null = null
+let defaultWorkspaceId: string | null = null
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 
 let consentStatePath!: string
@@ -125,6 +144,39 @@ export async function initServices(): Promise<void> {
 
   shortcutStore = new ShortcutStore(defaultShortcutPath(userDataDir))
   await shortcutStore.load()
+
+  // Sprint 015 M5-3b — v0.4 SQLite 인프라 (FlowbrowserDatabase + VectorIndex + IndexedPageStoreSqlite + NoteStore + SearchService).
+  // bootstrap 실패 (sqlite-vec native 로드 실패 등) 시 검색만 graceful disable — 다른 IPC 는 정상 동작.
+  // M3 PoC 시점 (specs/m3-spike-decisions.md) windows-x64 검증 완료, macOS 미검증 (KI-001 추적).
+  try {
+    const dbPath = join(userDataDir, 'flowbrowser.db')
+    flowbrowserDb = FlowbrowserDatabase.bootstrap({ path: dbPath })
+    const defaultWs = flowbrowserDb.ensureDefaultWorkspace()
+    defaultWorkspaceId = defaultWs.id
+    vectorIndex = new VectorIndex(flowbrowserDb)
+    indexedPageStore = new IndexedPageStoreSqlite(flowbrowserDb, {
+      defaultWorkspaceId: defaultWs.id
+    })
+    noteStore = new NoteStore(flowbrowserDb)
+    searchService = new SearchService({
+      vectorIndex,
+      pageStore: indexedPageStore,
+      noteStore
+    })
+  } catch (err) {
+    // 인프라 미준비 — search:query / search:get-content 호출 시 graceful error 반환.
+    // 기타 IPC (translate / cache / glossary / shortcut) 는 영향 없음.
+    flowbrowserDb = null
+    vectorIndex = null
+    indexedPageStore = null
+    noteStore = null
+    searchService = null
+    defaultWorkspaceId = null
+    console.warn(
+      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 비활성:',
+      err instanceof Error ? err.message : String(err)
+    )
+  }
 
   registerConsentIpc()
   registerCredentialIpc()
@@ -167,23 +219,32 @@ function registerShortcutIpc(): void {
 }
 
 /**
- * Sprint 015 M5-1 — search IPC stub.
- * `search:query` / `search:get-content` 채널 정의만. 실제 retrieval 은 M5-3 SearchService 도입 시 완성.
- * 본 stub 는 빈 결과 / null 반환 — renderer SearchBar 가 empty state 를 표시.
+ * Sprint 015 M5-3b — search IPC 실 구현.
+ *
+ * `search:query` — TimeRangeParser → EmbeddingClient.embedText → SearchService.search → paginate → SearchResultPayload[]
+ * `search:get-content` — IndexedPageStoreSqlite.getPage(pageId)
+ *
+ * pure logic 은 `searchHandlers.ts` 로 추출 (단위 테스트 가능). 본 handler 는 thin wrapper.
+ * 의존은 lazy resolver — provider 변경 / DB 미초기화 시점에 매번 새로 풀어옴.
  */
 function registerSearchIpc(): void {
   ipcMain.handle(
     'search:query',
-    (_event, _args: { query: string; topN?: number }): { results: []; status: 'stub' } => {
-      // M5-3 SearchService 도입 전: 빈 결과. renderer 는 'empty' 상태로 표시.
-      return { results: [], status: 'stub' }
+    async (_event, args: SearchQueryArgs): Promise<SearchQueryResponse> => {
+      return handleSearchQuery(args, {
+        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getEmbeddingProvider: () => providers.get('openai') ?? null,
+        getSearchService: () => searchService
+      })
     }
   )
   ipcMain.handle(
     'search:get-content',
-    (_event, _args: { pageId: string }): null => {
-      // M5-3 도입 후: IndexedPageStoreSqlite.getPage(pageId).content 반환.
-      return null
+    (
+      _event,
+      args: { pageId: string }
+    ): { content: string; title: string; url: string } | null => {
+      return handleSearchGetContent(args, { pageStore: indexedPageStore })
     }
   )
 }

@@ -360,8 +360,13 @@ interface SearchResultPayload {
 
 interface SearchQueryResponse {
   results: SearchResultPayload[]
-  status: 'ok' | 'stub' | 'empty' | 'error'
+  /** 'stub' 는 M5-3b 도입으로 폐기 — renderer 는 'empty' 와 동일 처리 권고 (호환 유지). */
+  status: 'ok' | 'empty' | 'error' | 'stub'
   error?: string
+  /** TimeRangeParser 매칭 시점 (M5-3b 도입). 시간 표현 부재 시 null. */
+  timeRange?: { from: number; to: number } | null
+  /** 매칭된 원본 시간 표현 ("지난주" / "2026-05-01" 등). UI 표시 / debug 용. */
+  matchedTimeExpression?: string | null
 }
 
 const searchApi = {
