@@ -9,7 +9,7 @@
 - **Sprint**: **015 M0~M4 완료 + M4 evaluator/codex 핫픽스 3회** (M5 진입 대기 — T21~T27 검색 + 채팅 + 노트 + ChatService 8 PR)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.0 본문 완성** (19 섹션, 약 5,200+ lines + M4-2/M4-4 §8.6.1/§8.8.3/§13.5.2/§13.5.3 정정 — 정식 release tag 는 Sprint 015 M6 종료 시점)
-- **최근 갱신**: 2026-05-18 (M4 5/5 + 2 hotfix 완료 — evaluator Pass 8/0/0 × 4종 / codex NB 15건 모두 본 PR 해소 / KI 2 → 4 등록 정책 본격 발동 (HIGH 1 첫 등록) / 50 PR 누적)
+- **최근 갱신**: 2026-05-18 (M4 5/5 + 2 hotfix + 핸드오프 종합 evaluator 완료 — evaluator 4종 Pass / codex NB 15건 모두 본 PR 해소 / 단위 681 (+111) / KI 2 → 4 등록 (HIGH 1 첫 등록) / M4 종합 evaluator BLOCKING 2건 자연 해소 (PR #148 머지) + NB-3 단위 카운트 정정 / 51 PR 누적)
 - **다음 세션 진입점**: `.flowset/handoffs/2026-05-18.md` §16 (M4 종합) + `.flowset/contracts/sprint-015.md` §2 T21~T27 (M5 범위) + `docs/prd/19_migration_v03_v04.md` §19.5.4 M5 8 PR spec + `.flowset/known-issues.md` KI-001~004 (KI-003 HIGH 우선)
 
 ## 현재 작업
@@ -226,7 +226,7 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 - **M1** ✅ (PRD v0.4.0 19 섹션 본문 작성, PR #104~#120 + b10.1 핫픽스 PR #121)
 - **M2** ✅ (폐기 + 일반화 8 PR, #122~#129) — 단위 358 → 417 (+59) / JS bundle -23.46 kB / KI 0건
 - **M3** ✅ (spike + 7 PR + docs + 핫픽스, #131~#140) — 단위 417 → 570 (+153) / KI 0 → 2 / 42 PR 누적
-- **M4** ✅ (5 PR + 2 hotfix + 1 통합 회귀, #141~#148) — IndexingGate + IndexingService + DwellTracker + AutoTagger + 통합 회귀 / 단위 570 → 668 (+98) / KI 2 → 4 (KI-003 HIGH 첫 등록) / 50 PR 누적
+- **M4** ✅ (5 PR + 2 hotfix + 1 통합 회귀, #141~#148) — IndexingGate + IndexingService + DwellTracker + AutoTagger + 통합 회귀 / 단위 570 → **681** (+111) (M4 종합 evaluator NB-3 정정 — 668 표기 부정확) / KI 2 → 4 (KI-003 HIGH 첫 등록) / 50 PR 누적
   - M4-4 ✅ IndexingGate 신규 + privacyExclusions UserSetting 확장 (PR #141 + #142 hotfix, +36)
   - M4-1 ✅ IndexingService 신규 + IndexingGate/recordVisit/EmbeddingQueue 통합 (PR #143 + #145 hotfix, +21)
   - M4-3 ✅ DwellTracker + IndexedPageStoreSqlite.updateVisitDwell (PR #144, +21)
@@ -236,7 +236,8 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 - **M6** (2~3일): 워크스페이스 사이드바 + 메모리 통계 UI + Sprint 종합 핸드오프
 
 ### 시나리오 cover 목표
-- 시나리오 1 (학술) / 4 (우연재발견): **100%** (Phase 1만으로)
+- 시나리오 1 (학술): M4 통합 회귀로 자동 인덱싱 + 자동 태깅 cover. M5 SearchService 도입 후 100%
+- 시나리오 4 (우연재발견): **M5 책임** (검색 + retrieval) — M4 통합 회귀 미cover (codex M4 종합 NB 정정)
 - 시나리오 2 (PM 경쟁) / 3 (학습): **90%+** (Phase 1만으로, Notion Export = Phase 3)
 
 ## 최근 핸드오프
