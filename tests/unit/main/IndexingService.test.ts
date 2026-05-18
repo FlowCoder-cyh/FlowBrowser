@@ -49,6 +49,16 @@ function setup(): Fx {
   return { fb, pageStore, embeddingQueue, gate, service, defaultWsId: defaultWs.id, events }
 }
 
+/**
+ * codex M4-1 hotfix NB-2 — blocked no-side-effect 매트릭스 helper.
+ * 모든 blocked 케이스에서 Page/Visit/Embedding 미생성 정합 일괄 검증.
+ */
+function assertNoSideEffect(fx: Fx): void {
+  expect(fx.pageStore.countPages()).toBe(0)
+  expect(fx.pageStore.countVisits()).toBe(0)
+  expect(fx.embeddingQueue.stats().pending).toBe(0)
+}
+
 describe('IndexingService — blocked paths', () => {
   let fx: Fx
   beforeEach(() => {
@@ -68,9 +78,7 @@ describe('IndexingService — blocked paths', () => {
     if (r.status === 'blocked') {
       expect(r.evaluation.blockReason).toBe('domain')
     }
-    expect(fx.pageStore.countPages()).toBe(0)
-    expect(fx.pageStore.countVisits()).toBe(0)
-    expect(fx.embeddingQueue.stats().pending).toBe(0)
+    assertNoSideEffect(fx)
   })
 
   it('path glob 차단 (*.naver.com/mail/*) — Page 미생성', async () => {
@@ -81,6 +89,7 @@ describe('IndexingService — blocked paths', () => {
     })
     expect(r.status).toBe('blocked')
     if (r.status === 'blocked') expect(r.evaluation.blockReason).toBe('path')
+    assertNoSideEffect(fx)
   })
 
   it('password field 감지 시 차단', async () => {
@@ -91,6 +100,7 @@ describe('IndexingService — blocked paths', () => {
     })
     expect(r.status).toBe('blocked')
     if (r.status === 'blocked') expect(r.evaluation.blockReason).toBe('password')
+    assertNoSideEffect(fx)
   })
 
   it('잘못된 URL 차단', async () => {
@@ -100,6 +110,33 @@ describe('IndexingService — blocked paths', () => {
       hasPasswordField: false
     })
     expect(r.status).toBe('blocked')
+    assertNoSideEffect(fx)
+  })
+
+  it('user_block 차단 (codex M4-1 hotfix NB-2) — privacyExclusions[type=block]', async () => {
+    // user_block 정합: gate 에 직접 exclusions 주입한 신규 인스턴스로 검증
+    const fb = FlowbrowserDatabase.openInMemory()
+    fb.applySchema()
+    const defaultWs = fb.ensureDefaultWorkspace()
+    const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: defaultWs.id })
+    const embeddingQueue = new EmbeddingQueue(fb)
+    const gate = new IndexingGate({
+      getUserExclusions: () => [{ pattern: 'example.com', type: 'block' }]
+    })
+    const service = new IndexingService({ gate, pageStore, embeddingQueue })
+    const r = await service.indexPage({
+      url: 'https://example.com/page',
+      content: 'body',
+      hasPasswordField: false
+    })
+    expect(r.status).toBe('blocked')
+    if (r.status === 'blocked') {
+      expect(r.evaluation.blockReason).toBe('user_block')
+    }
+    expect(pageStore.countPages()).toBe(0)
+    expect(pageStore.countVisits()).toBe(0)
+    expect(embeddingQueue.stats().pending).toBe(0)
+    fb.close()
   })
 
   it('blocked 시 onStatusChange broadcast 발생', async () => {
@@ -197,6 +234,43 @@ describe('IndexingService — indexed paths', () => {
       expect(r.embeddingSkipReason).toBe('empty_content')
     }
     expect(fx.embeddingQueue.stats().pending).toBe(0)
+  })
+
+  it('whitespace-only 본문 — content_hash=NULL 저장 정합 (codex M4-1 hotfix NB-1, PRD §8.4)', async () => {
+    // PRD §8.4 "content 없음 → content_hash=NULL + embedding skip" 정합 검증.
+    // 이전엔 raw '   ' 가 그대로 저장되어 hash 가 비-NULL 이 되는 SSOT 미정합 (codex NB-1).
+    const r = await fx.service.indexPage({
+      url: 'https://example.com/canvas',
+      content: '   \n\t ',
+      hasPasswordField: false
+    })
+    expect(r.status).toBe('indexed')
+    if (r.status === 'indexed') {
+      const page = fx.pageStore.getPage(r.pageId)
+      expect(page).toBeTruthy()
+      expect(page!.content).toBe('') // normalize 후 빈 문자열로 영속
+      expect(page!.content_hash).toBeNull() // contentHashOf('') === null
+      expect(r.embeddingSkipReason).toBe('empty_content')
+    }
+  })
+
+  it('whitespace-only 재방문 — action=unchanged (content_hash NULL 두 번)', async () => {
+    // 빈 본문 재방문 시 hash 가 동일 (NULL === NULL) → unchanged 분기 (codex NB-1 정합 검증)
+    const baseInput = {
+      url: 'https://example.com/canvas',
+      content: '   ',
+      hasPasswordField: false
+    }
+    const r1 = await fx.service.indexPage(baseInput)
+    expect(r1.status).toBe('indexed')
+    if (r1.status === 'indexed') expect(r1.action).toBe('created')
+    const r2 = await fx.service.indexPage(baseInput)
+    expect(r2.status).toBe('indexed')
+    if (r2.status === 'indexed') {
+      expect(r2.action).toBe('unchanged')
+      expect(r2.embeddingSkipReason).toBe('empty_content') // empty 가 unchanged 보다 먼저 평가
+    }
+    expect(fx.pageStore.countVisits()).toBe(2)
   })
 
   it('isActiveTab=true → priority 10', async () => {
