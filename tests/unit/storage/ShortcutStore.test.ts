@@ -140,6 +140,13 @@ describe('isValidAccelerator', () => {
   it('rejects duplicate modifiers', () => {
     expect(isValidAccelerator('Ctrl+Ctrl+K')).toBe(false)
   })
+
+  it('rejects non-standard modifier tokens (Super / Meta / AltGr)', () => {
+    // ShortcutMatcher 가 안정적으로 처리 못 하는 비표준 modifier 는 사전 거부 (PR #150 hotfix).
+    expect(isValidAccelerator('Super+K')).toBe(false)
+    expect(isValidAccelerator('Meta+K')).toBe(false)
+    expect(isValidAccelerator('AltGr+K')).toBe(false)
+  })
 })
 
 describe('acceleratorsEqual', () => {

@@ -1,9 +1,8 @@
 // Sprint 015 M2-6 — TranslationPanel 완전 제거 (render/restore IPC 폐기 동반). M5 ChatPanel 신규 시 동일 자리 도입.
-// Sprint 015 M5-1 — SearchBar 추가 (Cmd+K 글로벌, PRD §7.4.3).
+// Sprint 015 M5-1 — SearchBar 는 UrlBar 내부 flex item 으로 렌더 (PRD §7.4.3 상단 우측 240px).
 import { useEffect, useState } from 'react'
 import UrlBar from './UrlBar'
 import TabBar from './TabBar'
-import SearchBar from './SearchBar'
 import Consent from './onboarding/Consent'
 import OnboardingTour from './onboarding/OnboardingTour'
 import SettingsPage from './settings/SettingsPage'
@@ -86,7 +85,6 @@ export default function App(): JSX.Element {
     <div className="app">
       <TabBar />
       <UrlBar onOpenSettings={() => setStage('settings')} />
-      <SearchBar />
       <TranslationPopup />
       {/* Sprint 015 M2-6 — TranslationPanel 제거. M5 ChatPanel 도입 시 동일 자리 추가. */}
       {showOnboarding && (

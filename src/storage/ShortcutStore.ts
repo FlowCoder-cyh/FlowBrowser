@@ -33,6 +33,12 @@ const DEFAULT_BINDINGS: Record<ShortcutBindingId, string> = {
   'searchBar.focus': 'CommandOrControl+K'
 }
 
+/**
+ * 본 시스템이 허용하는 Electron Accelerator modifier 집합.
+ * `AltGr` / `Super` / `Meta` 같은 비표준 modifier 는 ShortcutMatcher 가 안정적으로 처리하지 못해
+ * (예: 비-mac platform 에서 Super 키 누름 자체를 거부) 일관성을 위해 본 화이트리스트에서 제거.
+ * PRD §7.4.3 디폴트 `CommandOrControl+K` 와 사용자 변경 권장 (`Cmd+Shift+K` 등) 모두 본 집합으로 충분.
+ */
 const MODIFIER_TOKENS = new Set([
   'Command',
   'Cmd',
@@ -42,10 +48,7 @@ const MODIFIER_TOKENS = new Set([
   'CmdOrCtrl',
   'Alt',
   'Option',
-  'AltGr',
-  'Shift',
-  'Super',
-  'Meta'
+  'Shift'
 ])
 
 /**
@@ -119,7 +122,6 @@ function canonicalAccelerator(accelerator: string): string {
     if (m === 'Ctrl') return 'Control'
     if (m === 'CmdOrCtrl') return 'CommandOrControl'
     if (m === 'Option') return 'Alt'
-    if (m === 'Meta') return 'Super'
     return m
   })
   return [...modifiers.sort(), key].join('+')
