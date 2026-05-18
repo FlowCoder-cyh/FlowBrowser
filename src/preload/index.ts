@@ -347,6 +347,11 @@ interface ShortcutBindingPayload {
   accelerator: string
 }
 
+interface SearchResultMatch {
+  start: number
+  end: number
+}
+
 interface SearchResultPayload {
   pageId: string
   type: 'page' | 'note'
@@ -355,6 +360,11 @@ interface SearchResultPayload {
   visitedAt: number
   dwellMs: number
   excerpt: string
+  /**
+   * Sprint 015 M5-4 — excerpt 내 query 토큰 매칭 위치 (start inclusive / end exclusive).
+   * renderer SearchResultCard 가 `<mark>` 로 highlight. 매칭 0 건 시 빈 배열.
+   */
+  matchPositions: SearchResultMatch[]
   score: number
 }
 
