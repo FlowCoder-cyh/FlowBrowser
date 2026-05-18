@@ -13,6 +13,7 @@ export default tseslint.config(
       '.flowset/**',
       'docs/**',
       'archive/**',
+      'spike/**',
       '**/*.config.{js,ts,mjs,cjs}',
       'vitest.config.ts',
       'electron.vite.config.ts'

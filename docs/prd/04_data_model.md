@@ -160,21 +160,19 @@ CREATE TABLE NoteTag (
 -- rowid (integer PK) + UUID metadata 패턴 (sqlite-vec 제약)
 
 CREATE VIRTUAL TABLE vec_pages USING vec0(
-  rowid INTEGER PRIMARY KEY,
   page_id TEXT,
-  workspace_id TEXT partition_key,
+  workspace_id TEXT partition key,
   embedding float[1024]
 );
 
 CREATE VIRTUAL TABLE vec_notes USING vec0(
-  rowid INTEGER PRIMARY KEY,
   note_id TEXT,
-  workspace_id TEXT partition_key,
+  workspace_id TEXT partition key,
   embedding float[1024]
 );
 ```
 
-> **참고**: sqlite-vec `vec0` 가상 모듈은 integer rowid + metadata 컬럼 + `float[N]` 패턴 사용. PR b3 시점 schema 안 (M3 sqlite-vec 도입 PoC에서 정확 문법 검증 후 확정). `partition_key`로 워크스페이스 격리 top-k 보장 — 다른 워크스페이스 retrieval 차단.
+> **참고**: sqlite-vec `vec0` 가상 모듈은 자동 rowid + metadata 컬럼 + `float[N]` 패턴 사용. **M3-2 spike (2026-05-18) 결과로 정확 문법 박힘** (`.flowset/specs/m3-spike-decisions.md` §3.3 인용): `partition key` 는 **space 구분** (`partition_key` underscore 표기는 sqlite-vec 0.1.9 미지원). `rowid INTEGER PRIMARY KEY` 명시 불요 — vec0 가 자동 부여. partition 으로 워크스페이스 격리 top-k 보장 — 다른 워크스페이스 retrieval 차단.
 
 > **차원 결정**: v04-direction §7 SSOT 인용. OpenAI 기본 1536 → `dimensions=1024` 축소로 저장·성능 최적화 (Phase 1).
 
@@ -246,3 +244,4 @@ Phase 1 schema에 외래키 컬럼을 미리 nullable 로 박아두면 Phase 2/3
 
 - 2026-05-16 (PR b3): stub → 본문 작성. 7 entity + M:N + vector + anchor + 컬럼 spec + Phase 2/3 forward-compat + 인덱스 + 마이그레이션.
 - 2026-05-16 (PR b3.1): codex 24건 + evaluator 2건 핫픽스. 차원 1024 명시 (SSOT direction §7 갱신 동반) / sqlite-vec rowid+metadata+partition_key 정확화 / vec workspace_id partition 추가 / 인덱스 8→11개 (note_workspace_time, note_page_visit, page_workspace_content_hash, chat_status, tag_workspace_kind 추가) / PageTag·NoteTag 컬럼 spec 신규 / retrieved_page_ids → retrieved_items (Page+Note 둘 다 cover) / chat_meta sources 형식 명시 / ai_tags prefix 정책 명시 / Note created_by / AiChatHistory status / Page content 빈값 허용 / 실패·재시도 시나리오 §4.6 신규.
+- 2026-05-18 (M3-1): §4.3.8 sqlite-vec 문법 정정 — `partition_key` (underscore) → **`partition key`** (space) + `rowid INTEGER PRIMARY KEY` 명시 제거. M3-2 spike (`.flowset/specs/m3-spike-decisions.md` §3.3) 결과 인용. sqlite-vec 0.1.9 실측 정합.

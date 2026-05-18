@@ -45,6 +45,20 @@ export { isV04Enabled } from './featureFlags'
 export type { V04FlagSource } from './featureFlags'
 
 export {
+  FlowbrowserDatabase,
+  DEFAULT_WORKSPACE_NAME,
+  DEFAULT_WORKSPACE_ICON,
+  V04_SCHEMA_VERSION
+} from './Database'
+export type {
+  WorkspaceRow,
+  CreateWorkspaceInput,
+  SchemaMetaRow,
+  FlowbrowserDatabaseOptions,
+  LevelPreference
+} from './Database'
+
+export {
   GlossaryStore,
   defaultGlossaryPath,
   validateTerm,
