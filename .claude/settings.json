@@ -1,15 +1,50 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "_comment": "FlowBrowser AI — Phase 0 최소 hook. Phase 1+에서 PostToolUse / Stop hook 점진 강화.",
+  "_comment": "FlowBrowser AI — Sprint 016 M0 mini-milestone β. .flowset/hooks/ 4종 Node.js (.mjs) 활성. 권고/정보 위주, 강제 차단은 main push (G-007) + .flowset/ 핵심 파일·디렉토리 삭제 (wi-flowset §3) 두 케이스만. CI flowset-policy-check 가 PR body dual review 체크박스 + handoff/state 갱신 강제 검증. ${CLAUDE_PROJECT_DIR} 사용 — 사용자 cwd 무관 절대 경로 (codex review #2 흡수).",
   "hooks": {
     "SessionStart": [
       {
-        "_comment": "세션 시작 시 state.md + 최근 핸드오프를 자동 주입",
+        "_comment": "state.md + 최신 핸드오프 §6~§7 + guardrails 헤더 + KI 잔여 실주입",
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "echo '[FlowSet] SessionStart: state.md + 최근 핸드오프 + guardrails.md 참조 권장'"
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.flowset/hooks/session-start.mjs\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "_comment": "Bash/PowerShell — main push 차단 (exit 2) / .flowset/ 핵심 파일·디렉토리 삭제 차단 (exit 2) / git commit 형식 경고 / gh pr dual review 환기",
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.flowset/hooks/pre-tool-use.mjs\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "_comment": "Write/Edit/NotebookEdit — ownership 매핑 / PRD·v04-direction·CLAUDE.md·handoff·guardrails 변경 시 동기화 권고",
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.flowset/hooks/post-tool-use.mjs\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "_comment": "세션 종료 — 오늘 핸드오프 + state.md 갱신 + 최근 commits G-009 + 미머지 브랜치 + dual review 환기. matcher 필드 미지원이라 생략 (codex review #2 흡수)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.flowset/hooks/stop.mjs\""
           }
         ]
       }

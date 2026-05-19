@@ -1,0 +1,141 @@
+name: FlowSet Policy Check
+
+# Sprint 016 M0 mini-milestone β — PR body dual review 체크박스 + handoff/state 갱신 + ownership cross-team 변경 명시
+# 강제 게이트. hook 우회 시 본 CI 게이트로 PR 머지 차단 가능.
+# 단 본 차단은 GitHub branch protection 에서 required status check 로 승격된 경우에만 작동.
+# Required check 설정 경로 (codex review #7 흡수):
+#   repo Settings → Branches → Branch protection rules → main 규칙 편집 →
+#   "Require status checks to pass before merging" 활성 →
+#   "FlowSet Policy Check / policy-check" 추가
+# 본 PR 머지 직후 manual 설정 권고 (settings repo automation 부재).
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  policy-check:
+    name: FlowSet Policy Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: PR body 게이트 검증
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -e
+
+          # PR body 미작성 차단
+          if [ -z "$PR_BODY" ]; then
+            echo "::error::PR body 미작성. .github/PULL_REQUEST_TEMPLATE.md 양식 작성 필수."
+            exit 1
+          fi
+
+          # 1. Dual Review 섹션 + 체크박스 (evaluator + codex)
+          # 학습 #8 feedback_dual_review — 매 PR 사전 evaluator + codex 병렬 호출 강제
+          # codex review #3 흡수: '## Dual Review' 섹션 존재 여부 추가 체크
+          if ! echo "$PR_BODY" | grep -qE '^## +Dual Review'; then
+            echo "::error::PR body 에 '## Dual Review' 섹션 누락 — PR template 양식 사용 필요."
+            FAILED=1
+          fi
+          EVAL_OK=0
+          CODEX_OK=0
+          if echo "$PR_BODY" | grep -qE '^\- \[x\] +evaluator'; then EVAL_OK=1; fi
+          if echo "$PR_BODY" | grep -qE '^\- \[x\] +codex'; then CODEX_OK=1; fi
+
+          if [ $EVAL_OK -eq 0 ]; then
+            echo "::error::PR body 에 '- [x] evaluator' 체크 누락 — 학습 #8 dual review 표준 위반."
+            FAILED=1
+          fi
+          if [ $CODEX_OK -eq 0 ]; then
+            echo "::error::PR body 에 '- [x] codex' 체크 누락 — 학습 #8 dual review 표준 위반."
+            FAILED=1
+          fi
+
+          # 2. 영향 영역 체크박스 — 최소 1개 체크 필수
+          if ! echo "$PR_BODY" | grep -qE '^\- \[x\] +(코드|문서|CI \/ 빌드|의존성|Privacy \/ 보안|데이터 모델)'; then
+            echo "::error::영향 영역 체크박스 0개 체크 — 최소 1개 표시 필요."
+            FAILED=1
+          fi
+
+          # 3. PR 제목 형식 G-009
+          PATTERN='^WI-([0-9A-Za-z]+(-[0-9]+)?-(feat|fix|docs|style|refactor|test|chore|perf|ci|revert)|chore|docs)\s+.+$'
+          if ! echo "$PR_TITLE" | grep -qE "$PATTERN"; then
+            echo "::error::PR 제목 형식 위반 — 'WI-NNN-[type] 한글 작업명' 필요. 현재: $PR_TITLE"
+            FAILED=1
+          fi
+
+          if [ "$FAILED" = "1" ]; then
+            exit 1
+          fi
+          echo "✓ PR body 게이트 통과 (dual review + 영향 영역 + 제목 형식)"
+
+      - name: 변경 파일 ownership / handoff·state 갱신 검증
+        run: |
+          set -e
+
+          BASE_SHA=$(git merge-base origin/main HEAD)
+          CHANGED=$(git diff --name-only "$BASE_SHA" HEAD)
+
+          echo "변경 파일:"
+          echo "$CHANGED"
+          echo "---"
+
+          # 변경이 코드 영역 (src/ 또는 tests/) 만이면 docs 갱신 강제 안 함
+          # 변경이 docs 영역 또는 .flowset/ 을 포함하면 핸드오프 또는 state 갱신 권고
+          DOCS_CHANGED=0
+          STATE_HANDOFF=0
+          if echo "$CHANGED" | grep -qE '^(docs/|\.flowset/|README\.md|CLAUDE\.md)'; then
+            DOCS_CHANGED=1
+          fi
+          if echo "$CHANGED" | grep -qE '^\.flowset/(state\.md|handoffs/)'; then
+            STATE_HANDOFF=1
+          fi
+
+          if [ $DOCS_CHANGED -eq 1 ] && [ $STATE_HANDOFF -eq 0 ]; then
+            echo "::warning::문서/PRD/.flowset 변경 감지했으나 state.md 또는 handoffs/ 갱신 없음 — 작업 종료 시 동기화 권고."
+            # warning 만, fail 안 함 (코드 PR 일 수 있음)
+          fi
+
+          # ownership cross-team 변경 검사 — 단일 사용자 환경이라 fail 안 함, 정보만
+          echo "✓ ownership cross-team 변경 검사: 정보 모드 (fail 안 함)"
+
+      - name: 가드레일 빠른 grep
+        run: |
+          set -e
+
+          BASE_SHA=$(git merge-base origin/main HEAD)
+          CHANGED=$(git diff --name-only "$BASE_SHA" HEAD | grep -E '\.(ts|tsx|js|jsx|md|mjs|yml|yaml|json)$' || true)
+
+          if [ -z "$CHANGED" ]; then
+            echo "[정보] 검사 대상 텍스트 파일 변경 없음 — skip"
+            exit 0
+          fi
+
+          # G-006 위험 표현 — 본인 추측 단정 신호 (단, 사용자 문서 인용 시 false positive 가능)
+          # 단순 정보 출력만, fail 안 함
+          for f in $CHANGED; do
+            if [ -f "$f" ]; then
+              if grep -nE '(추측이지만|아마도 [가-힣]+할 것|확실하지 않지만|기억으로는)' "$f" > /dev/null 2>&1; then
+                echo "::warning file=$f::G-006 위험 표현 감지 — 검증 후 단정 권고."
+              fi
+            fi
+          done
+
+          # G-005 secret 평문 — codex review #3 흡수: 코드 + 문서 + 설정 파일 전부 grep
+          # (문서에 실제 키가 우발적으로 박혀 들어가도 검출)
+          for f in $CHANGED; do
+            if [ -f "$f" ] && grep -nE '(sk-[a-zA-Z0-9]{20,}|api_key\s*=\s*"[a-zA-Z0-9]{20,}")' "$f" > /dev/null 2>&1; then
+              echo "::error file=$f::G-005 secret 평문 저장 가능성 — OS Keychain 위임 필수."
+              exit 1
+            fi
+          done
+
+          echo "✓ 가드레일 빠른 grep 통과"
