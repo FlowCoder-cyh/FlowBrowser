@@ -71,6 +71,11 @@ export class TabStateStore {
       ) {
         return this.empty()
       }
+      // Sprint 016 M0 T03a (codex BLOCKING #1 — G-014 정합) — V1 파일 발견 시 same-dir `.v1.bak` 백업 1회.
+      // 본 store 의 save() 가 다음 호출 때 V2 로 덮어쓰기 전 보존. 백업 파일이 이미 있으면 skip (반복 호출 idempotent).
+      if (parsed.policyVersion === TAB_STATE_POLICY_V1) {
+        await this.backupV1Once(buf)
+      }
       const rawTabs = Array.isArray(parsed.tabs) ? (parsed.tabs as unknown[]) : []
       const tabs: PersistedTabSession[] = []
       for (const item of rawTabs) {
@@ -85,6 +90,13 @@ export class TabStateStore {
         ) {
           continue
         }
+        // codex BLOCKING #2 — v03_to_v04 마이그레이션 잔재 'workspaceId' camelCase 도 수용 (snake_case 우선).
+        const wsRaw =
+          typeof t.workspace_id === 'string'
+            ? t.workspace_id
+            : typeof t.workspaceId === 'string'
+              ? t.workspaceId
+              : null
         tabs.push({
           id: t.id,
           url: t.url,
@@ -96,7 +108,7 @@ export class TabStateStore {
               ? (t.color as PersistedTabColor)
               : null,
           pinned: typeof t.pinned === 'boolean' ? t.pinned : false,
-          workspace_id: typeof t.workspace_id === 'string' ? t.workspace_id : null
+          workspace_id: wsRaw
         })
       }
       const activeId =
@@ -112,6 +124,27 @@ export class TabStateStore {
       }
       // JSON 손상 / 기타 IO 오류는 빈 상태 반환 (안전 fallback)
       return this.empty()
+    }
+  }
+
+  /**
+   * Sprint 016 M0 T03a — V1 영속 파일 발견 시 1회 백업 (G-014).
+   * `${filePath}.v1.bak` 가 이미 있으면 skip — V1 → V2 첫 load 시점만 백업.
+   * 백업 실패 (디스크 권한 등) 는 load 자체를 막지 않음 (warn 만).
+   */
+  private async backupV1Once(rawBuf: string): Promise<void> {
+    const backupPath = `${this.filePath}.v1.bak`
+    try {
+      await fs.access(backupPath)
+      // 이미 존재 — skip
+      return
+    } catch {
+      // 미존재 — 백업 진행
+    }
+    try {
+      await fs.writeFile(backupPath, rawBuf, 'utf-8')
+    } catch {
+      // 백업 실패는 load 차단 안 함 (G-014 권고 best-effort)
     }
   }
 

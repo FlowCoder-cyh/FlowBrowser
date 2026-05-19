@@ -652,5 +652,16 @@ describe('TabManager', () => {
       // null 필터도 정확히 동작 (V1 마이그레이션 직후 backfill 안 된 탭)
       expect(tm.listByWorkspace(null).map((t) => t.url)).toEqual(['d.com'])
     })
+
+    it('duplicate() — 원본 non-null workspace_id 보존 (codex NEEDS_CHANGES 회귀)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com', { workspaceId: 'ws_alpha' })
+      const dup = tm.duplicate(a.id)
+      expect(dup).not.toBeNull()
+      expect(dup?.workspace_id).toBe('ws_alpha')
+      expect(dup?.id).not.toBe(a.id)
+      // 격리 invariant — listByWorkspace 결과에 dup 도 포함
+      expect(tm.listByWorkspace('ws_alpha').map((t) => t.id).sort()).toEqual([a.id, dup!.id].sort())
+    })
   })
 })
