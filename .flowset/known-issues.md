@@ -262,17 +262,17 @@
 - **처리 예정 Sprint**: 016 M0 T06
 - **상태**: `open`
 
-### KI-017 [open] tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 누락
+### KI-017 [closed] tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 누락
 
 - **Severity**: LOW
 - **Phase**: 1
 - **Sprint**: 015 (M6 T28 본 hotfix 시점 발견 — `v04-test-classification.md` §D PARTIAL 매트릭스 일정 "M6" 미이행)
-- **Component**: `tests/unit/renderer/tabLabel.test.ts` (현 5 케이스 → 약 7 목표) + `src/renderer/src/TabLabel.tsx` (워크스페이스 아이콘/이름 표시 props)
-- **영향**: PRD §11.2.1 워크스페이스 컨텍스트 (탭 라벨에 워크스페이스 아이콘·이름 표시) 시각 회귀 cover 부재. 시나리오 1·5 워크스페이스 격리 시각 검증 누락. KI-007 (TabManager workspace_id) 의존 — workspace_id prop 도입 후 +2 회귀.
-- **재현 절차**: Sprint 016 M0 T03 진행 시 TabManager workspace_id 도입 직후 TabLabel 컴포넌트가 active 워크스페이스 아이콘/이름 표시. 본 회귀 셋 부재로 시각 미검증.
-- **권고 해소 방향**: Sprint 016 T03 (KI-007 closed) 시점 동반 처리 — `tabLabel.test.ts`에 (1) workspace_id 매칭 시 아이콘+이름 표시 (2) workspace 미매칭 시 디폴트 라벨 fallback 2 케이스 추가.
+- **Component**: `tests/unit/renderer/tabLabel.test.ts` (현 5 케이스 → 7) + `src/renderer/src/translation/tabLabel.ts` (워크스페이스 아이콘 prefix props)
+- **영향**: PRD §11.2.1 워크스페이스 컨텍스트 (탭 라벨에 워크스페이스 아이콘 prefix 표시 — 이름은 `WorkspaceSidebar` 별도 표시) 시각 회귀 cover 부재. 시나리오 1·5 워크스페이스 격리 시각 검증 누락. KI-007 (TabManager workspace_id) 의존 — workspace_id prop 도입 후 +2 회귀.
+- **재현 절차**: Sprint 016 M0 T03 진행 시 TabManager workspace_id 도입 직후 탭 라벨이 활성 워크스페이스 아이콘 prefix 표시. 본 회귀 셋 부재로 시각 미검증.
+- **권고 해소 방향**: Sprint 016 T03 (KI-007 closed) 시점 동반 처리 — `tabLabel.test.ts`에 (1) workspace_id 매칭 시 **아이콘 prefix** 박힘 (2) workspace 미매칭/null/context 미주입 시 디폴트 라벨 fallback 2 케이스 추가. 라벨에 **이름은 박지 않음** (가독성 + 워크스페이스 사이드바 별도 표시로 중복 방지).
 - **처리 예정 Sprint**: 016 T03 (KI-007 동반)
-- **상태**: `open`
+- **상태**: `closed` (Sprint 016 M0 T03b PR #172, 2026-05-19 — `formatTabLabel(t, workspaceContext?: { id, icon })` 시그니처 확장. 매칭 시 **아이콘 prefix 만** 표시 (이름은 `WorkspaceSidebar` 에서 별도 표시 — 가시성 정책 정합, codex PR #172 NEEDS_CHANGES 해소). 미매칭 / null / context 미주입 시 fallback 회귀 +2 (it 블록 2 + expect 5). UI wiring (TabBar 활성 ws 주입) 은 T03c 위임.)
 
 ---
 
@@ -280,7 +280,7 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 14 | 0 | 19 |
+| Phase 1 | 1 | 4 | 14 | 1 | 18 |
 | Phase 2 | — | — | — | — | — |
 | Phase 3 | — | — | — | — | — |
 
@@ -301,3 +301,4 @@
 - 2026-05-19 (M6 T28~T31 종합): KI-006 MEDIUM (Workspace 전환 abort 정책 미배선) + KI-007 MEDIUM (TabManager workspace_id stash/restore) + KI-008 LOW (Workspace JSON Export/Import) + KI-009 LOW (MemoryStatsPanel React unit 0) + KI-010 LOW (MemoryStats 인덱싱 broadcast 잔여 1종) + KI-011 LOW (MemoryStats < 20ms 미측정) 6건 등록. T28 + T29 evaluator + codex 병렬 평가에서 추출. Sprint 015 누적 5건 → 11건. MEDIUM 누적 4건 도달 (KI-001 + KI-004 + KI-006 + KI-007) — 5건 batch 임계 1건 부족. Sprint 016 M0 처리 권고.
 - 2026-05-19 (Sprint 015 잔여 hotfix — `docs/WI-S016M0-docs-sprint-015-residual-hotfix`): KI-012 LOW (인덱싱 < 500ms 미측정) + KI-013 LOW (검색 < 200ms 미측정) + KI-014 LOW (워크스페이스 전환 < 1초 미측정) + KI-015 LOW (임베딩 비용 < $3/월 미측정) + KI-016 LOW (저장 용량 < 200MB/만 페이지 미측정) + KI-017 LOW (tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 누락) 6건 등록. Sprint 015 M6 T31 종합 evaluator NB ("정량 임계 5종 KI 미등록") + 본 hotfix `v04-test-classification.md` §D PARTIAL 매트릭스 회귀 누락 검증에서 추출. Sprint 015 누적 11건 → **17건** (HIGH 1 / MEDIUM 4 / LOW 12). 정량 임계 5종은 Sprint 016 M0 perf bench 셋 신규로 일괄 측정 권고. KI-017 은 KI-007 (Sprint 016 T03) 동반 해소.
 - 2026-05-19 (PR #167 Sprint 016 contract 시안 → 정식 — `docs/WI-S016M0-docs-contract-formalize`): KI-018 LOW (top-10 hit rate ≥ 80% 정확도 미측정) + KI-019 LOW (AI 응답 출처 정확도 ≥ 90% 미측정) 2건 등록. codex BLOCKING #1+#2 — PRD §15.4 정량 임계 6종 중 #3 top-10 hit rate + #6 AI 출처 정확도 누락 발견. KI-013 본문 "top-5 retrieval" → "top-10 표시" PRD §9.7 b6.1 정합 정정 동반. Sprint 015 누적 17건 → **19건** (HIGH 1 / MEDIUM 4 / LOW 14). 본 2건은 Sprint 016 M0 T06 perf/회귀 infra (시나리오 30 케이스 chat_meta.cells.sources 산식 + 50 페어 자체 hit rate 셋) 일괄 측정.
+- 2026-05-19 (Sprint 016 M0 T03b PR #172 — KI-017 closed): `formatTabLabel` 시그니처 확장 `(t, workspaceContext?: WorkspaceLabelContext | null)` + 매칭 시 `${icon} ${base}` prefix + 미매칭/null/context 미주입 시 fallback. tabLabel.test.ts +2 회귀 (매칭 + 미매칭 매트릭스 3 case). UI wiring (TabBar 활성 ws 주입) 은 T03c 위임. Phase 1 해소 0 → **1** / 잔여 19 → **18** (HIGH 1 / MEDIUM 4 / LOW 13).
