@@ -9,8 +9,8 @@
 - **Sprint**: **015 M0~M6 완료 (12 단계 모두 머지)** — M0 사전 분석 + M1 PRD v0.4 본문 + M2 폐기·일반화 + M3 SQLite·임베딩 + M4 인덱싱·태깅·Privacy + M5 검색·채팅·노트 + M6 워크스페이스·메모리·종합 + **잔여 hotfix (정량 임계 5종 KI 등록 + PARTIAL 4파일 회귀 누락 contract 흡수 + Sprint 016 기간 통일 + PRD §0.6.1 시나리오 표기 정정)**
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.0 정식 발행** (19 섹션, 약 5,200+ lines, 2026-05-19 release tag) — §0.6.1 시나리오 2·3 표기 hotfix 정정 (90%+ → 0%)
-- **최근 갱신**: 2026-05-20 (이전 세션 T03 분할 옵션 A 3 PR (#171/#172/#173) + docs 2 PR (#174 + #175) + 직전 세션 Sprint 016 M0 T05 (#176) + T05 docs 후속 (#177) + mini-milestone α (#179) + 종료 핸드오프 (#180) 머지, #178 닫음 — **본 세션 mini-milestone β (PR #181 `da5041b` 머지) 완료** — **본 세션 evaluator + codex 병렬 평가 1회** (PR #181 사전, evaluator Pass 7/Partial 1/Fail 0 + codex BLOCKING 1 + NEEDS_CHANGES 3) + 본 PR 내 hotfix 4건 흡수 (codex #2/#3/#5/#7) / 단위 1101 → **1101** 동수 (인프라 PR) / KI 잔여 17 → **17** 동수 / **80 PR 누적** (#181 `da5041b`) / 가드레일 G-015 동수 / **자동 강제 path 활성** — `.claude/settings.json` SessionStart echo 1줄 → 4 hook (.mjs) + CI flowset-policy-check + PR template + `${CLAUDE_PROJECT_DIR}` 절대 경로. 본 PR 자기 검증 루프 첫 동작 — CI 4 job 모두 SUCCESS. 본 세션 종료 검증: lint + typecheck + test (1101 PASS / 67 files) PASS + CI 4 job SUCCESS.)
-- **다음 세션 진입점**: `.flowset/handoffs/2026-05-20.md` **§8 mini-milestone β 완료 + PR #181 머지 직후** — **권고 0순위 T06** (perf bench infra 8종, β 머지로 G-006 / 학습 #8 자동 강제 path 활성, 진입 차단 해소) / **1순위 T04** (KI-004 MEDIUM response_format) / **2순위 T02** (KI-006 MEDIUM Workspace abort) / **3순위 T01 잔여** (windows + macos-intel matrix + Electron ABI rebuild). 후속 manual: **branch protection required check 승격** — repo Settings → "Require status checks" 에 `FlowSet Policy Check / policy-check` 추가 (없으면 hook 우회 시 머지 차단 안 됨, codex review #7). KI-001 1차 PoC SUCCESS 박힘 (arm64 + Node ABI), 잔여 3 단계.
+- **최근 갱신**: 2026-05-20 (이전 세션 누적 + 본 세션 mini-milestone β (#181) + β docs (#182) + **T06 perf bench infra (#183 `3ee750d`)** 머지 — **본 세션 evaluator + codex 병렬 평가 5회 누적** (PR #176/#177/#179/#181/#183 사전) + PR 내 hotfix 6회 흡수 / 단위 1101 → **1125** (+24 — 비용 5 + 정확도 12 + perf baseline 7) / KI 잔여 17 → **17** 동수 (closed 후보 5종 KI-011/012/013/015/016 — Sprint 016 T25 종합 evaluator 시점 확정) / **82 PR 누적** (#181 `da5041b` β / #182 `501b00c` β docs / #183 `3ee750d` T06) / 가드레일 G-015 동수 / **자동 강제 path 활성** + **perf 8종 baseline 박힘**. 본 PR 자기 검증 루프 3회차 동작 — CI 4 job × 3 PR 모두 SUCCESS. 본 세션 종료 검증: lint + typecheck + test (1125 PASS / 70 files) PASS + 7/7 perf-baseline KI 임계 통과.)
+- **다음 세션 진입점**: `.flowset/handoffs/2026-05-20.md` **§9 T06 완료 + PR #183 머지 직후** — **권고 0순위 T04** (KI-004 MEDIUM response_format JSON API-level — T06 종료로 승격) / **1순위 T02** (KI-006 MEDIUM Workspace abort — T03c stash/restore wiring 결합, KI-014 재측정 의존) / **2순위 T01 잔여** (windows + macos-intel matrix + Electron ABI rebuild). 후속 manual: branch protection required check 승격 (codex review #7, 본 세션 미수행). KI-001 1차 PoC SUCCESS 박힘, 잔여 3 단계.
 
 ## 현재 작업
 
@@ -255,7 +255,7 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 
 ## 최근 핸드오프
 
-- **[2026-05-20](./handoffs/2026-05-20.md) — Sprint 016 M0 T05 + mini-milestone α (#179) + 종료 핸드오프 (#180) + mini-milestone β (#181) 모두 완료 — 자동 강제 path 활성, 본 PR 자기 검증 루프 첫 동작**
+- **[2026-05-20](./handoffs/2026-05-20.md) — Sprint 016 M0 T05 + mini-milestone α (#179) + β (#181) + β docs (#182) + T06 perf bench infra (#183) 모두 완료 — 8종 매트릭스 7/7 PASS, KI closed 후보 5종 식별, 자기 검증 루프 3회차 동작**
 - [2026-05-19](./handoffs/2026-05-19.md) — Sprint 015 M5 (§10) + M6 종합 (§11) 모두 완료 — Phase 1 종료 선언 + PRD v0.4.0 정식 발행 + Sprint 016 진입 권고
 - [2026-05-18](./handoffs/2026-05-18.md) — Sprint 015 M4 5/5 + 2 hotfix 완료
 - [2026-05-17](./handoffs/2026-05-17.md) — Sprint 015 M0~M1 완료
