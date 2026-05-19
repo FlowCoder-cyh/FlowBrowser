@@ -11,6 +11,7 @@ import SettingsPage from './settings/SettingsPage'
 import TranslationPopup from './translation/TranslationPopup'
 import ChatPanel from './chat/ChatPanel'
 import WorkspaceSidebar from './workspace/WorkspaceSidebar'
+import MemoryStatsPanel from './memory/MemoryStatsPanel'
 
 type Stage = 'loading' | 'consent' | 'browser' | 'settings'
 
@@ -67,6 +68,13 @@ export default function App(): JSX.Element {
       return
     }
     setStage('browser')
+    // T29 — 첫 부팅 시 활성 워크스페이스 id 초기화 (MemoryStatsPanel + ChatPanel workspaceId prop 정합)
+    try {
+      const current = await window.workspaceApi.getCurrent()
+      if (current) setActiveWorkspaceId(current.id)
+    } catch {
+      // 인프라 부재 — null 유지
+    }
     await maybeShowOnboarding()
   }
 
@@ -118,6 +126,7 @@ export default function App(): JSX.Element {
       <WorkspaceSidebar
         onActiveChanged={handleWorkspaceChanged}
         onModalToggle={handleWorkspaceModalToggle}
+        footer={<MemoryStatsPanel workspaceId={activeWorkspaceId} />}
       />
       <div className="app__main">
         <TabBar />

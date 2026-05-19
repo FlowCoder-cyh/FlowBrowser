@@ -1847,6 +1847,47 @@ body {
   padding: 4px 0;
 }
 
+.workspace-sidebar__footer {
+  border-top: 1px solid #2a2a2a;
+  padding: 10px 14px;
+  background: #131313;
+  flex-shrink: 0;
+}
+
+/* MemoryStatsPanel (T29) — 좌하단 통계 */
+.memory-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.memory-stats__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: #c0c0c0;
+}
+
+.memory-stats__row--small {
+  font-size: 11px;
+  color: #808080;
+}
+
+.memory-stats__row--muted {
+  color: #707070;
+  font-style: italic;
+  font-size: 11px;
+}
+
+.memory-stats__label {
+  color: #888;
+}
+
+.memory-stats__value {
+  font-variant-numeric: tabular-nums;
+}
+
 .workspace-item {
   display: flex;
   align-items: center;
