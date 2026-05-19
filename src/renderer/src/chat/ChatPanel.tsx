@@ -7,19 +7,24 @@
  *   - chat:list-history 로 현 워크스페이스 메시지 로드
  *   - 사용자 입력 → chat:request 호출 (loading 상태 / pending placeholder)
  *   - assistant 메시지 본문 + chat_meta 표 schema 렌더
- *   - 출처 [page-N] 클릭 → search:get-content (M5-4 활용)
+ *   - 출처 셀 클릭 → search:get-content (페이지 본문 캐시 fetch)
  *
  * UI 단순화 (M5-6 본 PR 범위):
  *   - Markdown 라이브러리 미도입 (white-space pre-wrap)
  *   - 워크스페이스 ID = default (M6 워크스페이스 사이드바 도입 시 변경)
  *   - 사용자 수준 선택 UI 는 M6 WorkspaceSettings (T27) — 본 PR 미구현
  *
- * TranslationPanel 폐기는 M5-8 — 본 PR 은 ChatPanel 신규 mount, TranslationPanel 공존.
+ * 본 PR 은 ChatPanel 신규 정의만 — App.tsx 마운트 0 (TranslationPanel 은 M2-6 시점 폐기 완료,
+ * 현재 panel mount 자체 부재). M5-8 어댑터 일괄 제거 PR 에서 panel 마운트 결합.
  */
 
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react'
 
-import { ChatMetaTable, isValidChatMetaTable } from './ChatMetaTable'
+import {
+  ChatMetaTable,
+  isValidChatMetaTable,
+  type ChatMetaSource
+} from './ChatMetaTable'
 
 interface ChatMessage {
   id: string
@@ -96,10 +101,22 @@ export default function ChatPanel(): JSX.Element {
     }
   }
 
-  async function handleSourceClick(source: string): Promise<void> {
-    // source = "page-1" / "note-2" 등 — PromptComposer 시스템 프롬프트 정합.
-    // M5-6 본 PR: 단순 alert (renderer console 로그). M5-7+ Page 본문 캐시 / Note 영속 복원 결합.
-    console.log('[ChatPanel] source clicked', source)
+  async function handleSourceClick(source: ChatMetaSource): Promise<void> {
+    // PRD §10.3.2 통일 sources 형식 — type:'page' 는 source.id = page_id, type:'note' 는 anchor page_id.
+    const targetPageId = source.type === 'page' ? source.id : source.page_id
+    if (!targetPageId) {
+      console.warn('[ChatPanel] source missing page anchor', source)
+      return
+    }
+    try {
+      const content = await window.searchApi.getContent({ pageId: targetPageId })
+      if (content) {
+        // 본문 캐시 fetch 성공 — UI 표시는 M5-7 (PreviewPane 또는 별도 본문 보기 패널) 결합 시점.
+        console.log('[ChatPanel] source content fetched', content.title, content.url)
+      }
+    } catch (err) {
+      console.warn('[ChatPanel] source fetch failed', err)
+    }
   }
 
   return (
@@ -145,7 +162,7 @@ export default function ChatPanel(): JSX.Element {
 
 interface ChatBubbleProps {
   message: ChatMessage
-  onSourceClick: (source: string) => void
+  onSourceClick: (source: ChatMetaSource) => void
 }
 
 function ChatBubble({ message, onSourceClick }: ChatBubbleProps): JSX.Element {

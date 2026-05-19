@@ -279,10 +279,23 @@ function registerChatIpc(): void {
       return handleChatRequest(args, {
         getActiveWorkspaceId: () => defaultWorkspaceId,
         getChatService: ({ allowedProviders }) => {
-          const provider = providers.get('openai')
-          if (!provider || !aiChatHistoryStore) return null
+          if (!aiChatHistoryStore) return null
+          // codex M5-6 PR #158 NEEDS_CHANGES N-001 정정 — provider 선택을 allowedProviders 기반으로.
+          // 기존: providers.get('openai') 하드코딩 → Codex-only 사용자 채팅 전면 불능.
+          // 정정: allowedProviders (호출자 명시) 또는 디폴트 ['openai'] 중 등록된 첫 provider 선택.
+          const candidates: ReadonlyArray<CredentialProviderType> =
+            (allowedProviders as ReadonlyArray<CredentialProviderType>) ?? ['openai']
+          let selected: ProviderAdapter | undefined
+          for (const t of candidates) {
+            const p = providers.get(t)
+            if (p) {
+              selected = p
+              break
+            }
+          }
+          if (!selected) return null
           return new ChatService({
-            provider,
+            provider: selected,
             historyStore: aiChatHistoryStore,
             allowedProviders: allowedProviders as
               | ReadonlyArray<'openai' | 'codex' | 'anthropic' | 'gemini' | 'local'>
