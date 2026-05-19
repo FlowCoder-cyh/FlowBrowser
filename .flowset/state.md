@@ -9,8 +9,8 @@
 - **Sprint**: **015 M0~M6 완료 (12 단계 모두 머지)** — M0 사전 분석 + M1 PRD v0.4 본문 + M2 폐기·일반화 + M3 SQLite·임베딩 + M4 인덱싱·태깅·Privacy + M5 검색·채팅·노트 + M6 워크스페이스·메모리·종합 + **잔여 hotfix (정량 임계 5종 KI 등록 + PARTIAL 4파일 회귀 누락 contract 흡수 + Sprint 016 기간 통일 + PRD §0.6.1 시나리오 표기 정정)**
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.0 정식 발행** (19 섹션, 약 5,200+ lines, 2026-05-19 release tag) — §0.6.1 시나리오 2·3 표기 hotfix 정정 (90%+ → 0%)
-- **최근 갱신**: 2026-05-19 (M6 T28~T31 4 PR + 3 hotfix + **잔여 hotfix PR #166 머지 (`f915296`)** + **contract 정식화 PR #167 (예정)** — evaluator + codex 병렬 평가 5회 모두 정합 / 단위 968 → **1068 (+100)** 실측 / KI 누적 5 → **19** (M6 T28~T31 6건 + 잔여 hotfix 6건 KI-012~017 + 본 PR #167 정식화 KI-018+019 정확도 임계 2종) / **66 PR 누적 (PR #166 머지 완료) + #167 머지 예정** / Sprint 016 contract **시안 → 정식** (기간 통일 + T02/T03 회귀 매트릭스 강화 + T06 perf/회귀 infra 8종 매트릭스 PRD §15.4 정합))
-- **다음 세션 진입점**: `.flowset/contracts/sprint-016.md` **정식 (PR #167 후 머지)** + Sprint 016 M0 첫 코드 작업 — **T01 KI-001 macOS sqlite-vec CI matrix** 또는 **T05 KI-010 IndexingService wiring** 또는 **T03 KI-007 TabManager workspace_id + KI-017 tabLabel** 선택. perf bench infra (T06) 는 M0 후반 묶음 처리 권고 (KI-011~016 6종 일괄).
+- **최근 갱신**: 2026-05-19 (M6 T28~T31 4 PR + 3 hotfix + **본 세션 5 PR (#166~#170) 모두 머지 완료** — **본 세션 evaluator + codex 병렬 평가 5회** (PR #166/#167/#168/#169/#170 각 1회, 본 세션 누적) + Sprint 015 M6 4회 = 누적 9회 모두 정합 / 단위 968 → **1068 (+100)** 실측 macOS arm64 환경 포함 / KI 누적 5 → **19** (M6 T28~T31 6건 + 잔여 hotfix 6건 KI-012~017 + 본 세션 contract 정식화 KI-018+019 정확도 임계 2종) / **70 PR 누적** (#166 `f915296` + #167 `e52e6d4` + #168 `cf5fe0d` + #169 `8eb5474` + #170 본 PR 머지 예정) / Sprint 016 contract **정식** + M0 T01 1차 PoC SUCCESS 박힘)
+- **다음 세션 진입점**: `.flowset/handoffs/2026-05-19.md` **§14 세션 종료 핸드오프** + Sprint 016 M0 다음 코드 작업 — **권고 1순위 T03** (KI-007 MEDIUM + KI-017 LOW 동시 closed + PARTIAL 4파일 매트릭스 흡수 / 3 PR 분할 권고) / **2순위 T05** (KI-010 + KI-001 Electron ABI 동반) / **3순위 T06** (perf bench infra 8종, T05 의존) / **4순위 T01 잔여** (windows + macos-intel matrix + required 승격). KI-001 1차 PoC SUCCESS 박힘 (arm64 + Node ABI), 잔여 3 단계.
 
 ## 현재 작업
 
