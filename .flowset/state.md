@@ -10,7 +10,7 @@
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.0 정식 발행** (19 섹션, 약 5,200+ lines, 2026-05-19 release tag) — §0.6.1 시나리오 2·3 표기 hotfix 정정 (90%+ → 0%)
 - **최근 갱신**: 2026-05-20 (이전 세션 T03 분할 옵션 A 3 PR (#171/#172/#173) + docs 2 PR (#174 + #175) + **본 세션 Sprint 016 M0 T05 (#176) 머지 완료 + 본 PR 내 hotfix 1회** — **본 세션 evaluator + codex 병렬 평가 1회** (PR #176 사전) / 단위 1089 → **1101 (+12)** — IndexingService.test.ts +7 workspaceId payload + indexingBroadcast.test.ts +5 broadcast wiring / KI 잔여 17 → **17** (KI-010 LOW closed -1 + **KI-020 LOW 신규** +1 동수, HIGH 1 / MEDIUM 3 / LOW 13) / **76 PR 누적** (#176 `cae365e`, KI-010 closed 산식 — PRD §07.4.2 broadcast 3종 인덱싱/노트/AI채팅 전부 cover))
-- **다음 세션 진입점**: `.flowset/handoffs/2026-05-20.md` **§1 본 세션 종료 핸드오프 (T05 PR #176)** + Sprint 016 M0 다음 코드 작업 — **권고 1순위 T06** (perf bench infra 8종, T05 의존 충족 — IndexingService wiring 완료) / **2순위 T04** (KI-004 MEDIUM response_format JSON API-level) / **3순위 T02** (KI-006 MEDIUM Workspace 전환 abort 정책) / **4순위 T01 잔여** (windows + macos-intel matrix + Electron ABI rebuild). KI-001 1차 PoC SUCCESS 박힘 (arm64 + Node ABI), 잔여 3 단계.
+- **다음 세션 진입점**: `.flowset/handoffs/2026-05-20.md` **§1 T05 종료 + mini-milestone α (PR #179 README/CLAUDE/USAGE/PRD 정합 + .codex-tmp 정리 + 학습 #5 정정) 머지 직후** — **권고 0순위 mini-milestone β** (hooks 강화 + CI flowset-policy-check + PR template — codex 옵션 D 분할, 자동 강제 부재 해소가 본 세션 G-006 위반 2회 / 학습 #8 위반 1회 재현 직접 원인) / **1순위 T06** (perf bench infra 8종) / **2순위 T04** (KI-004 MEDIUM response_format) / **3순위 T02** (KI-006 MEDIUM Workspace abort) / **4순위 T01 잔여** (windows + macos-intel matrix + Electron ABI rebuild). KI-001 1차 PoC SUCCESS 박힘 (arm64 + Node ABI), 잔여 3 단계.
 
 ## 현재 작업
 

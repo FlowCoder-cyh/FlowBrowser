@@ -108,8 +108,41 @@
 
 ---
 
+## Phase 1 / v0.4 재정의 이후 신규 (Sprint 015~)
+
+### G-012 [active] v0.4 방향 SSOT
+
+- **규칙**: `.flowset/specs/v04-direction.md` 가 v0.4 방향 단일 출처. requirements / state / handoff / PRD §0 / README 모두 본 파일을 인용·참조만. 역방향 (PRD 변경 후 v04-direction 미동기화) 금지.
+- **Why**: 방향 전환 (2026-05-16) 후 결정 38건 / 다층 갱신 14건 누적. SSOT 단일 출처가 없으면 폐기/유지/일반화 분류 흔들림.
+- **How to apply**: v0.4 결정 변경 시 v04-direction.md 우선 갱신 → PRD / requirements / README 동기화. M1 활성 (Sprint 015 진입 시점).
+- **출처**: Sprint 015 contract §5 신규 가드레일 선언
+
+### G-013 [active] 단계별 PR 전략
+
+- **규칙**: 모듈 리팩토링·일반화·폐기 시 (1) 신규 모듈 + 어댑터 신규 → (2) 신규 사용처 적용 → (3) 기존 호출지점 제거 순서 강제. 한 PR 내 신/구 동시 변경 금지.
+- **Why**: 단계별 회귀 회피 + 머지 후 즉시 롤백 가능. Sprint 015 M2 어댑터 일괄 제거 시 호출자 충돌 사례 학습.
+- **How to apply**: 신규 모듈 PR → 적용 PR → 폐기 PR 3편 분할. M2 활성 (Sprint 015).
+- **출처**: Sprint 015 contract §5 신규 가드레일 선언
+
+### G-014 [active] 데이터 마이그레이션 dry-run + 자동 백업
+
+- **규칙**: schema 변경 / JSON V1→V2 마이그레이션 시 (1) dry-run 옵션 우선 + (2) `<userDataDir>/backup/v03/<ISO_ts>/` 자동 백업 + (3) idempotent path 보장 강제.
+- **Why**: v0.3 → v0.4 마이그레이션 5단계 + Sprint 016 M0 T03a JSON V1→V2 백업 누락 codex BLOCKING 사례.
+- **How to apply**: 신규 마이그레이션 PR 마다 백업 path + 회귀 적용 검증. M3 활성 (Sprint 015) + T03a 시점 강화.
+- **출처**: Sprint 015 contract §5 신규 가드레일 선언 + M0 A3 정정
+
+### G-015 [active] Phase 2 cookies partition 격리
+
+- **규칙**: `session.fromPartition('persist:ws-<uuid>')` 로 워크스페이스 단위 cookies / localStorage / IndexedDB 격리 강제. 사용자 명시 동의 후 활성화.
+- **Why**: 워크스페이스 격리 (PRD §11) 의 핵심 — Phase 2 cookies partition 부재 시 동일 사이트가 모든 워크스페이스에서 동일 세션 공유 → 격리 실효 0.
+- **How to apply**: Sprint 016 M3 T14 WorkspacePartitionManager 신규 + T15/T16 cascade. 사용자 동의 UI 박힘 전까지 dry-run 만.
+- **출처**: Sprint 016 contract §5 신규 가드레일 선언
+
+---
+
 ## 변경 이력
 
 - 2026-05-11: G-001 ~ G-010 초기 등록 (PRD v0.2 + 사용자 글로벌 규칙 기반)
 - 2026-05-11: G-011 추가 (Phase 0 종합 보고 §8 권고 반영, Spike 1·2 회색지대 패턴 명문화)
 - 2026-05-16: G-009 강화 — 학습 30 추가 (Sprint milestone + Task 조합 시 T 번호 분절 금지, Sprint 015 T01 amend 사례 반영)
+- 2026-05-20: G-012 / G-013 / G-014 / G-015 정식 등록 (Sprint 015 / 016 contracts §5 선언 분리분 본체 흡수, mini-milestone α evaluator Partial NB-1 정합)
