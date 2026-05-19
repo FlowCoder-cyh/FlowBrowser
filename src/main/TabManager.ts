@@ -332,13 +332,20 @@ export class TabManager {
    * 단일 탭이면 같은 id 반환 (caller가 noop 판단).
    */
   cycleActiveTabId(direction: 'next' | 'prev'): string | null {
-    if (this.order.length === 0) return null
+    // Sprint 016 M0 T03c hotfix (codex BLOCKING #3) — activeWorkspaceFilter 설정 시 같은 ws 탭만 cycle.
+    // 다른 ws 탭으로 순환 시 격리 위반 + setActiveTabView 시 BrowserView 노출.
+    const filter = this.activeWorkspaceFilter
+    const pool =
+      filter !== null
+        ? this.order.filter((tid) => this.tabs.get(tid)?.workspace_id === filter)
+        : this.order
+    if (pool.length === 0) return null
     if (this.activeId === null) return null
-    const idx = this.order.indexOf(this.activeId)
+    const idx = pool.indexOf(this.activeId)
     if (idx < 0) return null
-    const len = this.order.length
+    const len = pool.length
     const nextIdx = direction === 'next' ? (idx + 1) % len : (idx - 1 + len) % len
-    return this.order[nextIdx]
+    return pool[nextIdx]
   }
 
   /**
@@ -349,11 +356,19 @@ export class TabManager {
    */
   closeOthers(keepId: string): { ok: boolean; closed: string[] } {
     if (!this.tabs.has(keepId)) return { ok: false, closed: [] }
+    // Sprint 016 M0 T03c hotfix (codex BLOCKING #1) — activeWorkspaceFilter 설정 시 같은 ws 탭만 대상.
+    // 다른 ws 탭은 보존 (격리 invariant — 사용자가 보이지 않는 탭을 닫지 못함).
+    const filter = this.activeWorkspaceFilter
     const closed: string[] = []
     for (const id of [...this.order]) {
       if (id === keepId) continue
       const s = this.tabs.get(id)
       if (s?.pinned) continue // Sprint 011 M3 핀 자동 보존
+      if (filter !== null && s?.workspace_id !== filter) continue // 다른 ws 보존
+      // stash map cleanup
+      for (const [ws, tid] of this.activeTabByWorkspace) {
+        if (tid === id) this.activeTabByWorkspace.delete(ws)
+      }
       this.tabs.delete(id)
       const idx = this.order.indexOf(id)
       if (idx >= 0) this.order.splice(idx, 1)
@@ -376,11 +391,22 @@ export class TabManager {
   closeRight(fromId: string): { ok: boolean; closed: string[] } {
     const fromIdx = this.order.indexOf(fromId)
     if (fromIdx < 0) return { ok: false, closed: [] }
+    // Sprint 016 M0 T03c hotfix (codex BLOCKING #2) — activeWorkspaceFilter 설정 시 같은 ws 탭만 대상.
+    const filter = this.activeWorkspaceFilter
     const rightSlice = this.order.slice(fromIdx + 1)
-    const toClose = rightSlice.filter((id) => !(this.tabs.get(id)?.pinned ?? false))
+    const toClose = rightSlice.filter((id) => {
+      const s = this.tabs.get(id)
+      if (!s) return false
+      if (s.pinned) return false
+      if (filter !== null && s.workspace_id !== filter) return false // 다른 ws 보존
+      return true
+    })
     if (toClose.length === 0) return { ok: true, closed: [] }
     const wasActiveClosed = this.activeId !== null && toClose.includes(this.activeId)
     for (const id of toClose) {
+      for (const [ws, tid] of this.activeTabByWorkspace) {
+        if (tid === id) this.activeTabByWorkspace.delete(ws)
+      }
       this.tabs.delete(id)
       const idx = this.order.indexOf(id)
       if (idx >= 0) this.order.splice(idx, 1)

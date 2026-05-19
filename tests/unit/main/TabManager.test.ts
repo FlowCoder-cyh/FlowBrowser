@@ -729,5 +729,51 @@ describe('TabManager', () => {
       // alpha 내 다음 visible 탭 = c (b 는 beta 격리)
       expect(tm.getActiveId()).toBe(c.id)
     })
+
+    // Sprint 016 M0 T03c hotfix (codex BLOCKING) — 격리 invariant 가드
+    it('closeOthers() — activeWorkspaceFilter 시 다른 ws 탭 보존 (격리 invariant)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com', { workspaceId: 'ws_alpha' })
+      const b = tm.open('b.com', { workspaceId: 'ws_beta' })
+      const c = tm.open('c.com', { workspaceId: 'ws_alpha' })
+      const d = tm.open('d.com', { workspaceId: 'ws_beta' })
+      tm.setActiveWorkspaceFilter('ws_alpha')
+      const result = tm.closeOthers(a.id)
+      expect(result.ok).toBe(true)
+      // ws_alpha 의 c 만 close 됨. ws_beta 의 b, d 는 보존.
+      expect(result.closed).toEqual([c.id])
+      expect(tm.listAll().map((t) => t.id).sort()).toEqual([a.id, b.id, d.id].sort())
+    })
+
+    it('closeRight() — activeWorkspaceFilter 시 다른 ws 탭 보존 (격리 invariant)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com', { workspaceId: 'ws_alpha' })
+      const b = tm.open('b.com', { workspaceId: 'ws_beta' })
+      const c = tm.open('c.com', { workspaceId: 'ws_alpha' })
+      const d = tm.open('d.com', { workspaceId: 'ws_beta' })
+      tm.setActiveWorkspaceFilter('ws_alpha')
+      const result = tm.closeRight(a.id)
+      expect(result.ok).toBe(true)
+      // a 오른쪽 = b, c, d 중 ws_alpha 만 (= c). b, d 는 다른 ws 라 보존.
+      expect(result.closed).toEqual([c.id])
+      expect(tm.listAll().map((t) => t.id).sort()).toEqual([a.id, b.id, d.id].sort())
+    })
+
+    it('cycleActiveTabId() — activeWorkspaceFilter 시 같은 ws 탭만 cycle (격리 invariant)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com', { workspaceId: 'ws_alpha' })
+      tm.open('b.com', { workspaceId: 'ws_beta' }) // 중간에 다른 ws 탭
+      const c = tm.open('c.com', { workspaceId: 'ws_alpha' })
+      tm.setActiveWorkspaceFilter('ws_alpha')
+      tm.switch(a.id)
+      // alpha 내에서 next = c (b 건너뜀)
+      expect(tm.cycleActiveTabId('next')).toBe(c.id)
+      // c 에서 next = a wrap
+      tm.switch(c.id)
+      expect(tm.cycleActiveTabId('next')).toBe(a.id)
+      // prev = c (wrap)
+      tm.switch(a.id)
+      expect(tm.cycleActiveTabId('prev')).toBe(c.id)
+    })
   })
 })

@@ -230,9 +230,10 @@ ipcMain.handle('tab:close', (_event, id: string): boolean => {
   const removed = tabManager.close(id)
   if (removed) destroyTabView(id)
   // Sprint 008 M3 — 마지막 탭 close 시 새 빈 탭 자동 open (일반 브라우저 UX).
+  // Sprint 016 M0 T03c hotfix (codex BLOCKING #4) — 자동 빈 탭에도 active ws 메타 주입.
   let active = tabManager.getActiveId()
   if (!active) {
-    const fresh = tabManager.open('about:blank')
+    const fresh = tabManager.open('about:blank', { workspaceId: getActiveWorkspaceId() })
     createTabView(fresh.id, fresh.url)
     active = fresh.id
   }
@@ -314,10 +315,11 @@ ipcMain.handle('tab:get-thumbnail', (_event, id: string): ThumbnailEntry | null 
 })
 
 // Sprint 013 M1 — 닫은 탭 복원. 비어 있으면 null.
+// Sprint 016 M0 T03c hotfix (codex BLOCKING #4) — 복원 탭에도 active ws 메타 주입.
 function reopenLastClosedTab(): TabSession | null {
   const entry = closedTabHistory.pop()
   if (!entry) return null
-  const session = tabManager.open(entry.url)
+  const session = tabManager.open(entry.url, { workspaceId: getActiveWorkspaceId() })
   if (entry.color) tabManager.setColor(session.id, entry.color)
   if (entry.pinned) tabManager.setPinned(session.id, true)
   createTabView(session.id, session.url)
@@ -352,7 +354,8 @@ ipcMain.handle(
             if (removed) destroyTabView(tabId)
             let active = tabManager.getActiveId()
             if (!active) {
-              const fresh = tabManager.open('about:blank')
+              // Sprint 016 M0 T03c hotfix — 자동 빈 탭에도 active ws 메타.
+              const fresh = tabManager.open('about:blank', { workspaceId: getActiveWorkspaceId() })
               createTabView(fresh.id, fresh.url)
               active = fresh.id
             }
@@ -886,7 +889,8 @@ function installApplicationMenu(): void {
           label: '새 탭',
           accelerator: 'CommandOrControl+T',
           click: () => {
-            const session = tabManager.open('about:blank')
+            // Sprint 016 M0 T03c hotfix — 메뉴 새 탭도 active ws 메타.
+            const session = tabManager.open('about:blank', { workspaceId: getActiveWorkspaceId() })
             createTabView(session.id, session.url)
             setActiveTabView(session.id)
           }
@@ -903,7 +907,8 @@ function installApplicationMenu(): void {
             if (removed) destroyTabView(activeId)
             let active = tabManager.getActiveId()
             if (!active) {
-              const fresh = tabManager.open('about:blank')
+              // Sprint 016 M0 T03c hotfix — 메뉴 탭 닫기 자동 빈 탭도 active ws 메타.
+              const fresh = tabManager.open('about:blank', { workspaceId: getActiveWorkspaceId() })
               createTabView(fresh.id, fresh.url)
               active = fresh.id
             }
