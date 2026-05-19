@@ -29,6 +29,26 @@ body {
   flex-direction: column;
 }
 
+/* Sprint 015 M5-8 — ChatPanel side panel (TranslationPanel 자리 결합).
+   main process panelOpen 시 WebContentsView setBounds 가 우측 PANEL_WIDTH (420px) 공간 확보. */
+.side-panel {
+  position: fixed;
+  top: 96px; /* TAB_BAR 36 + URL_BAR 60 */
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  background: #1a1a1a;
+  border-left: 1px solid #2a2a2a;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.side-panel--chat {
+  /* ChatPanel 내부 가 .chat-panel 클래스 height:100% 활용 */
+}
+
 .tab-bar {
   display: flex;
   align-items: stretch;

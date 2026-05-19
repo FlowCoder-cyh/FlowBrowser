@@ -135,8 +135,8 @@ export default function UrlBar({
           type="button"
           className={`nav-btn ${panelOpen ? 'active' : ''}`}
           onClick={onTogglePanel}
-          title="페이지 번역 패널"
-          aria-label="페이지 번역 패널"
+          title="AI 채팅 패널"
+          aria-label="AI 채팅 패널"
         >
           ☰
         </button>
