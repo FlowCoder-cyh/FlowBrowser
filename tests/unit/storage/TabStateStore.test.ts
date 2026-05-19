@@ -44,7 +44,8 @@ describe('TabStateStore', () => {
           createdAt: 1,
           lastActiveAt: 2,
           color: null,
-          pinned: false
+          pinned: false,
+          workspace_id: null
         },
         {
           id: 'tab_b',
@@ -53,7 +54,8 @@ describe('TabStateStore', () => {
           createdAt: 3,
           lastActiveAt: 4,
           color: null,
-          pinned: false
+          pinned: false,
+          workspace_id: null
         }
       ],
       activeId: 'tab_b'
@@ -133,7 +135,8 @@ describe('TabStateStore', () => {
             createdAt: 1,
             lastActiveAt: 2,
             color: 'red',
-            pinned: false
+            pinned: false,
+            workspace_id: null
           },
           {
             id: 'tab_b',
@@ -142,7 +145,8 @@ describe('TabStateStore', () => {
             createdAt: 3,
             lastActiveAt: 4,
             color: null,
-            pinned: false
+            pinned: false,
+            workspace_id: null
           }
         ],
         activeId: 'tab_a'
@@ -183,7 +187,8 @@ describe('TabStateStore', () => {
             createdAt: 1,
             lastActiveAt: 2,
             color: null,
-            pinned: true
+            pinned: true,
+            workspace_id: null
           },
           {
             id: 'tab_normal',
@@ -192,7 +197,8 @@ describe('TabStateStore', () => {
             createdAt: 3,
             lastActiveAt: 4,
             color: null,
-            pinned: false
+            pinned: false,
+            workspace_id: null
           }
         ],
         activeId: 'tab_normal'
@@ -219,6 +225,88 @@ describe('TabStateStore', () => {
     })
   })
 
+  // Sprint 016 M0 T03a (codex BLOCKING #1+#2) — V1 → V2 마이그레이션 + 백업 + camelCase legacy 호환
+  describe('workspace_id V1 → V2 마이그레이션 (Sprint 016 M0 T03a)', () => {
+    it('V1 파일 (policyVersion=1, workspace_id 누락) → load 시 workspace_id null + `.v1.bak` 백업 생성', async () => {
+      const v1Payload = {
+        policyVersion: 1,
+        tabs: [
+          { id: 'tab_legacy', url: 'legacy.com', title: 'Legacy', createdAt: 100, lastActiveAt: 200 }
+        ],
+        activeId: 'tab_legacy'
+      }
+      await fs.writeFile(path, JSON.stringify(v1Payload), 'utf-8')
+      const store = new TabStateStore(path)
+      const state = await store.load()
+      expect(state.policyVersion).toBe(TAB_STATE_POLICY_VERSION) // 2
+      expect(state.tabs.length).toBe(1)
+      expect(state.tabs[0].workspace_id).toBeNull()
+      expect(state.tabs[0].id).toBe('tab_legacy')
+      // 백업 파일 존재 (G-014)
+      const backupBuf = await fs.readFile(`${path}.v1.bak`, 'utf-8')
+      expect(JSON.parse(backupBuf)).toEqual(v1Payload)
+      // 청소
+      await fs.unlink(`${path}.v1.bak`).catch(() => {})
+    })
+
+    it('legacy `workspaceId` (camelCase, v03_to_v04 잔재) → load 시 workspace_id 로 정규화', async () => {
+      await fs.writeFile(
+        path,
+        JSON.stringify({
+          policyVersion: TAB_STATE_POLICY_VERSION,
+          tabs: [
+            {
+              id: 'tab_migrated',
+              url: 'm.com',
+              title: '',
+              createdAt: 1,
+              lastActiveAt: 2,
+              color: null,
+              pinned: false,
+              workspaceId: 'ws_from_migration'
+            }
+          ],
+          activeId: 'tab_migrated'
+        })
+      )
+      const store = new TabStateStore(path)
+      const state = await store.load()
+      expect(state.tabs[0].workspace_id).toBe('ws_from_migration')
+    })
+
+    it('V2 round-trip — workspace_id 영속 + 복원 정확성', async () => {
+      const store = new TabStateStore(path)
+      await store.save({
+        tabs: [
+          {
+            id: 'tab_alpha',
+            url: 'a.com',
+            title: '',
+            createdAt: 1,
+            lastActiveAt: 2,
+            color: null,
+            pinned: false,
+            workspace_id: 'ws_alpha'
+          },
+          {
+            id: 'tab_null',
+            url: 'b.com',
+            title: '',
+            createdAt: 3,
+            lastActiveAt: 4,
+            color: null,
+            pinned: false,
+            workspace_id: null
+          }
+        ],
+        activeId: 'tab_alpha'
+      })
+      const state = await store.load()
+      expect(state.tabs[0].workspace_id).toBe('ws_alpha')
+      expect(state.tabs[1].workspace_id).toBeNull()
+    })
+  })
+
   it('clear 후 load → 빈 상태', async () => {
     const store = new TabStateStore(path)
     await store.save({
@@ -230,7 +318,8 @@ describe('TabStateStore', () => {
           createdAt: 1,
           lastActiveAt: 2,
           color: null,
-          pinned: false
+          pinned: false,
+          workspace_id: null
         }
       ],
       activeId: 'tab_a'

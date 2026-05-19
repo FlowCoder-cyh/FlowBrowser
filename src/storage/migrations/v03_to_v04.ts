@@ -470,14 +470,21 @@ async function migrateTabState(
     await appendLog(logPath, ['[migrate] tabs.json: missing or empty'])
     return
   }
+  // Sprint 016 M0 T03a (codex BLOCKING #2) — 신규 TabStateStore schema 와 필드명 정합.
+  // 본 마이그레이션이 v0.3 → v0.4 진입 시 1회 실행. snake_case 영속이 신규 TabStateStore.load() 가 읽는 키.
   const nextTabs = data.tabs.map((t) => {
-    if ('workspaceId' in t && t.workspaceId) return t
+    if ('workspace_id' in t && t.workspace_id) return t
+    // legacy v0.4-pre 산출물 호환: 'workspaceId' camelCase 키만 박혀 있던 경우 정규화.
+    if ('workspaceId' in t && t.workspaceId) {
+      const { workspaceId: legacy, ...rest } = t as Record<string, unknown> & { workspaceId: unknown }
+      return { ...rest, workspace_id: legacy }
+    }
     counts.tabs_workspace_assigned += 1
-    return { ...t, workspaceId }
+    return { ...t, workspace_id: workspaceId }
   })
   await fs.writeFile(path, JSON.stringify({ ...data, tabs: nextTabs }, null, 0), 'utf-8')
   await appendLog(logPath, [
-    `[migrate] tabs: ${counts.tabs_workspace_assigned}/${data.tabs.length} assigned workspaceId`
+    `[migrate] tabs: ${counts.tabs_workspace_assigned}/${data.tabs.length} assigned workspace_id`
   ])
 }
 

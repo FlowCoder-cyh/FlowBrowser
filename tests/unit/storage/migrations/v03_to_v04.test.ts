@@ -226,14 +226,18 @@ describe('migrateV03ToV04 — 8 회귀 케이스', () => {
     expect(parsed.userLevelPreference).toBeNull()
   })
 
-  // 6. TabState 모든 탭 workspaceId 부여
-  it("case 6: TabState 모든 탭 workspaceId 부여 (기존 workspaceId 있으면 유지)", async () => {
+  // 6. TabState 모든 탭 workspace_id 부여 (Sprint 016 M0 T03a — snake_case 정합, legacy camelCase 호환)
+  it("case 6: TabState 모든 탭 workspace_id 부여 (legacy camelCase + snake_case 둘 다 보존)", async () => {
     const preexistingWs = 'preexisting-ws-id'
+    const preexistingWs2 = 'preexisting-ws-id-2'
     await writeJson(join(fx.userDataDir, 'tabs.json'), {
       tabs: [
         { id: 't1', url: 'https://x.test/a', title: 'A' },
         { id: 't2', url: 'https://x.test/b', title: 'B' },
-        { id: 't3', url: 'https://x.test/c', title: 'C', workspaceId: preexistingWs }
+        // legacy camelCase 잔재 (v0.4-pre 산출물)
+        { id: 't3', url: 'https://x.test/c', title: 'C', workspaceId: preexistingWs },
+        // snake_case 신규 schema 직접 박힌 경우
+        { id: 't4', url: 'https://x.test/d', title: 'D', workspace_id: preexistingWs2 }
       ],
       activeId: 't1'
     })
@@ -247,9 +251,13 @@ describe('migrateV03ToV04 — 8 회귀 케이스', () => {
     const parsed = JSON.parse(
       await fs.readFile(join(fx.userDataDir, 'tabs.json.deprecated'), 'utf-8')
     )
-    expect(parsed.tabs[0].workspaceId).toBe(fx.defaultWsId)
-    expect(parsed.tabs[1].workspaceId).toBe(fx.defaultWsId)
-    expect(parsed.tabs[2].workspaceId).toBe(preexistingWs) // 보존
+    // 신규 schema 는 snake_case workspace_id 키로 영속 (codex BLOCKING #2 해소)
+    expect(parsed.tabs[0].workspace_id).toBe(fx.defaultWsId)
+    expect(parsed.tabs[1].workspace_id).toBe(fx.defaultWsId)
+    expect(parsed.tabs[2].workspace_id).toBe(preexistingWs) // legacy camelCase 정규화 + 보존
+    expect(parsed.tabs[3].workspace_id).toBe(preexistingWs2) // snake_case 그대로 보존
+    // legacy camelCase 키는 제거됨 (정규화 후 잔재 없음)
+    expect('workspaceId' in parsed.tabs[2]).toBe(false)
   })
 
   // 7. Dry-run 오류 시 revert
