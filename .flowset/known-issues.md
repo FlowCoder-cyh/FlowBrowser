@@ -267,12 +267,12 @@
 - **Severity**: LOW
 - **Phase**: 1
 - **Sprint**: 015 (M6 T28 본 hotfix 시점 발견 — `v04-test-classification.md` §D PARTIAL 매트릭스 일정 "M6" 미이행)
-- **Component**: `tests/unit/renderer/tabLabel.test.ts` (현 5 케이스 → 약 7 목표) + `src/renderer/src/TabLabel.tsx` (워크스페이스 아이콘/이름 표시 props)
-- **영향**: PRD §11.2.1 워크스페이스 컨텍스트 (탭 라벨에 워크스페이스 아이콘·이름 표시) 시각 회귀 cover 부재. 시나리오 1·5 워크스페이스 격리 시각 검증 누락. KI-007 (TabManager workspace_id) 의존 — workspace_id prop 도입 후 +2 회귀.
-- **재현 절차**: Sprint 016 M0 T03 진행 시 TabManager workspace_id 도입 직후 TabLabel 컴포넌트가 active 워크스페이스 아이콘/이름 표시. 본 회귀 셋 부재로 시각 미검증.
-- **권고 해소 방향**: Sprint 016 T03 (KI-007 closed) 시점 동반 처리 — `tabLabel.test.ts`에 (1) workspace_id 매칭 시 아이콘+이름 표시 (2) workspace 미매칭 시 디폴트 라벨 fallback 2 케이스 추가.
+- **Component**: `tests/unit/renderer/tabLabel.test.ts` (현 5 케이스 → 7) + `src/renderer/src/translation/tabLabel.ts` (워크스페이스 아이콘 prefix props)
+- **영향**: PRD §11.2.1 워크스페이스 컨텍스트 (탭 라벨에 워크스페이스 아이콘 prefix 표시 — 이름은 `WorkspaceSidebar` 별도 표시) 시각 회귀 cover 부재. 시나리오 1·5 워크스페이스 격리 시각 검증 누락. KI-007 (TabManager workspace_id) 의존 — workspace_id prop 도입 후 +2 회귀.
+- **재현 절차**: Sprint 016 M0 T03 진행 시 TabManager workspace_id 도입 직후 탭 라벨이 활성 워크스페이스 아이콘 prefix 표시. 본 회귀 셋 부재로 시각 미검증.
+- **권고 해소 방향**: Sprint 016 T03 (KI-007 closed) 시점 동반 처리 — `tabLabel.test.ts`에 (1) workspace_id 매칭 시 **아이콘 prefix** 박힘 (2) workspace 미매칭/null/context 미주입 시 디폴트 라벨 fallback 2 케이스 추가. 라벨에 **이름은 박지 않음** (가독성 + 워크스페이스 사이드바 별도 표시로 중복 방지).
 - **처리 예정 Sprint**: 016 T03 (KI-007 동반)
-- **상태**: `closed` (Sprint 016 M0 T03b PR #172, 2026-05-19 — `formatTabLabel` 시그니처 확장 `(t, workspaceContext?)` + 매칭 시 아이콘 prefix + 미매칭 fallback 회귀 +2. UI wiring TabBar 활성 ws 주입은 T03c 위임.)
+- **상태**: `closed` (Sprint 016 M0 T03b PR #172, 2026-05-19 — `formatTabLabel(t, workspaceContext?: { id, icon })` 시그니처 확장. 매칭 시 **아이콘 prefix 만** 표시 (이름은 `WorkspaceSidebar` 에서 별도 표시 — 가시성 정책 정합, codex PR #172 NEEDS_CHANGES 해소). 미매칭 / null / context 미주입 시 fallback 회귀 +2 (it 블록 2 + expect 5). UI wiring (TabBar 활성 ws 주입) 은 T03c 위임.)
 
 ---
 

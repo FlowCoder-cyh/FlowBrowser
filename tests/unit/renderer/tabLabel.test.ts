@@ -28,18 +28,18 @@ describe('formatTabLabel (Sprint 013 M3)', () => {
 
   // Sprint 016 M0 T03b (KI-017) — 워크스페이스 컨텍스트
   describe('workspace context (Sprint 016 M0 T03b)', () => {
-    it('탭 workspace_id 가 활성 ws 와 매칭 시 아이콘 prefix + 이름 라벨 박힘', () => {
+    it('탭 workspace_id 가 활성 ws 와 매칭 시 아이콘 prefix 박힘 (이름은 사이드바 별도 표시)', () => {
       expect(
         formatTabLabel(
           { url: 'https://x.test/path', title: 'X', workspace_id: 'ws_alpha' },
-          { id: 'ws_alpha', icon: '📚', name: '학술' }
+          { id: 'ws_alpha', icon: '📚' }
         )
       ).toBe('📚 X')
       // base hostname 도 동일 prefix 패턴
       expect(
         formatTabLabel(
           { url: 'https://x.test/path', title: '', workspace_id: 'ws_alpha' },
-          { id: 'ws_alpha', icon: '💻', name: '개발' }
+          { id: 'ws_alpha', icon: '💻' }
         )
       ).toBe('💻 x.test')
     })
@@ -51,14 +51,14 @@ describe('formatTabLabel (Sprint 013 M3)', () => {
       expect(
         formatTabLabel(
           { url: 'https://x.test', title: 'X', workspace_id: null },
-          { id: 'ws_alpha', icon: '📚', name: '학술' }
+          { id: 'ws_alpha', icon: '📚' }
         )
       ).toBe('X')
       // 다른 ws 의 탭 — prefix 없음 (격리 표시 정합)
       expect(
         formatTabLabel(
           { url: 'https://x.test', title: 'X', workspace_id: 'ws_beta' },
-          { id: 'ws_alpha', icon: '📚', name: '학술' }
+          { id: 'ws_alpha', icon: '📚' }
         )
       ).toBe('X')
     })

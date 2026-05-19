@@ -21,11 +21,14 @@ export interface TabLabelInput {
  * Sprint 016 M0 T03b — 활성 워크스페이스 컨텍스트.
  * `id` 가 탭 workspace_id 와 매칭되면 라벨에 `icon` prefix 가 박힘.
  * null 또는 미매칭 시 라벨 변동 없음 (디폴트 fallback).
+ *
+ * 정책: 탭 라벨에는 **아이콘 prefix 만** 표시. 워크스페이스 이름은 사이드바 (`WorkspaceSidebar`) 에서
+ * 별도 표시 — 탭 라벨에 이름까지 박으면 가시성 저하 + 동일 ws 내 N개 탭 가독성 떨어짐.
+ * KI-017 closed 정합 (codex PR #172 NEEDS_CHANGES — 이름 필드 미사용 정리).
  */
 export interface WorkspaceLabelContext {
   id: string
   icon: string
-  name: string
 }
 
 export function formatTabLabel(
