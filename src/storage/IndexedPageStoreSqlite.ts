@@ -95,6 +95,7 @@ export class IndexedPageStoreSqlite {
   private readonly stmtDeleteAllPages: Stmt
   private readonly stmtUpdateVisitDwell: Stmt // M4-3 — DwellTracker.stop() → Visit.dwell_ms UPDATE
   private readonly stmtFindVisitById: Stmt<VisitRow>
+  private readonly stmtMaxVisitedAtByWs: Stmt<{ t: number | null }> // M6 T29 — 마지막 인덱싱 시간
   private readonly recordVisitTxn: (input: NormalizedRecordVisit) => RecordVisitResult
 
   constructor(fb: FlowbrowserDatabase, opts: IndexedPageStoreSqliteOptions) {
@@ -151,6 +152,9 @@ export class IndexedPageStoreSqlite {
     )
     this.stmtFindVisitById = this.db.prepare(
       'SELECT id, page_id, workspace_id, visited_at, dwell_ms FROM visits WHERE id = ?'
+    )
+    this.stmtMaxVisitedAtByWs = this.db.prepare(
+      'SELECT MAX(visited_at) AS t FROM visits WHERE workspace_id = ?'
     )
     // 단일 TX — PRD §05.4.1 정합. upsertPage + createVisit 원자 처리.
     this.recordVisitTxn = this.db.transaction(
@@ -230,6 +234,16 @@ export class IndexedPageStoreSqlite {
   getVisit(visitId: string): Visit | null {
     const row = this.stmtFindVisitById.get(visitId)
     return row ? rowToVisit(row) : null
+  }
+
+  /**
+   * Sprint 015 M6 T29 — 워크스페이스 내 visit 가장 최근 timestamp (epoch ms).
+   * visits 0건이면 null (MemoryStatsPanel 이 "—" 표시).
+   */
+  lastVisitedAt(workspace_id: string): number | null {
+    const wsId = this.mapWorkspace(workspace_id)
+    const row = this.stmtMaxVisitedAtByWs.get(wsId)
+    return row?.t ?? null
   }
 
   countPages(workspace_id?: string): number {

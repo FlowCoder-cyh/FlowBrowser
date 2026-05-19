@@ -102,6 +102,12 @@ import {
   type WorkspaceListResponse,
   type SerializedWorkspace
 } from './workspaceHandlers'
+import { MemoryService } from './MemoryService'
+import {
+  handleMemoryStats,
+  type MemoryStatsArgs,
+  type MemoryStatsResponse
+} from './memoryHandlers'
 
 import {
   OpenAIApiKeyProvider,
@@ -150,6 +156,7 @@ let embeddingQueue: EmbeddingQueue | null = null
 let searchService: SearchService | null = null
 let noteService: NoteService | null = null
 let workspaceService: WorkspaceService | null = null
+let memoryService: MemoryService | null = null
 // Sprint 015 M6 T28 — defaultWorkspaceId 는 fresh install 시 첫 워크스페이스 id (보통 "📥 기본").
 //                    activeWorkspaceId 는 사용자 전환 시점에 갱신 — `getActiveWorkspaceId` 로 통합 접근.
 let defaultWorkspaceId: string | null = null
@@ -241,8 +248,14 @@ export async function initServices(): Promise<void> {
         activeWorkspaceId: defaultWs.id
       } as never)
     }
+    // Sprint 015 M6 T29 — MemoryService.
+    memoryService = new MemoryService({
+      pageStore: indexedPageStore,
+      noteStore,
+      chatStore: aiChatHistoryStore
+    })
   } catch (err) {
-    // 인프라 미준비 — search / chat / note 호출 시 graceful error 반환.
+    // 인프라 미준비 — search / chat / note / memory 호출 시 graceful error 반환.
     flowbrowserDb = null
     vectorIndex = null
     indexedPageStore = null
@@ -252,6 +265,7 @@ export async function initServices(): Promise<void> {
     searchService = null
     noteService = null
     workspaceService = null
+    memoryService = null
     defaultWorkspaceId = null
     console.warn(
       '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 / 채팅 / 노트 / 워크스페이스 비활성:',
@@ -274,6 +288,24 @@ export async function initServices(): Promise<void> {
   registerChatIpc()
   registerNoteIpc()
   registerWorkspaceIpc()
+  registerMemoryIpc()
+}
+
+/**
+ * Sprint 015 M6 T29 — memory IPC.
+ * `memory:stats` — 워크스페이스 통계 (pages / visits / notes / chat messages / lastIndexedAt).
+ * 미명시 시 활성 워크스페이스 자동 활용.
+ */
+function registerMemoryIpc(): void {
+  ipcMain.handle(
+    'memory:stats',
+    (_event, args: MemoryStatsArgs = {}): MemoryStatsResponse => {
+      return handleMemoryStats(args, {
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
+        getMemoryService: () => memoryService
+      })
+    }
+  )
 }
 
 /**

@@ -11,7 +11,7 @@
  *   - 우클릭 메뉴 (rename / delete / export) — 본 PR 은 inline 버튼만
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { WORKSPACE_ICON_PRESETS, isValidUserEmoji } from './presets'
 
 type LevelPreference = 'novice' | 'intermediate' | 'advanced' | null
@@ -32,11 +32,16 @@ interface WorkspaceSidebarProps {
    * 부모(App.tsx)가 browser stage 인 동안 view 가시성 토글. 미주입 시 무조작 (테스트 / 비-browser stage).
    */
   onModalToggle?: (open: boolean) => void
+  /**
+   * T29 — 좌하단 슬롯 (MemoryStatsPanel 등). null 또는 미주입 시 footer 미렌더.
+   */
+  footer?: ReactNode
 }
 
 export default function WorkspaceSidebar({
   onActiveChanged,
-  onModalToggle
+  onModalToggle,
+  footer
 }: WorkspaceSidebarProps): JSX.Element {
   const [workspaces, setWorkspaces] = useState<SerializedWorkspace[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -158,6 +163,7 @@ export default function WorkspaceSidebar({
           })}
         </ul>
       )}
+      {footer && <div className="workspace-sidebar__footer">{footer}</div>}
       {createOpen && (
         <CreateWorkspaceModal
           onClose={() => setCreateOpen(false)}

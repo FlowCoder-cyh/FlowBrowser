@@ -547,11 +547,33 @@ const workspaceApi = {
     ipcRenderer.invoke('workspace:delete', { id })
 }
 
+// Sprint 015 M6 T29 — memory IPC (MemoryService).
+interface MemoryStatsPayload {
+  workspaceId: string
+  pagesCount: number
+  visitsCount: number
+  notesCount: number
+  chatMessagesCount: number
+  lastIndexedAt: number | null
+}
+
+interface MemoryStatsResponsePayload {
+  ok: boolean
+  stats?: MemoryStatsPayload
+  errorCode?: 'infra_unavailable' | 'no_active_workspace'
+}
+
+const memoryApi = {
+  stats: (args: { workspaceId?: string } = {}): Promise<MemoryStatsResponsePayload> =>
+    ipcRenderer.invoke('memory:stats', args)
+}
+
 contextBridge.exposeInMainWorld('searchApi', searchApi)
 contextBridge.exposeInMainWorld('chatApi', chatApi)
 contextBridge.exposeInMainWorld('noteApi', noteApi)
 contextBridge.exposeInMainWorld('shortcutApi', shortcutApi)
 contextBridge.exposeInMainWorld('workspaceApi', workspaceApi)
+contextBridge.exposeInMainWorld('memoryApi', memoryApi)
 contextBridge.exposeInMainWorld('codexApi', codexApi)
 contextBridge.exposeInMainWorld('browserApi', browserApi)
 contextBridge.exposeInMainWorld('tabApi', tabApi)
@@ -584,3 +606,4 @@ export type ChatApi = typeof chatApi
 export type NoteApi = typeof noteApi
 export type ShortcutApi = typeof shortcutApi
 export type WorkspaceApi = typeof workspaceApi
+export type MemoryApi = typeof memoryApi
