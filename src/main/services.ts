@@ -12,6 +12,7 @@ import {
   DomainFilter,
   DomainPolicyStore,
   TransmissionLogger,
+  IndexingGate,
   defaultDomainPolicyPath,
   defaultLogFilePath,
   evaluatePrivacy,
@@ -108,6 +109,13 @@ import {
   type MemoryStatsArgs,
   type MemoryStatsResponse
 } from './memoryHandlers'
+import {
+  IndexingService,
+  type IndexPageInput,
+  type IndexPageResult,
+  type IndexingStatusPayload
+} from './IndexingService'
+import { extractParagraphsScript } from '../perception/ParagraphExtractor'
 
 import {
   OpenAIApiKeyProvider,
@@ -157,6 +165,11 @@ let searchService: SearchService | null = null
 let noteService: NoteService | null = null
 let workspaceService: WorkspaceService | null = null
 let memoryService: MemoryService | null = null
+// Sprint 016 M0 T05 (KI-010) — IndexingGate + IndexingService wiring.
+// did-finish-load hook 호출 (main/index.ts) 시점에 indexingService.indexPage(...) 진입.
+// onStatusChange 콜백이 status='indexed' 인 경우 broadcastMemoryInvalidated(workspaceId) 호출.
+let indexingGate: IndexingGate | null = null
+let indexingService: IndexingService | null = null
 // Sprint 015 M6 T28 — defaultWorkspaceId 는 fresh install 시 첫 워크스페이스 id (보통 "📥 기본").
 //                    activeWorkspaceId 는 사용자 전환 시점에 갱신 — `getActiveWorkspaceId` 로 통합 접근.
 let defaultWorkspaceId: string | null = null
@@ -196,6 +209,71 @@ function broadcastMemoryInvalidated(workspaceId: string | null): void {
       win.webContents.send('memory:stats-invalidated', { workspaceId })
     }
   }
+}
+
+/**
+ * Sprint 016 M0 T05 (KI-010) — IndexingService onStatusChange → broadcast 결합 factory.
+ *
+ * 본 함수는 IndexingService 인스턴스화 시점 onStatusChange 콜백을 만들어 반환. 단위 테스트 측에서
+ * 임의의 broadcaster 를 주입해 status='indexed' 시 broadcaster 호출 정합 검증 가능 (codex T05 NEEDS_CHANGES #7 해소).
+ *
+ * 정책:
+ *   - status='indexed' 시 → broadcaster(payload.workspaceId ?? null) 호출
+ *   - status='blocked' 시 → no-op (payload.workspaceId 미정의 + Page/Visit 미생성 → broadcast 의미 없음)
+ *
+ * broadcaster 가 null workspaceId 에 대해 안전 (services 본체 `broadcastMemoryInvalidated` 는 null guard 보유).
+ */
+export function createIndexingBroadcastHandler(
+  broadcaster: (workspaceId: string | null) => void
+): (payload: IndexingStatusPayload) => void {
+  return (payload: IndexingStatusPayload): void => {
+    if (payload.result.status !== 'indexed') return
+    broadcaster(payload.workspaceId ?? null)
+  }
+}
+
+/**
+ * Sprint 016 M0 T05 (KI-010) — `did-finish-load` 시점 호출용 헬퍼.
+ *
+ * `main/index.ts` createTabView 의 `did-finish-load` 핸들러가 호출.
+ * IndexingService 미초기화 시 (인프라 bootstrap 실패 / 테스트) graceful null 반환 — 호출자 no-op.
+ *
+ * 호출자는 WebContents 에서 직접 (1) 패스워드 필드 감지 (`scanWebContentsFields`)
+ * + (2) 본문 추출 (`extractParagraphsScript` executeJavaScript) 결과를 수집 후
+ * 본 헬퍼에 넘긴다. IndexingGate 가 차단하면 status='blocked' — 본문/임베딩 미생성.
+ *
+ * `did-finish-load` 는 반복 fire 가능 (SPA navigate-in-page 또는 reload). IndexingService 가
+ * `IndexedPageStoreSqlite.recordVisit` 의 UPSERT + content_hash 매칭으로 중복 임베딩을 자체 차단.
+ */
+export async function tryIndexPage(input: IndexPageInput): Promise<IndexPageResult | null> {
+  if (!indexingService) return null
+  try {
+    return await indexingService.indexPage(input)
+  } catch (err) {
+    // 인덱싱 실패는 UX 영향 없음 — 다음 did-finish-load 시점에 재시도.
+    console.warn(
+      '[services] 인덱싱 실패 (graceful) — url=',
+      input.url,
+      err instanceof Error ? err.message : String(err)
+    )
+    return null
+  }
+}
+
+/**
+ * Sprint 016 M0 T05 (KI-010) — `did-finish-load` 호출자 위한 ParagraphExtractor script 헬퍼.
+ * `WebContents.executeJavaScript(getParagraphsExtractScript())` 결과로 본문을 합쳐 indexPage 본문 입력.
+ */
+export function getParagraphsExtractScript(): string {
+  return extractParagraphsScript()
+}
+
+/**
+ * Sprint 016 M0 T05 (KI-010) — 테스트용 IndexingService 접근자.
+ * 프로덕션 코드는 `tryIndexPage` 사용 권장 — graceful null 반환 보장.
+ */
+export function getIndexingServiceForTest(): IndexingService | null {
+  return indexingService
 }
 
 let consentStatePath!: string
@@ -281,8 +359,21 @@ export async function initServices(): Promise<void> {
       noteStore,
       chatStore: aiChatHistoryStore
     })
+    // Sprint 016 M0 T05 (KI-010) — IndexingGate + IndexingService wiring.
+    // IndexingGate 는 UserSetting.privacyExclusions 를 getter 로 매번 풀어옴 (사용자 갱신 즉시 반영).
+    // IndexingService onStatusChange 는 status='indexed' 시 broadcastMemoryInvalidated 호출 —
+    // MemoryStatsPanel 의 'memory:stats-invalidated' 구독이 활성 ws 와 일치하면 즉시 재로드.
+    indexingGate = new IndexingGate({
+      getUserExclusions: () => userSettingStore.getState().privacyExclusions
+    })
+    indexingService = new IndexingService({
+      gate: indexingGate,
+      pageStore: indexedPageStore,
+      embeddingQueue,
+      onStatusChange: createIndexingBroadcastHandler(broadcastMemoryInvalidated)
+    })
   } catch (err) {
-    // 인프라 미준비 — search / chat / note / memory 호출 시 graceful error 반환.
+    // 인프라 미준비 — search / chat / note / memory / indexing 호출 시 graceful error 반환.
     flowbrowserDb = null
     vectorIndex = null
     indexedPageStore = null
@@ -293,9 +384,11 @@ export async function initServices(): Promise<void> {
     noteService = null
     workspaceService = null
     memoryService = null
+    indexingGate = null
+    indexingService = null
     defaultWorkspaceId = null
     console.warn(
-      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 / 채팅 / 노트 / 워크스페이스 비활성:',
+      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 / 채팅 / 노트 / 워크스페이스 / 인덱싱 비활성:',
       err instanceof Error ? err.message : String(err)
     )
   }
