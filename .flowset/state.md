@@ -237,7 +237,7 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
   - M5-2 ✅ TimeRangeParser (PR #151 + 본 PR 내 hotfix, +37)
   - M5-3a ✅ SearchService core (PR #154 + hotfix, +47) — schema vec0 distance_metric=cosine 명시 (codex BLOCKING)
   - M5-3b ✅ search IPC wiring (PR #155, +18) — 첫 클린 머지 (BLOCKING 0)
-  - M5-4 ✅ SearchResultCard + 시간 시그널 + 매칭 발췌 (PR #156 + hotfix, +44) — unicode 길이 비보존 case-fold + 워크스페이스 컬러 후순위
+  - M5-4 ✅ SearchResultCard + 시간 시그널 + 매칭 발췌 (PR #156 + hotfix, +42) — unicode 길이 비보존 case-fold + 워크스페이스 컬러 후순위
   - M5-5 ✅ ChatService + PromptComposer + KI-003 BYOK wiring (PR #157 + hotfix, +28) — allowedProviders ['openai'] 디폴트
   - M5-6 ✅ ChatPanel + chat_meta 표 schema + chat IPC (PR #158 + hotfix, +27) — PRD §10.3.2 정합 schema 정정
   - M5-7 ✅ NoteService + note IPC (PR #159 + hotfix, +27) — selectedText guard + AutoTagger note FK 위반 차단 (KI-005 신규)
@@ -251,7 +251,7 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 
 ## 최근 핸드오프
 
-- **[2026-05-19](./handoffs/2026-05-19.md) — Sprint 015 M5-1 + M5-2 완료 + M5-3 진입 준비 (필독)**
+- **[2026-05-19](./handoffs/2026-05-19.md) — Sprint 015 M5 전체 8/8 PR 완료 + M6 진입 권고 (필독, §10 본 세션 종합)**
 - [2026-05-18](./handoffs/2026-05-18.md) — Sprint 015 M4 5/5 + 2 hotfix 완료
 - [2026-05-17](./handoffs/2026-05-17.md) — Sprint 015 M0~M1 완료
 - [2026-05-16](./handoffs/2026-05-16.md) — 🔴 방향 전환 결정
