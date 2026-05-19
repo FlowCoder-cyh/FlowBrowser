@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatTabLabel } from './translation/tabLabel'
+import { formatTabLabel, type WorkspaceLabelContext } from './translation/tabLabel'
 
 const HOVER_DELAY_MS = 600
 const PREVIEW_WIDTH = 320
@@ -37,6 +37,8 @@ interface TabSessionPayload {
   lastActiveAt: number
   color: TabColorPayload
   pinned: boolean
+  /** Sprint 016 M0 T03c — 워크스페이스 격리 메타. T03a TabSession schema 정합. */
+  workspace_id: string | null
 }
 
 const COLOR_HEX: Record<NonNullable<TabColorPayload>, string> = {
@@ -60,20 +62,44 @@ export default function TabBar(): JSX.Element {
   const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null)
   // Sprint 012 M2 — hover 미리보기
   const [preview, setPreview] = useState<PreviewState | null>(null)
+  // Sprint 016 M0 T03c (KI-007) — 활성 워크스페이스 컨텍스트 — formatTabLabel 아이콘 prefix 주입.
+  const [workspaceContext, setWorkspaceContext] = useState<WorkspaceLabelContext | null>(null)
   const hoverTimerRef = useRef<number | null>(null)
   const draggingRef = useRef<string | null>(null)
   draggingRef.current = draggingId
 
   useEffect(() => {
     void refresh()
+    void refreshWorkspaceContext()
     const off = window.tabApi.onListUpdate(setSnapshot)
+    // Sprint 016 M0 T03c — workspace:switched broadcast 구독 시 활성 ws 컨텍스트 재로드.
+    const offWs =
+      typeof window.workspaceApi?.onSwitched === 'function'
+        ? window.workspaceApi.onSwitched(() => {
+            void refreshWorkspaceContext()
+          })
+        : () => {}
     return () => {
       off()
+      offWs()
       if (hoverTimerRef.current !== null) {
         window.clearTimeout(hoverTimerRef.current)
       }
     }
   }, [])
+
+  async function refreshWorkspaceContext(): Promise<void> {
+    try {
+      const current = await window.workspaceApi?.getCurrent?.()
+      if (current) {
+        setWorkspaceContext({ id: current.id, icon: current.icon })
+      } else {
+        setWorkspaceContext(null)
+      }
+    } catch {
+      setWorkspaceContext(null)
+    }
+  }
 
   async function refresh(): Promise<void> {
     const snap = await window.tabApi.list()
@@ -209,7 +235,7 @@ export default function TabBar(): JSX.Element {
             onDragEnd={handleDragEnd}
           >
             {t.pinned && <span className="tab-pin-icon" aria-label="고정됨">📌</span>}
-            <span className="tab-label">{formatTabLabel(t)}</span>
+            <span className="tab-label">{formatTabLabel(t, workspaceContext)}</span>
             {!t.pinned && (
               <button
                 type="button"
@@ -247,7 +273,7 @@ export default function TabBar(): JSX.Element {
                   if (!t) return null
                   return (
                     <>
-                      <div className="tab-preview-title">{formatTabLabel(t)}</div>
+                      <div className="tab-preview-title">{formatTabLabel(t, workspaceContext)}</div>
                       <div className="tab-preview-url">{t.url}</div>
                     </>
                   )

@@ -664,4 +664,70 @@ describe('TabManager', () => {
       expect(tm.listByWorkspace('ws_alpha').map((t) => t.id).sort()).toEqual([a.id, dup!.id].sort())
     })
   })
+
+  // Sprint 016 M0 T03c (KI-007) — activeWorkspaceFilter + backfill + stash/restore
+  describe('activeWorkspaceFilter (Sprint 016 M0 T03c)', () => {
+    it('setActiveWorkspaceFilter — list() / snapshot() 가 해당 ws 탭만 반환', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com', { workspaceId: 'ws_alpha' })
+      const b = tm.open('b.com', { workspaceId: 'ws_beta' })
+      const c = tm.open('c.com', { workspaceId: 'ws_alpha' })
+      tm.setActiveWorkspaceFilter('ws_alpha')
+      expect(tm.list().map((t) => t.id)).toEqual([a.id, c.id])
+      expect(tm.snapshot().tabs.map((t) => t.id)).toEqual([a.id, c.id])
+      expect(tm.snapshot().activeId).toBe(c.id) // 마지막 visible 탭 (b 는 다른 ws)
+      // listAll / snapshotAll 은 필터 무시
+      expect(tm.listAll().map((t) => t.id)).toEqual([a.id, b.id, c.id])
+      expect(tm.snapshotAll().tabs.map((t) => t.id)).toEqual([a.id, b.id, c.id])
+    })
+
+    it('setActiveWorkspaceFilter — 다른 ws 로 전환 시 이전 activeId stash + 새 ws 첫 visible 탭 활성', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com', { workspaceId: 'ws_alpha' })
+      const b = tm.open('b.com', { workspaceId: 'ws_beta' })
+      const c = tm.open('c.com', { workspaceId: 'ws_alpha' })
+      // alpha 필터 진입 → 마지막 visible (c)
+      tm.setActiveWorkspaceFilter('ws_alpha')
+      tm.switch(a.id) // alpha 의 active 를 a 로 변경
+      // beta 필터 전환 → alpha activeId(a) stash + beta 의 첫 visible (b) 활성
+      tm.setActiveWorkspaceFilter('ws_beta')
+      expect(tm.getActiveId()).toBe(b.id)
+      // alpha 복귀 → stash 된 a 복원
+      tm.setActiveWorkspaceFilter('ws_alpha')
+      expect(tm.getActiveId()).toBe(a.id)
+      // 탭 c 는 그대로 존재 (영속 — listAll cover)
+      expect(tm.listAll().map((t) => t.id).sort()).toEqual([a.id, b.id, c.id].sort())
+    })
+
+    it('backfillUnassignedWorkspaceId — V1 마이그레이션 직후 null 탭만 active ws 로 박힘', () => {
+      const tm = new TabManager()
+      // restore 로 V1 호환 (workspace_id null) + 일부 박힌 상태 시뮬레이션
+      tm.restore({
+        tabs: [
+          { id: 'v1_a', url: 'a.com', title: 'A', createdAt: 1, lastActiveAt: 2, color: null, pinned: false, workspace_id: null },
+          { id: 'v1_b', url: 'b.com', title: 'B', createdAt: 3, lastActiveAt: 4, color: null, pinned: false, workspace_id: 'ws_beta' },
+          { id: 'v1_c', url: 'c.com', title: 'C', createdAt: 5, lastActiveAt: 6, color: null, pinned: false, workspace_id: null }
+        ],
+        activeId: 'v1_a'
+      })
+      const count = tm.backfillUnassignedWorkspaceId('ws_default')
+      expect(count).toBe(2) // null 탭 2개만 변경
+      const all = tm.listAll()
+      expect(all.find((t) => t.id === 'v1_a')?.workspace_id).toBe('ws_default')
+      expect(all.find((t) => t.id === 'v1_b')?.workspace_id).toBe('ws_beta') // 보존
+      expect(all.find((t) => t.id === 'v1_c')?.workspace_id).toBe('ws_default')
+    })
+
+    it('close() — activeWorkspaceFilter 적용 시 같은 ws 탭 중 가까운 위치로 자동 전환', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com', { workspaceId: 'ws_alpha' })
+      tm.open('b.com', { workspaceId: 'ws_beta' })
+      const c = tm.open('c.com', { workspaceId: 'ws_alpha' })
+      tm.setActiveWorkspaceFilter('ws_alpha')
+      tm.switch(a.id)
+      tm.close(a.id)
+      // alpha 내 다음 visible 탭 = c (b 는 beta 격리)
+      expect(tm.getActiveId()).toBe(c.id)
+    })
+  })
 })

@@ -52,6 +52,14 @@ export class TabManager {
   private order: string[] = []
   private activeId: string | null = null
   private subscribers: Set<TabsChangeHandler> = new Set()
+  /**
+   * Sprint 016 M0 T03c (KI-007) — 활성 워크스페이스 필터.
+   * null 이면 모든 탭 표시 (V1 호환 / fresh install). 값이 설정되면 list / snapshot 이 자동 필터.
+   * 워크스페이스 전환 시 `setActiveWorkspaceFilter` 호출 → broadcast 1회.
+   */
+  private activeWorkspaceFilter: string | null = null
+  /** Sprint 016 M0 T03c — workspace_id 별 마지막 활성 탭 id (stash 복원용). */
+  private activeTabByWorkspace: Map<string, string> = new Map()
 
   open(url: string = 'about:blank', opts: OpenTabOptions = {}): TabSession {
     const now = Date.now()
@@ -72,6 +80,68 @@ export class TabManager {
     this.activeId = id
     this.emit()
     return { ...session }
+  }
+
+  /**
+   * Sprint 016 M0 T03c (KI-007) — 활성 워크스페이스 필터 설정.
+   *
+   * 동작:
+   *  1. 이전 activeWorkspaceFilter (있다면) 의 activeId 를 `activeTabByWorkspace` 에 stash
+   *  2. 새 필터 적용 — list / snapshot 이 자동 필터됨
+   *  3. 새 ws 의 stash 된 active tab 이 있으면 복원, 없으면 첫 visible 탭, 빈 set 이면 null
+   *  4. 같은 값 no-op (true, emit skip)
+   *
+   * 호출자: `workspaceHandlers.handleWorkspaceSwitch` 후속 callback. fresh install / V1 호환 시 null 유지.
+   */
+  setActiveWorkspaceFilter(workspaceId: string | null): boolean {
+    if (this.activeWorkspaceFilter === workspaceId) return true
+    // 1. 기존 활성 ws 의 activeId 를 stash
+    if (this.activeWorkspaceFilter !== null && this.activeId !== null) {
+      this.activeTabByWorkspace.set(this.activeWorkspaceFilter, this.activeId)
+    }
+    this.activeWorkspaceFilter = workspaceId
+    // 2. 새 ws 의 stash 된 active 복원 또는 첫 visible 탭 / 없으면 null
+    if (workspaceId === null) {
+      // 전체 표시 모드 — activeId 변경하지 않음
+    } else {
+      const stashed = this.activeTabByWorkspace.get(workspaceId)
+      const visible = this.listByWorkspace(workspaceId)
+      if (stashed && visible.some((t) => t.id === stashed)) {
+        this.activeId = stashed
+      } else if (visible.length > 0) {
+        this.activeId = visible[visible.length - 1].id
+      } else {
+        this.activeId = null
+      }
+      if (this.activeId !== null) {
+        const s = this.tabs.get(this.activeId)
+        if (s) s.lastActiveAt = Date.now()
+      }
+    }
+    this.emit()
+    return true
+  }
+
+  getActiveWorkspaceFilter(): string | null {
+    return this.activeWorkspaceFilter
+  }
+
+  /**
+   * Sprint 016 M0 T03c (KI-007) — V1 마이그레이션 직후 backfill helper.
+   * workspace_id 가 null 인 모든 탭에 한 번에 디폴트 ws 박음. emit 1회 (or 0).
+   * 호출자: `main/index.ts` initializeTabs — TabStateStore.load 결과 V1 호환 fallback.
+   * 변경된 탭 수 반환.
+   */
+  backfillUnassignedWorkspaceId(workspaceId: string): number {
+    let count = 0
+    for (const s of this.tabs.values()) {
+      if (s.workspace_id === null) {
+        s.workspace_id = workspaceId
+        count++
+      }
+    }
+    if (count > 0) this.emit()
+    return count
   }
 
   /**
@@ -143,16 +213,31 @@ export class TabManager {
 
   close(id: string): boolean {
     if (!this.tabs.has(id)) return false
+    // Sprint 016 M0 T03c — stash map 에서 해당 탭 참조 정리.
+    for (const [ws, tabId] of this.activeTabByWorkspace) {
+      if (tabId === id) this.activeTabByWorkspace.delete(ws)
+    }
     this.tabs.delete(id)
     const idx = this.order.indexOf(id)
     if (idx >= 0) this.order.splice(idx, 1)
     if (this.activeId === id) {
       // 닫은 탭이 활성이었으면 가장 가까운 탭으로 전환 (이전 위치 우선, 없으면 새 마지막).
-      if (this.order.length === 0) {
+      // Sprint 016 M0 T03c — activeWorkspaceFilter 가 있으면 같은 ws 탭 중에서 우선 선택.
+      const candidatePool =
+        this.activeWorkspaceFilter !== null
+          ? this.order.filter((tid) => this.tabs.get(tid)?.workspace_id === this.activeWorkspaceFilter)
+          : this.order
+      if (candidatePool.length === 0) {
         this.activeId = null
       } else {
-        const nextIdx = Math.min(idx, this.order.length - 1)
-        this.activeId = this.order[Math.max(0, nextIdx)]
+        // 닫힌 탭의 order index 기준 가장 가까운 same-ws 탭 선택
+        const nextCandidateIdx = candidatePool.findIndex(
+          (tid) => this.order.indexOf(tid) >= idx
+        )
+        this.activeId =
+          nextCandidateIdx >= 0
+            ? candidatePool[nextCandidateIdx]
+            : candidatePool[candidatePool.length - 1]
         const s = this.tabs.get(this.activeId)
         if (s) s.lastActiveAt = Date.now()
       }
@@ -172,6 +257,18 @@ export class TabManager {
   }
 
   list(): TabSession[] {
+    // Sprint 016 M0 T03c — activeWorkspaceFilter 설정 시 해당 ws 탭만 반환 (격리 가시성).
+    if (this.activeWorkspaceFilter !== null) {
+      return this.listByWorkspace(this.activeWorkspaceFilter)
+    }
+    return this.order
+      .map((id) => this.tabs.get(id))
+      .filter((s): s is TabSession => s !== undefined)
+      .map((s) => ({ ...s }))
+  }
+
+  /** Sprint 016 M0 T03c — 필터 무시한 전체 탭 (영속 / 디버깅용). */
+  listAll(): TabSession[] {
     return this.order
       .map((id) => this.tabs.get(id))
       .filter((s): s is TabSession => s !== undefined)
@@ -222,6 +319,11 @@ export class TabManager {
 
   snapshot(): { tabs: TabSession[]; activeId: string | null } {
     return { tabs: this.list(), activeId: this.activeId }
+  }
+
+  /** Sprint 016 M0 T03c — 영속 / 종합 갱신용 — 필터 무시한 전체 탭 + activeId. */
+  snapshotAll(): { tabs: TabSession[]; activeId: string | null } {
+    return { tabs: this.listAll(), activeId: this.activeId }
   }
 
   /**

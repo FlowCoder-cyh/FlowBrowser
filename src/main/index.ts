@@ -9,7 +9,9 @@ import {
   scanWebContentsFields,
   loadTabState,
   saveTabState,
-  getShortcutBindings
+  getShortcutBindings,
+  getActiveWorkspaceId,
+  setWorkspaceSwitchHook
 } from './services'
 import { inputMatchesAccelerator } from './ShortcutMatcher'
 import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
@@ -57,7 +59,9 @@ let saveTimer: NodeJS.Timeout | null = null
 function scheduleTabStateSave(): void {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
-    const snap = tabManager.snapshot()
+    // Sprint 016 M0 T03c (KI-007) — 영속은 모든 워크스페이스 탭 전체 (필터 무시).
+    // 그렇지 않으면 ws 전환 후 다른 ws 의 탭이 saveTabState 시점에 날아감.
+    const snap = tabManager.snapshotAll()
     void saveTabState({
       tabs: snap.tabs,
       activeId: snap.activeId
@@ -69,13 +73,19 @@ function scheduleTabStateSave(): void {
 }
 
 async function initializeTabs(): Promise<void> {
+  // Sprint 016 M0 T03c (KI-007) — initServices 후 호출되므로 활성 워크스페이스 id 사용 가능.
+  const activeWsId = getActiveWorkspaceId()
   try {
     const persisted = await loadTabState()
     if (persisted.tabs.length > 0) {
       tabManager.restore({ tabs: persisted.tabs, activeId: persisted.activeId })
+      // V1 마이그레이션 직후 workspace_id null 인 탭들을 active ws 로 backfill.
+      if (activeWsId) tabManager.backfillUnassignedWorkspaceId(activeWsId)
       for (const t of persisted.tabs) {
         createTabView(t.id, t.url)
       }
+      // 활성 ws 필터 적용 (시각 격리).
+      if (activeWsId) tabManager.setActiveWorkspaceFilter(activeWsId)
       const active = tabManager.getActiveId()
       if (active) setActiveTabView(active)
       return
@@ -83,9 +93,10 @@ async function initializeTabs(): Promise<void> {
   } catch {
     // ignore - fallthrough
   }
-  // 복원 실패 또는 빈 상태 → 첫 탭 신규 생성
-  const firstTab = tabManager.open('about:blank')
+  // 복원 실패 또는 빈 상태 → 첫 탭 신규 생성 (활성 ws 메타 박힘).
+  const firstTab = tabManager.open('about:blank', { workspaceId: activeWsId })
   createTabView(firstTab.id, firstTab.url)
+  if (activeWsId) tabManager.setActiveWorkspaceFilter(activeWsId)
   setActiveTabView(firstTab.id)
 }
 
@@ -137,6 +148,21 @@ async function createMainWindow(): Promise<void> {
     scheduleTabStateSave()
   })
 
+  // Sprint 016 M0 T03c (KI-007) — 워크스페이스 전환 직후 후속 wiring 등록.
+  // workspaceHandlers.handleWorkspaceSwitch 성공 시 services.ts 가 본 hook 호출 → TabManager
+  // 필터 + active BrowserView refresh + workspace:switched broadcast.
+  setWorkspaceSwitchHook((workspaceId) => {
+    tabManager.setActiveWorkspaceFilter(workspaceId)
+    // setActiveWorkspaceFilter 가 emit 1회 → subscribe 콜백이 tab:list-update broadcast.
+    // activeId 가 갱신됐다면 setActiveTabView refresh.
+    const active = tabManager.getActiveId()
+    if (active) setActiveTabView(active)
+    // renderer 측에 워크스페이스 전환 신호 (TabBar / WorkspaceSidebar 가 활성 ws state 갱신).
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('workspace:switched', { workspaceId })
+    }
+  })
+
   // Sprint 009 M3 — TabStateStore에서 복원 시도, 없으면 첫 탭 자동 생성.
   await initializeTabs()
 
@@ -147,7 +173,8 @@ async function createMainWindow(): Promise<void> {
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    const snap = tabManager.snapshot()
+    // Sprint 016 M0 T03c (KI-007) — 모든 ws 탭 영속 (필터 무시).
+    const snap = tabManager.snapshotAll()
     void saveTabState({ tabs: snap.tabs, activeId: snap.activeId }).catch(() => {
       // ignore — 종료 중 IO 오류
     })
@@ -175,7 +202,9 @@ async function createMainWindow(): Promise<void> {
 ipcMain.handle('tab:list', () => tabManager.snapshot())
 
 ipcMain.handle('tab:open', (_event, url?: string): TabSession => {
-  const session = tabManager.open(url ?? 'about:blank')
+  // Sprint 016 M0 T03c (KI-007) — 신규 탭은 활성 워크스페이스 메타 자동 박힘 (격리 invariant).
+  const wsId = getActiveWorkspaceId()
+  const session = tabManager.open(url ?? 'about:blank', { workspaceId: wsId })
   createTabView(session.id, session.url)
   setActiveTabView(session.id)
   return session

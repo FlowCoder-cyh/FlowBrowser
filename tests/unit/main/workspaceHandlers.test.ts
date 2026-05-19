@@ -136,6 +136,44 @@ describe('workspaceHandlers', () => {
     expect(res.errorCode).toBe('invalid_input')
   })
 
+  // Sprint 016 M0 T03c (KI-007) — 워크스페이스 전환 후 후속 wiring callback
+  it('switch invokes onWorkspaceSwitched callback after setActive (KI-007 stash/restore wiring)', async () => {
+    const ws = await h.svc.create({ name: 'A', icon: '📚' })
+    const calls: string[] = []
+    const res = await handleWorkspaceSwitch(
+      { id: ws.id },
+      { getService: () => h.svc, onWorkspaceSwitched: (wid) => calls.push(wid) }
+    )
+    expect(res.ok).toBe(true)
+    expect(calls).toEqual([ws.id])
+  })
+
+  it('switch swallows onWorkspaceSwitched throw (UX 차단 안 함)', async () => {
+    const ws = await h.svc.create({ name: 'A', icon: '📚' })
+    const res = await handleWorkspaceSwitch(
+      { id: ws.id },
+      {
+        getService: () => h.svc,
+        onWorkspaceSwitched: () => {
+          throw new Error('callback boom')
+        }
+      }
+    )
+    expect(res.ok).toBe(true)
+    expect(res.active?.id).toBe(ws.id)
+  })
+
+  it('switch failure path does not invoke onWorkspaceSwitched (not_found)', async () => {
+    const calls: string[] = []
+    const res = await handleWorkspaceSwitch(
+      { id: 'missing' },
+      { getService: () => h.svc, onWorkspaceSwitched: (wid) => calls.push(wid) }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('not_found')
+    expect(calls).toEqual([])
+  })
+
   it('update patches name + returns ok', async () => {
     const ws = await h.svc.create({ name: 'A', icon: '📚' })
     const res = await handleWorkspaceUpdate(
