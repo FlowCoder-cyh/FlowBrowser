@@ -73,6 +73,12 @@ export interface WorkspaceDeleteResponse {
 
 export interface WorkspaceHandlerDeps {
   getService: () => WorkspaceService | null
+  /**
+   * Sprint 016 M0 T03c (KI-007) — 워크스페이스 전환 성공 직후 후속 wiring 호출.
+   * TabManager.setActiveWorkspaceFilter + 활성 BrowserView 갱신 등.
+   * 미주입 시 (테스트) no-op.
+   */
+  onWorkspaceSwitched?: (workspaceId: string) => void
 }
 
 export function serializeWorkspace(row: WorkspaceRow): SerializedWorkspace {
@@ -156,6 +162,18 @@ export async function handleWorkspaceSwitch(
   }
   try {
     const row = await svc.setActive(args.id)
+    // Sprint 016 M0 T03c (KI-007) — 후속 wiring callback (TabManager 필터 + BrowserView refresh).
+    // callback 자체 throw 는 swallow (UX 차단 안 함, console.warn).
+    if (deps.onWorkspaceSwitched) {
+      try {
+        deps.onWorkspaceSwitched(row.id)
+      } catch (cbErr) {
+        console.warn(
+          '[workspace:switch] onWorkspaceSwitched callback 실패:',
+          cbErr instanceof Error ? cbErr.message : String(cbErr)
+        )
+      }
+    }
     return { ok: true, active: serializeWorkspace(row) }
   } catch (err) {
     if (err instanceof WorkspaceValidationError) {

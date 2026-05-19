@@ -22,6 +22,8 @@ interface TabSessionPayload {
   lastActiveAt: number
   color: TabColorPayload
   pinned: boolean
+  /** Sprint 016 M0 T03c — 워크스페이스 격리 메타. T03a TabSession schema 정합 (null = backfill 전). */
+  workspace_id: string | null
 }
 
 interface TabListSnapshot {
@@ -528,6 +530,10 @@ interface WorkspaceDeleteResponsePayload {
   errorCode?: 'infra_unavailable' | 'invalid_input' | 'not_found'
 }
 
+interface WorkspaceSwitchedPayload {
+  workspaceId: string
+}
+
 const workspaceApi = {
   list: (): Promise<WorkspaceListResponsePayload> => ipcRenderer.invoke('workspace:list'),
   getCurrent: (): Promise<SerializedWorkspacePayload | null> =>
@@ -544,7 +550,16 @@ const workspaceApi = {
   switch: (id: string): Promise<WorkspaceSwitchResponsePayload> =>
     ipcRenderer.invoke('workspace:switch', { id }),
   delete: (id: string): Promise<WorkspaceDeleteResponsePayload> =>
-    ipcRenderer.invoke('workspace:delete', { id })
+    ipcRenderer.invoke('workspace:delete', { id }),
+  /**
+   * Sprint 016 M0 T03c (KI-007) — 워크스페이스 전환 broadcast 구독.
+   * main 측 workspaceSwitchHook 가 fire — TabBar / WorkspaceSidebar 가 활성 ws state 재로드.
+   */
+  onSwitched: (handler: (payload: WorkspaceSwitchedPayload) => void): (() => void) => {
+    const listener = (_e: unknown, payload: WorkspaceSwitchedPayload): void => handler(payload)
+    ipcRenderer.on('workspace:switched', listener)
+    return () => ipcRenderer.removeListener('workspace:switched', listener)
+  }
 }
 
 // Sprint 015 M6 T29 — memory IPC (MemoryService).

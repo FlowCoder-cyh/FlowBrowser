@@ -165,10 +165,22 @@ const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 /**
  * Sprint 015 M6 T28 — 활성 워크스페이스 id 통합 getter.
  * WorkspaceService 미초기화 시 fresh install 디폴트 id (또는 null) fallback.
+ * Sprint 016 M0 T03c (KI-007) — main/index.ts tab IPC handler 도 호출하기 위해 export.
  */
-function getActiveWorkspaceId(): string | null {
+export function getActiveWorkspaceId(): string | null {
   if (workspaceService) return workspaceService.getActiveId()
   return defaultWorkspaceId
+}
+
+/**
+ * Sprint 016 M0 T03c (KI-007) — main/index.ts 가 워크스페이스 전환 직후 hook 등록.
+ * TabManager.setActiveWorkspaceFilter + 활성 BrowserView refresh 책임.
+ * 미등록 시 (테스트 / fresh install) no-op.
+ */
+let workspaceSwitchHook: ((workspaceId: string) => void) | null = null
+
+export function setWorkspaceSwitchHook(hook: ((workspaceId: string) => void) | null): void {
+  workspaceSwitchHook = hook
 }
 
 /**
@@ -359,7 +371,13 @@ function registerWorkspaceIpc(): void {
   ipcMain.handle(
     'workspace:switch',
     async (_event, args: WorkspaceSwitchArgs): Promise<WorkspaceSwitchResponse> => {
-      return handleWorkspaceSwitch(args, { getService: () => workspaceService })
+      return handleWorkspaceSwitch(args, {
+        getService: () => workspaceService,
+        // Sprint 016 M0 T03c (KI-007) — main/index.ts 가 등록한 후속 wiring callback (TabManager 필터 + BrowserView refresh).
+        onWorkspaceSwitched: (ws) => {
+          if (workspaceSwitchHook) workspaceSwitchHook(ws)
+        }
+      })
     }
   )
   ipcMain.handle(

@@ -104,7 +104,7 @@
 - **처리 예정 Sprint**: 016 (M0 또는 M1)
 - **상태**: `open`
 
-### KI-007 [open] TabManager workspace_id 메타 + 탭 그룹 stash/restore 미구현
+### KI-007 [closed] TabManager workspace_id 메타 + 탭 그룹 stash/restore 미구현
 
 - **Severity**: MEDIUM
 - **Phase**: 1
@@ -114,7 +114,7 @@
 - **재현 절차**: ws A 에서 GitHub 탭 5개 → ws B 전환 → 여전히 GitHub 탭 5개 그대로
 - **권고 해소 방향**: TabState schema 확장 (`workspace_id` NOT NULL) + TabManager filter by activeWorkspaceId + setActiveTabView 시 stash/restore. Phase 2 cookies partition (WorkspacePartitionManager) 와 동반 처리.
 - **처리 예정 Sprint**: 016 (Phase 2 cookies partition 동반)
-- **상태**: `open`
+- **상태**: `closed` (Sprint 016 M0 T03 분할 옵션 A 3편 — T03a PR #171 schema + V1→V2 마이그레이션 / T03b PR #172 TabLabel workspaceContext props / T03c PR #173 `TabManager.setActiveWorkspaceFilter` + `activeTabByWorkspace` stash map + `backfillUnassignedWorkspaceId` + `workspaceHandlers.handleWorkspaceSwitch` `onWorkspaceSwitched` callback path + `services.setWorkspaceSwitchHook` + `tab:open` 시 active ws 자동 박힘 + `initializeTabs` backfill + TabBar workspace context 주입 + `workspaceApi.onSwitched` broadcast. PR #173 회귀 +7 (TabManager activeWorkspaceFilter describe 4 case / workspaceHandlers onWorkspaceSwitched 3 case). nullable workspace_id 유지 (V1 호환 + fresh install 안전 fallback) — KI-007 본문 "NOT NULL" 권고는 main process backfill + IndexingService partition 검증으로 실효 충족.)
 
 ### KI-008 [open] Workspace JSON Export/Import 미구현
 
@@ -280,7 +280,7 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 14 | 1 | 18 |
+| Phase 1 | 1 | 4 | 14 | 2 | 17 |
 | Phase 2 | — | — | — | — | — |
 | Phase 3 | — | — | — | — | — |
 
@@ -302,3 +302,4 @@
 - 2026-05-19 (Sprint 015 잔여 hotfix — `docs/WI-S016M0-docs-sprint-015-residual-hotfix`): KI-012 LOW (인덱싱 < 500ms 미측정) + KI-013 LOW (검색 < 200ms 미측정) + KI-014 LOW (워크스페이스 전환 < 1초 미측정) + KI-015 LOW (임베딩 비용 < $3/월 미측정) + KI-016 LOW (저장 용량 < 200MB/만 페이지 미측정) + KI-017 LOW (tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 누락) 6건 등록. Sprint 015 M6 T31 종합 evaluator NB ("정량 임계 5종 KI 미등록") + 본 hotfix `v04-test-classification.md` §D PARTIAL 매트릭스 회귀 누락 검증에서 추출. Sprint 015 누적 11건 → **17건** (HIGH 1 / MEDIUM 4 / LOW 12). 정량 임계 5종은 Sprint 016 M0 perf bench 셋 신규로 일괄 측정 권고. KI-017 은 KI-007 (Sprint 016 T03) 동반 해소.
 - 2026-05-19 (PR #167 Sprint 016 contract 시안 → 정식 — `docs/WI-S016M0-docs-contract-formalize`): KI-018 LOW (top-10 hit rate ≥ 80% 정확도 미측정) + KI-019 LOW (AI 응답 출처 정확도 ≥ 90% 미측정) 2건 등록. codex BLOCKING #1+#2 — PRD §15.4 정량 임계 6종 중 #3 top-10 hit rate + #6 AI 출처 정확도 누락 발견. KI-013 본문 "top-5 retrieval" → "top-10 표시" PRD §9.7 b6.1 정합 정정 동반. Sprint 015 누적 17건 → **19건** (HIGH 1 / MEDIUM 4 / LOW 14). 본 2건은 Sprint 016 M0 T06 perf/회귀 infra (시나리오 30 케이스 chat_meta.cells.sources 산식 + 50 페어 자체 hit rate 셋) 일괄 측정.
 - 2026-05-19 (Sprint 016 M0 T03b PR #172 — KI-017 closed): `formatTabLabel` 시그니처 확장 `(t, workspaceContext?: WorkspaceLabelContext | null)` + 매칭 시 `${icon} ${base}` prefix + 미매칭/null/context 미주입 시 fallback. tabLabel.test.ts +2 회귀 (매칭 + 미매칭 매트릭스 3 case). UI wiring (TabBar 활성 ws 주입) 은 T03c 위임. Phase 1 해소 0 → **1** / 잔여 19 → **18** (HIGH 1 / MEDIUM 4 / LOW 13).
+- 2026-05-19 (Sprint 016 M0 T03c PR #173 — KI-007 closed): `TabManager.setActiveWorkspaceFilter` + `activeTabByWorkspace` stash map + `backfillUnassignedWorkspaceId` + `listAll` / `snapshotAll` + `handleWorkspaceSwitch` `onWorkspaceSwitched` callback path + `services.setWorkspaceSwitchHook` + `tab:open` 시 active ws 자동 박힘 + `initializeTabs` backfill + TabBar workspace context 주입 + `workspaceApi.onSwitched` broadcast. 회귀 +7 (TabManager 4 + workspaceHandlers 3). Phase 1 해소 1 → **2** / 잔여 18 → **17** (HIGH 1 / MEDIUM 3 / LOW 13). KI-007 분할 옵션 A 3편 (T03a #171 + T03b #172 + T03c #173) 모두 머지 후 closed.
