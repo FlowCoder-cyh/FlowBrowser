@@ -134,10 +134,11 @@ http/https 외 scheme (file:/blob:/javascript:/data:/chrome-error:/about:) 일�
 
 ### 워크스페이스 종류
 
-신규 생성 시 12종 preset 제공:
-- 📥 기본 / 🎓 학술 / 💼 PM / 📚 학습 / 🔍 리서치 / 🎯 프로젝트 / 📰 뉴스 / 💡 아이디어 / 🛠️ 도구 / 🎨 디자인 / 📊 데이터 / 🌐 일반
-
-(아이콘 + 이름은 사용자가 자유 변경 가능)
+- **기본 워크스페이스**: fresh install 시 자동 생성 (default workspace, 이름·아이콘 사용자 변경 가능)
+- **신규 생성 시 12종 아이콘 preset** (`src/renderer/src/workspace/presets.ts`):
+  📚 / 💻 / 🎯 / 🏠 / 🔬 / ✍️ / 🎨 / 📊 / 🌍 / ⚖️ / 💡 / 🛒
+- preset 외 1 grapheme 이모지 사용자 직접 입력 가능 (Intl.Segmenter 검증 + main `validateWorkspaceIcon` SSOT)
+- 이름은 사용자 자유 입력
 
 ### 워크스페이스 전환
 
@@ -175,16 +176,19 @@ http/https 외 scheme (file:/blob:/javascript:/data:/chrome-error:/about:) 일�
 
 ### 5.2 AI 채팅
 
-우측 채팅 패널. 활성 워크스페이스의 페이지·노트를 자동 retrieval:
+우측 채팅 패널. 현재 wiring 상태 (Sprint 015 M5-6 시점):
 
-1. **PromptComposer** — 시스템 프롬프트 + retrieved_items + 사용자 질문 조립
-2. **ChatService.chat()** — Provider 호출 (BYOK 디폴트, allowedProviders=['openai'])
-3. **chat_meta** — `cells.sources` 에 `page_id` / `note_id` / 인용 표기 (PRD §10.8 — AI 응답 출처 정확도 ≥ 90% 목표)
-4. **AiChatHistoryStore** — 메시지 영속
+1. **호출자 책임 retrieval** — `ChatService.chat()` 의 `retrievedItems?: RetrievedItem[]` 옵션은 Renderer 측이 채워 전달. SearchService.search 자동 호출 wiring 은 미박힘 — 호출자 (ChatPanel) 가 search 결과를 명시 주입 시에만 retrieval 활성.
+2. **PromptComposer** — 시스템 프롬프트 + retrieved_items (호출자 주입분) + 사용자 질문 조립
+3. **ChatService.chat()** — Provider 호출 (BYOK 디폴트, allowedProviders=['openai'])
+4. **chat_meta** — `cells.sources` 에 `page_id` / `note_id` / 인용 표기 (PRD §10.8 — AI 응답 출처 정확도 ≥ 90% 목표, KI-019 측정 예정)
+5. **AiChatHistoryStore** — 메시지 영속
+
+> 자동 retrieval wiring (`ChatPanel` 진입 시 SearchService 자동 호출 + retrievedItems 자동 채움) 은 Sprint 016 M_ 또는 후속 hotfix 예정. 현재는 호출자 명시 주입 path 만 작동.
 
 ### 5.3 노트
 
-페이지에서 텍스트 선택 → 우클릭 → "노트로 저장" (또는 `Ctrl+Shift+N`). NoteService 가:
+페이지에서 텍스트 선택 → 우클릭 → "노트로 저장" UI (현재 `ShortcutBinding` 은 `searchBar.focus` 1종만 박힘 — `Ctrl+K`. 노트 전용 단축키는 Sprint 016 M4 NoteService UI 박힘 시점 동반 예정). NoteService 가:
 1. NoteStore.create — Note + 워크스페이스 연결
 2. EmbeddingQueue.enqueue — 자동 임베딩 (검색 대상 포함)
 3. broadcast — MemoryStatsPanel 갱신
@@ -237,25 +241,34 @@ A. 모두 사용자 로컬 디스크의 Electron `userData` 폴더:
 - Windows: `%APPDATA%/flowbrowser-ai/`
 - macOS: `~/Library/Application Support/flowbrowser-ai/`
 
-주요 파일: `credentials.json` (암호화) / `user-setting.json` / `tabs.json` (V2 schema, workspace_id 포함) / `thumbnails.json` / `shortcut.json` / `flowbrowser.db` (v0.4 SQLite 본체 — Page / Visit / Note / AiChatHistory / Tag / EmbeddingQueue / Workspace).
+주요 파일: `credentials.json` (암호화) / `user-setting.json` / `tabs.json` (V2 schema, workspace_id 포함) / `thumbnails.json` / `shortcut.json` / `flowbrowser.db` (v0.4 SQLite 본체 — Page / Visit / Note / AiChatHistory / Tag / EmbeddingQueue / Workspace) / `page-results.json` (v0.3 PageResultStore 잔여, KI-002 closed 예정) / `translation-cache.json` (v0.3 TranslationCache, Sprint 016 M2 어댑터 제거 후 폐기 예정).
 
 **Q. v0.3 데이터 (캐시 / 페이지 결과) 는 어떻게 마이그레이션됐나요?**
-A. PRD §19 — 5단계 마이그레이션 + 자동 백업 `<userDataDir>/backup/v03/<ISO_ts>/`. G-014 적용. v0.3 `pageresult.json` / `cache.json` 등은 백업 후 v0.4 schema 로 이전 또는 폐기.
+A. PRD §19 — 5단계 마이그레이션 + 자동 백업 `<userDataDir>/backup/v03/<ISO_ts>/`. G-014 적용. v0.3 `page-results.json` / `translation-cache.json` 등은 백업 후 v0.4 schema 로 이전 또는 폐기 (실제 파일명은 `defaultPageResultPath` / `defaultTranslationCachePath` 정합).
 
 ---
 
 ## 8. 알려진 한계
 
-본 가이드 작성 시점 (2026-05-20) 기준 잔여 Known Issues 17건. 전체 본문은 [`.flowset/known-issues.md`](../.flowset/known-issues.md).
+본 가이드 작성 시점 (2026-05-20) 기준 잔여 Known Issues **17건** (등록 누적 20건, closed 3건 — KI-007 / KI-010 / KI-017 모두 Sprint 016 M0 T03·T05 시점). 전체 본문은 [`.flowset/known-issues.md`](../.flowset/known-issues.md).
 
-주요 한계:
-- **KI-001 MEDIUM** (in-progress): sqlite-vec macOS native 빌드 — 1차 PoC SUCCESS (arm64), 잔여 macos-intel + windows + Electron 39 ABI rebuild (Sprint 016 M0 T01)
-- **KI-003 HIGH**: AutoTagger BYOK 디폴트 wiring — IndexingService.tagPage 호출 시점 검증 (Sprint 016 M0 T05 부분 박힘, T06 또는 T21 closed 후보)
-- **KI-004 MEDIUM**: ChatRequest.response_format JSON 강제 API-level 미구현 (Sprint 016 M0 T04 예정)
-- **KI-006 MEDIUM**: 워크스페이스 전환 시 인덱싱/임베딩/채팅 abort 미배선 (Sprint 016 M0 T02 예정)
-- **KI-011~019 LOW** (9건): 정량 임계 미측정 — 인덱싱 < 500ms / 검색 < 200ms / top-10 hit rate ≥ 80% / 워크스페이스 전환 < 1초 / 임베딩 비용 < $3/월 / 저장 < 200MB/만 / MemoryStats < 20ms / AI 정확도 ≥ 90% (Sprint 016 M0 T06 일괄 측정)
-- **KI-020 LOW**: SPA `did-navigate-in-page` 인덱싱 누락 (Sprint 016 M1 또는 후속 hotfix)
+| KI | Severity | 상태 | 내용 | 예정 |
+|---|---|---|---|---|
+| KI-001 | MEDIUM | in-progress | sqlite-vec macOS native 빌드 (1차 arm64 PoC SUCCESS, 잔여 macos-intel + windows + Electron 39 ABI rebuild) | Sprint 016 M0 T01 |
+| KI-002 | LOW | open | PageCachePanel PARTIAL — v0.3 어댑터 의존 잔존 | Sprint 016 M2 T12 (PageResultStore 어댑터 제거 동반) |
+| KI-003 | HIGH | open | AutoTagger BYOK provider 검증 wiring | Sprint 016 M0 T05 부분 박힘 + T06 또는 T21 closed 후보 |
+| KI-004 | MEDIUM | open | ChatRequest.response_format JSON 강제 API-level 미구현 | Sprint 016 M0 T04 |
+| KI-005 | LOW | open | AutoTagger.tagPage(pageId=note.id) page_tags FK 위반 (NoteService autoTagger 통합 자체 차단으로 안전) | Sprint 016 M4 T21 (AutoTagger.tagNote 신규) |
+| KI-006 | MEDIUM | open | 워크스페이스 전환 시 인덱싱/임베딩/채팅 abort 미배선 | Sprint 016 M0 T02 |
+| KI-008 | LOW | open | Workspace JSON Export/Import 미구현 | Sprint 016 M3 T17 |
+| KI-009 | LOW | open | MemoryStatsPanel React 컴포넌트 단위 테스트 0 | Phase 3 종료 후 또는 Sprint 016 |
+| KI-011~016 | LOW (6건) | open | 정량 임계 미측정 — MemoryStats < 20ms / 인덱싱 < 500ms / 검색 < 200ms / 워크스페이스 전환 < 1초 / 임베딩 비용 < $3/월 / 저장 < 200MB/만 | Sprint 016 M0 T06 일괄 측정 |
+| KI-018 / KI-019 | LOW (2건) | open | 정확도 임계 미측정 — top-10 hit rate ≥ 80% / AI 응답 출처 정확도 ≥ 90% | Sprint 016 M0 T06 (시나리오 30 케이스) |
+| KI-020 | LOW | open | SPA `did-navigate-in-page` 자동 인덱싱 누락 (codex PR #176 NB-1 추출) | Sprint 016 M1 (시나리오 2 PM 경쟁) 또는 후속 hotfix |
+
+기타 한계:
 - **Codex Login**: OpenAI 공식 등록 파트너십이 아닌 회색지대. OpenAI 측 차단 가능성 상존. BYOK 폴백 필수.
+- **자동화 부재**: SessionStart hook 의 echo 1줄만 작동. dual review 강제 / G-006 자동 검출 / ownership 강제 hook 모두 미박힘 → Sprint 016 mini-milestone β 예정.
 
 ## 변경 이력
 

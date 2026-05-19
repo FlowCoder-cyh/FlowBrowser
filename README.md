@@ -46,7 +46,7 @@ npm start
 - **자동 페이지 인덱싱** — 방문한 페이지 본문을 로컬 SQLite + 임베딩 (sqlite-vec) 으로 자동 저장. did-finish-load 시점에 Privacy Gate 평가 후 통과 시 recordVisit
 - **워크스페이스 격리** — 프로젝트별 탭/메모리/AI/노트 완전 분리. 워크스페이스 전환 시 탭 그룹 stash/restore + 메모리 격리
 - **시간축 + 의미 검색** — `Ctrl+K` 검색바. 자연어 시간 파싱 ("지난주", "이번달 화요일") + 의미 검색 (top-10 retrieval). 결과 카드에 시간 시그널 + 매칭 발췌
-- **AI 채팅 (워크스페이스 retrieval 기반)** — 활성 워크스페이스의 페이지·노트를 자동 retrieval 후 ChatService.chat() 호출. 출처 인용 (chat_meta.cells.sources)
+- **AI 채팅** — `ChatService.chat()` + `AiChatHistoryStore` 영속. PromptComposer 가 시스템 프롬프트 + retrieved_items + 사용자 질문 조립. 호출자가 명시 retrieval 주입 시 출처 인용 (chat_meta.cells.sources) — 자동 retrieval wiring (ChatPanel → SearchService 자동 호출) 은 Sprint 016 M_ 또는 후속 hotfix 예정
 - **노트 + 자동 임베딩** — 페이지에서 선택 텍스트 → 노트 생성 → EmbeddingQueue 자동 등록 → 검색 대상 포함
 - **다중 탭 + 워크스페이스 컨텍스트** — 워크스페이스 아이콘 prefix 라벨, 컬러 라벨, 핀, 미리보기 (hover), 닫은 탭 복원 (Ctrl+Shift+T), 워크스페이스 전환 시 stash/restore
 - **메모리 통계 패널** — 워크스페이스별 페이지/방문/노트/채팅 카운트 + 마지막 인덱싱 시각 (broadcast 자동 갱신)
