@@ -47,3 +47,6 @@ spike/
 .claude/settings.local.json
 .claude/.session-cache/
 .claude/scheduled_tasks.lock
+
+# codex plugin 임시 산출물 (mini-milestone α 정리 — 2026-05-20)
+.codex-tmp/
