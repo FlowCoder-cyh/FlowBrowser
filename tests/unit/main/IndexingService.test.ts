@@ -399,6 +399,108 @@ describe('IndexingService — onStatusChange optional', () => {
   })
 })
 
+describe('IndexingService — workspaceId broadcast payload (Sprint 016 M0 T05, KI-010)', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setup()
+  })
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  it('indexed 시 payload.workspaceId === default workspace_id (input 미주입)', async () => {
+    await fx.service.indexPage({
+      url: 'https://example.com/article',
+      content: 'body',
+      hasPasswordField: false
+    })
+    expect(fx.events).toHaveLength(1)
+    expect(fx.events[0].result.status).toBe('indexed')
+    expect(fx.events[0].workspaceId).toBe(fx.defaultWsId)
+  })
+
+  it('indexed 시 payload.workspaceId === input.workspaceId (명시 주입)', async () => {
+    const other = fx.fb.createWorkspace({ name: 'Other', icon: '🌶' })
+    await fx.service.indexPage({
+      url: 'https://example.com/article',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: other.id
+    })
+    expect(fx.events).toHaveLength(1)
+    expect(fx.events[0].workspaceId).toBe(other.id)
+  })
+
+  it('blocked (default domain) payload.workspaceId === undefined', async () => {
+    await fx.service.indexPage({
+      url: 'https://gmail.com/inbox',
+      content: 'body',
+      hasPasswordField: false
+    })
+    expect(fx.events).toHaveLength(1)
+    expect(fx.events[0].result.status).toBe('blocked')
+    expect(fx.events[0].workspaceId).toBeUndefined()
+  })
+
+  it('blocked (password field) payload.workspaceId === undefined', async () => {
+    await fx.service.indexPage({
+      url: 'https://example.com/secure',
+      content: 'body',
+      hasPasswordField: true,
+      // 호출자가 workspaceId 를 명시해도, 차단된 경우엔 페이로드에 박지 않음
+      // (page 미생성 — workspace 컨텍스트 부재. broadcast 측에서 skip 분기 필요).
+      workspaceId: fx.defaultWsId
+    })
+    expect(fx.events).toHaveLength(1)
+    expect(fx.events[0].result.status).toBe('blocked')
+    expect(fx.events[0].workspaceId).toBeUndefined()
+  })
+
+  it('blocked (invalid url) payload.workspaceId === undefined', async () => {
+    await fx.service.indexPage({
+      url: 'not-a-url',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: fx.defaultWsId
+    })
+    expect(fx.events).toHaveLength(1)
+    expect(fx.events[0].result.status).toBe('blocked')
+    expect(fx.events[0].workspaceId).toBeUndefined()
+  })
+
+  it('empty_content 시점에도 payload.workspaceId 정상 채움 (indexed 분기)', async () => {
+    await fx.service.indexPage({
+      url: 'https://example.com/canvas',
+      content: '   ',
+      hasPasswordField: false
+    })
+    expect(fx.events).toHaveLength(1)
+    if (fx.events[0].result.status === 'indexed') {
+      expect(fx.events[0].result.embeddingSkipReason).toBe('empty_content')
+    }
+    expect(fx.events[0].workspaceId).toBe(fx.defaultWsId)
+  })
+
+  it('재방문 unchanged 분기 payload.workspaceId 정상 (broadcast 호출자 측 skip 결정 X — 모두 indexed 로 흘러옴)', async () => {
+    // 재방문 unchanged 의 broadcast 정합: NoteStore/AiChatHistoryStore 의 동등 정책 — INSERT 가 일어났으니
+    // payload.workspaceId 는 동일. broadcast 호출자가 unchanged 시 skip 할지 여부는 services.ts 정책.
+    // 본 단위 테스트는 IndexingService 의 payload 정확성만 검증 (broadcast 호출 자체는 services.ts wiring 책임).
+    const baseInput = {
+      url: 'https://example.com/article',
+      content: 'body',
+      hasPasswordField: false
+    }
+    await fx.service.indexPage(baseInput)
+    await fx.service.indexPage(baseInput)
+    expect(fx.events).toHaveLength(2)
+    expect(fx.events[0].workspaceId).toBe(fx.defaultWsId)
+    expect(fx.events[1].workspaceId).toBe(fx.defaultWsId)
+    if (fx.events[1].result.status === 'indexed') {
+      expect(fx.events[1].result.action).toBe('unchanged')
+    }
+  })
+})
+
 describe('IndexingService — gate stub 격리', () => {
   it('IndexingGate 호출지점 검증 (overrideToken 정확 전달)', async () => {
     const fb = FlowbrowserDatabase.openInMemory()

@@ -69,6 +69,13 @@ export type IndexPageResult =
 export interface IndexingStatusPayload {
   url: string
   result: IndexPageResult
+  /**
+   * Sprint 016 M0 T05 (KI-010) — indexed page 의 workspace_id.
+   * `status='blocked'` 시 undefined (Page/Visit 미생성 — workspace 컨텍스트 없음).
+   * `status='indexed'` 시 항상 채워짐 — `visit.page.workspace_id` (input 미주입 시 defaultWorkspaceId).
+   * broadcast 측에서 `memory:stats-invalidated` 의 `workspaceId` 분기에 활용.
+   */
+  workspaceId?: string
   timestamp: number
 }
 
@@ -115,7 +122,7 @@ export class IndexingService {
 
     if (!evaluation.allowed) {
       const result: IndexPageResult = { status: 'blocked', evaluation }
-      this.emit(input.url, result)
+      this.emit(input.url, result, undefined)
       return result
     }
 
@@ -161,13 +168,13 @@ export class IndexingService {
       embeddingJobId,
       embeddingSkipReason
     }
-    this.emit(input.url, result)
+    this.emit(input.url, result, visit.page.workspace_id)
     return result
   }
 
-  private emit(url: string, result: IndexPageResult): void {
+  private emit(url: string, result: IndexPageResult, workspaceId: string | undefined): void {
     if (!this.onStatusChange) return
-    this.onStatusChange({ url, result, timestamp: Date.now() })
+    this.onStatusChange({ url, result, workspaceId, timestamp: Date.now() })
   }
 }
 

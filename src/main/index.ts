@@ -11,7 +11,9 @@ import {
   saveTabState,
   getShortcutBindings,
   getActiveWorkspaceId,
-  setWorkspaceSwitchHook
+  setWorkspaceSwitchHook,
+  tryIndexPage,
+  getParagraphsExtractScript
 } from './services'
 import { inputMatchesAccelerator } from './ShortcutMatcher'
 import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
@@ -45,6 +47,57 @@ function getActiveTabView(): WebContentsView | null {
   const id = tabManager.getActiveId()
   if (!id) return null
   return tabViews.get(id) ?? null
+}
+
+/**
+ * Sprint 016 M0 T05 (KI-010) — `did-finish-load` 시점 자동 페이지 인덱싱.
+ *
+ * 흐름:
+ *   1. tabManager.getById(tabId) — workspaceId / 활성 탭 여부 확인
+ *   2. WebContents.getURL() — about:blank / 빈 url skip
+ *   3. scanWebContentsFields — `<input type="password">` 감지 hint
+ *   4. ParagraphExtractor executeJavaScript — 본문 추출
+ *   5. tryIndexPage — IndexingGate 평가 후 통과 시 recordVisit + 임베딩 큐
+ *
+ * 실패 시 graceful no-op (executeJavaScript / scan / index 모두 try/catch). 사용자 UX 영향 없음 —
+ * 다음 navigate 시점에 재시도.
+ *
+ * IndexingService 미초기화 (인프라 bootstrap 실패) 시 `tryIndexPage` 자체가 null 반환 — early exit.
+ */
+async function runPageIndexing(tabId: string, view: WebContentsView): Promise<void> {
+  const wc = view.webContents
+  if (wc.isDestroyed()) return
+  const url = wc.getURL()
+  if (!url || url === 'about:blank' || url.startsWith('chrome-error:') || url.startsWith('data:')) {
+    return
+  }
+  const tab = tabManager.snapshotAll().tabs.find((t) => t.id === tabId)
+  const workspaceId = tab?.workspace_id ?? null
+  const isActiveTab = tabManager.getActiveId() === tabId
+  try {
+    const fieldScan = await scanWebContentsFields(wc.id)
+    let content = ''
+    try {
+      const paragraphs = (await wc.executeJavaScript(getParagraphsExtractScript())) as Array<{
+        text: string
+      }>
+      content = paragraphs.map((p) => p.text).join('\n\n')
+    } catch {
+      // 본문 추출 실패 시 빈 본문 — IndexingService 가 'empty_content' 로 임베딩 skip.
+      content = ''
+    }
+    const title = wc.getTitle()
+    await tryIndexPage({
+      url,
+      title,
+      content,
+      hasPasswordField: fieldScan.hasPasswordField,
+      workspaceId: workspaceId ?? undefined,
+      isActiveTab
+    })
+  } catch {
+    // graceful — 다음 did-finish-load 시점에 재시도.
+  }
 }
 
 function syncBrowserViewRef(): void {
@@ -467,6 +520,13 @@ function createTabView(tabId: string, url: string): WebContentsView {
   view.webContents.on('did-navigate', broadcastNav)
   view.webContents.on('did-navigate-in-page', broadcastNav)
   view.webContents.on('did-finish-load', broadcastNav)
+  // Sprint 016 M0 T05 (KI-010) — 자동 페이지 인덱싱 hook.
+  // IndexingGate 가 차단 도메인 / password 필드 / 사용자 차단 평가 후 통과 시 recordVisit + 임베딩 큐.
+  // services.tryIndexPage 가 IndexingService 미초기화 (인프라 bootstrap 실패) 시 graceful null.
+  // 활성 탭이면 priority 10, 백그라운드면 1 (PRD §8.1).
+  view.webContents.on('did-finish-load', () => {
+    void runPageIndexing(tabId, view)
+  })
   view.webContents.on('page-title-updated', (_event, title) => {
     tabManager.updateTitle(tabId, title)
   })
