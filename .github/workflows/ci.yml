@@ -39,3 +39,46 @@ jobs:
 
       - name: Build
         run: npx electron-vite build
+
+  macos-poc:
+    name: macOS sqlite-vec PoC (KI-001)
+    runs-on: macos-latest
+    # KI-001 [open] sqlite-vec macOS native 빌드 미검증 — 1차 PoC.
+    # fail-fast 회피: 본 job 실패해도 main `ci` job 통과 시 머지 가능.
+    # branch protection required check 영향 0 (job name 단독).
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Probe sqlite-vec + better-sqlite3 native load
+        # KI-001 핵심 검증: sqlite-vec-darwin-{x64,arm64} prebuilt 동작 + vec_version() 호출
+        run: |
+          node -e "
+            const Database = require('better-sqlite3');
+            const sv = require('sqlite-vec');
+            const db = new Database(':memory:');
+            sv.load(db);
+            const sqliteV = db.prepare('SELECT sqlite_version() AS v').get().v;
+            const vecV = db.prepare('SELECT vec_version() AS v').get().v;
+            console.log('arch:', process.arch);
+            console.log('platform:', process.platform);
+            console.log('sqlite_version:', sqliteV);
+            console.log('vec_version:', vecV);
+            db.close();
+          "
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
