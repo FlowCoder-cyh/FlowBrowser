@@ -6,11 +6,11 @@
 ## 메타
 
 - **Phase**: **1** (AI 콘텐츠 메모리 + 워크스페이스 베이스 인프라, Sprint 015 진행 중)
-- **Sprint**: **015 M0~M4 완료 + M5 진행 중 (2/8 PR)** (M5-1 Shortcut+SearchBar + M5-2 TimeRangeParser 완료, M5-3 SearchService 진입 대기)
+- **Sprint**: **015 M0~M5 완료 (8/8 PR) + M6 진입 대기** (M5-1 ~ M5-8 모두 머지. M5-8 분할 1편 = ChatPanel mount, 분할 2편 = 어댑터 정리 4종 Sprint 016 위임)
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.0 본문 완성** (19 섹션, 약 5,200+ lines + M4-2/M4-4 §8.6.1/§8.8.3/§13.5.2/§13.5.3 정정 — 정식 release tag 는 Sprint 015 M6 종료 시점)
-- **최근 갱신**: 2026-05-19 (M5-1 + M5-2 + 각 hotfix + 핸드오프 PR #152 hotfix 완료 — evaluator + codex 병렬 평가 3회 모두 통과 / 단위 681 → **779 (+98)** (핸드오프 PR #152 BLOCKING — 778 표기는 PR #151 NB-1 실측 반대 정정 답습. 실측 npm test = 779) / KI 누적 4건 유지 / M5-1 IPC 4종 (shortcut 2 + search stub 2) / M5-2 TimeRangeParser 5종 표현 / 54 PR 누적)
-- **다음 세션 진입점**: `.flowset/handoffs/2026-05-19.md` §1~§2 (M5-1 + M5-2 종합) + `.flowset/contracts/sprint-015.md` §2 T23 (M5-3 SearchService) + `docs/prd/19_migration_v03_v04.md` §19.5.4 M5-3~M5-8 spec + `.flowset/known-issues.md` KI-001~004 (KI-003 HIGH 우선)
+- **최근 갱신**: 2026-05-19 (M5-3 ~ M5-8 자율 진행 7 PR + 6 hotfix 완료 — evaluator + codex 병렬 평가 8회 모두 정합 / 단위 779 → **968 (+189)** 실측 / KI 누적 4 → 5 (KI-005 신규 — AutoTagger.tagPage note FK 위반 LOW, 안전 디폴트로 차단) / **61 PR 누적** / KI-003 HIGH wiring 완료)
+- **다음 세션 진입점**: `.flowset/handoffs/2026-05-19.md` §10 (본 세션 종합) + `.flowset/contracts/sprint-015.md` §2 M6 (T28~T31 워크스페이스 사이드바 + 메모리 통계 + 종합 evaluator) + `.flowset/known-issues.md` KI-003 (HIGH closed 후보) / KI-005 (LOW 신규)
 
 ## 현재 작업
 
@@ -232,16 +232,17 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
   - M4-3 ✅ DwellTracker + IndexedPageStoreSqlite.updateVisitDwell (PR #144, +21)
   - M4-2 ✅ AutoTagger + JSON schema 6 kind + freeform fallback (PR #146 + #148 hotfix, +23) / KI-003 HIGH + KI-004 MEDIUM 등록
   - M4-5 ✅ M4 통합 회귀 시나리오 1+3 + DwellTracker + Privacy 차단 매트릭스 (PR #147, +10)
-- **M5** 진행 중 (2/8 PR — 단위 681 → **779 (+98)** / 54 PR 누적, 핸드오프 PR #152 hotfix 포함)
-  - M5-1 ✅ Shortcut + SearchBar UI (PR #150 + 본 PR 내 hotfix, +61) — IPC 4종 (shortcut 2 + search stub 2) + main process before-input-event 캡처 + SearchBar UrlBar 통합 (codex BLOCKING 2건 본 PR 해소)
-  - M5-2 ✅ TimeRangeParser (PR #151 + 본 PR 내 hotfix, +37) — PRD §9.2 자연어 시간 5종 (어제 / 지난주 / N개월 전 / 절대 날짜 / YYYY년 N월) + remainingQuery 정규화 + pure 함수
-  - M5-3 (다음 진입) — SearchService sqlite-vec top-k + 정렬 공식 (0.85 × cosine + 0.15 × exp(-days/180)) + TimeRangeParser 연결 + search:query stub → 실 구현
-  - M5-4 SearchResultCard + PreviewPane (시간 시그널 / 매칭 발췌 / dwell 표시)
-  - M5-5 PromptComposer + ChatService + executeTranslateRequest → ChatService.chat() 마이그레이션 (KI-003 wiring 자연 결합)
-  - M5-6 ChatPanel (TranslationPanel 교체) + chat_meta 표 schema
-  - M5-7 NoteService + NotePanel
-  - M5-8 어댑터 일괄 제거 + ProviderAdapter.translate() 메서드 자체 제거 + fetchImpl 통일
-- **M6** (2~3일): 워크스페이스 사이드바 + 메모리 통계 UI + Sprint 종합 핸드오프
+- **M5** ✅ 완료 (8/8 PR — 단위 681 → **968 (+287)** / **61 PR 누적**, evaluator + codex 병렬 평가 11회 정합)
+  - M5-1 ✅ Shortcut + SearchBar UI (PR #150 + 본 PR 내 hotfix, +61)
+  - M5-2 ✅ TimeRangeParser (PR #151 + 본 PR 내 hotfix, +37)
+  - M5-3a ✅ SearchService core (PR #154 + hotfix, +47) — schema vec0 distance_metric=cosine 명시 (codex BLOCKING)
+  - M5-3b ✅ search IPC wiring (PR #155, +18) — 첫 클린 머지 (BLOCKING 0)
+  - M5-4 ✅ SearchResultCard + 시간 시그널 + 매칭 발췌 (PR #156 + hotfix, +44) — unicode 길이 비보존 case-fold + 워크스페이스 컬러 후순위
+  - M5-5 ✅ ChatService + PromptComposer + KI-003 BYOK wiring (PR #157 + hotfix, +28) — allowedProviders ['openai'] 디폴트
+  - M5-6 ✅ ChatPanel + chat_meta 표 schema + chat IPC (PR #158 + hotfix, +27) — PRD §10.3.2 정합 schema 정정
+  - M5-7 ✅ NoteService + note IPC (PR #159 + hotfix, +27) — selectedText guard + AutoTagger note FK 위반 차단 (KI-005 신규)
+  - M5-8 ✅ ChatPanel App.tsx mount 분할 1편 (PR #160, +0) — 어댑터 일괄 제거 4종 (ProviderAdapter.translate / executeTranslateRequest / TranslationCache adapter / PageResultStore adapter / fetchImpl 통일) Sprint 016 위임
+- **M6** (다음 세션 진입): T28 워크스페이스 사이드바 + preset 12종 + T29 메모리 통계 UI + T30 단위 테스트 시나리오 회귀 + T31 PRD v0.4.0 발행 + Sprint 015 종합 evaluator
 
 ### 시나리오 cover 목표
 - 시나리오 1 (학술): M4 통합 회귀로 자동 인덱싱 + 자동 태깅 cover. M5 SearchService 도입 후 100%

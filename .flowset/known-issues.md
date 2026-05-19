@@ -91,6 +91,19 @@
 - **처리 예정 Sprint**: 015 M4-5 또는 M5 (wiring 시점)
 - **상태**: `open`
 
+### KI-005 [open] AutoTagger.tagPage(pageId=note.id) page_tags FK 위반 — note 자동 태깅 차단
+
+- **Severity**: LOW (현 시점 wiring 미활성 — NoteService.opts.autoTagger 미주입 + 통합 자체 제거)
+- **Phase**: 1
+- **Sprint**: 015 (M5-7 PR #159 codex 정밀 검토 발견)
+- **Component**: `src/ai/tagging/AutoTagger.ts` (tagPage 가 내부에서 attachToPage 호출) + `src/main/NoteService.ts` (호출 path 차단)
+- **영향**: AutoTagger.tagPage 가 내부에서 `tagStore.attachToPage(input.pageId, ...)` 호출 — schema `page_tags.page_id REFERENCES pages(id) ON DELETE CASCADE` FK 제약. NoteService 가 note.id 를 pageId 자리에 주입 시 SQLite FOREIGN KEY constraint 실패. 현 NoteService 는 autoTagger 호출 자체 차단으로 안전.
+- **발견 출처**: M5-7 PR #159 codex 정밀 검토 N-001 + evaluator KI 후보 1 (Sprint 015 M5 종료 핸드오프 §10.5)
+- **재현 절차**: 향후 NoteService 에 AutoTagger 인스턴스 주입 + createNote({enableAutoTagging: true}) 호출 시 — schema FK 검사에서 throw
+- **권고 해소 방향**: AutoTagger.tagNote 신규 메서드 도입 — `tagStore.attachToNote` 호출 path. 또는 AutoTagger 가 attach 호출 자체 호출자에게 분리 (provider.chat 결과 tag rows 만 반환).
+- **처리 예정 Sprint**: 016 (note 자동 태깅 UI 도입 시점)
+- **상태**: `open`
+
 ### KI-004 [open] ChatRequest.response_format JSON 강제 API-level 미구현
 
 - **Severity**: MEDIUM
@@ -109,7 +122,7 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 2 | 1 | 0 | 4 |
+| Phase 1 | 1 | 2 | 2 | 0 | 5 |
 | Phase 2 | — | — | — | — | — |
 | Phase 3 | — | — | — | — | — |
 
@@ -126,3 +139,4 @@
 - 2026-05-16: 등록 정책 + Severity 정의 + KI 형식 초기 등록 (Sprint 015 진입 시점, KI 0건)
 - 2026-05-18 (M3 종료 핫픽스): KI-001 MEDIUM (sqlite-vec macOS 미검증) + KI-002 LOW (PageCachePanel PARTIAL) 등록. evaluator + codex 병렬 평가에서 추출. Sprint 015 누적 0건 → 2건 (KI 등록 정책 본격 발동).
 - 2026-05-18 (M4-2 핫픽스): KI-003 HIGH (G-003 BYOK wiring 강제) + KI-004 MEDIUM (ChatRequest.response_format JSON 강제 API-level) 등록. M4-2 codex 정밀 검토 KI 후보 1/2 추출. Sprint 015 누적 2건 → 4건. HIGH 첫 등록 — M4-5 wiring 시점 즉시 처리 정책 적용.
+- 2026-05-19 (M5-7 핫픽스): KI-005 LOW (AutoTagger.tagPage page_tags FK 위반 — NoteService note 자동 태깅 차단) 등록. PR #159 codex 정밀 검토 N-001 발견. NoteService 가 autoTagger 통합 자체 제거로 안전 차단. Sprint 015 누적 4건 → 5건. KI-003 HIGH wiring 완료 — M5-3b/M5-5/M5-6/M5-7 에 BYOK 검증 박힘 (status `in-progress` 갱신 후보, Sprint 016 또는 M5-8 분할 2편 시점 closed 권고).
