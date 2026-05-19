@@ -195,15 +195,15 @@
 - **처리 예정 Sprint**: 016 M0
 - **상태**: `open`
 
-### KI-013 [open] 검색 응답 < 200ms (top-5 retrieval) 임계 미측정
+### KI-013 [open] 검색 응답 < 200ms (top-10 표시까지) 임계 미측정
 
 - **Severity**: LOW
 - **Phase**: 1
-- **Sprint**: 015 (M6 T31 종합 evaluator NB 후 Sprint 016 M0 hotfix 등록)
+- **Sprint**: 015 (M6 T31 종합 evaluator NB 후 Sprint 016 M0 hotfix 등록 — PR #167 정식화에서 PRD §9.7 b6.1 정정 정합 "top-5 retrieval" → "top-10 표시까지")
 - **Component**: `src/main/SearchService.ts` (search:query 진입 ~ results 반환)
-- **영향**: PRD §11.3.2 + Sprint 016 contract §6 정량 임계. 시나리오 1·4 (Cmd+K 즉시 검색) 사용자 체감 직결. Query 임베딩 비용 (~100~300ms 평균) + vec0 JOIN top-k 시간 미측정.
+- **영향**: PRD §15.4 #2 + §9.7 + Sprint 016 contract §6 정량 임계. 시나리오 1·4 (Cmd+K 즉시 검색) 사용자 체감 직결. Query 임베딩 비용 (~100~300ms 평균) + vec0 JOIN top-k=20 + 정렬 후 top-10 표시 시간 미측정. PRD §9.7 정의: 1000 페이지 + retrieval × 100회 평균, 본문 캐시 fetch 제외.
 - **권고 해소 방향**: Sprint 016 M0 perf bench (`tests/perf/search.bench.ts` 신규) — embed 호출 mock + vec0 JOIN ms 측정. AIResponseCache TTL 30일 hit 시 < 50ms 검증.
-- **처리 예정 Sprint**: 016 M0
+- **처리 예정 Sprint**: 016 M0 T06
 - **상태**: `open`
 
 ### KI-014 [open] 워크스페이스 전환 < 1초 임계 미측정
@@ -239,6 +239,28 @@
 - **처리 예정 Sprint**: 016 M0
 - **상태**: `open`
 
+### KI-018 [open] top-10 hit rate ≥ 80% 정확도 임계 미측정
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (PR #167 contract 정식화 시점 codex BLOCKING #1 — PRD §15.4 #3 누락 발견)
+- **Component**: `src/main/SearchService.ts` (vec0 top-k=20 retrieval 정렬 + top-10 표시) + 회귀 셋 (`tests/integration/scenarios/*` + 50 페어 자체 테스트 셋)
+- **영향**: PRD §15.4 #3 + §9.7 정량 임계. 검색 결과가 사용자 의도와 맞는지 — 정답 페이지가 top-10 안에 포함되는 비율. 측정 부재 시 시나리오 1·4 cover 100% 통과해도 retrieval 품질 불명. PRD 정의: 회귀 셋 + 50 페어 자체 테스트 셋 (positive/negative 쌍).
+- **권고 해소 방향**: Sprint 016 M0 T06 — (1) 50 페어 자체 테스트 셋 (`tests/integration/searchHitRate.test.ts`) 신규: 각 페어는 모킹 검색 쿼리 + 정답 페이지 ID + retrieval 후 top-10 안 포함 여부 검증. (2) 시나리오 1·2·3·4 회귀 셋의 검색 단계에 hit rate 누적 측정 + 종합 보고서 (`.flowset/eval-results/sprint-016-perf-bench.md`) 박힘.
+- **처리 예정 Sprint**: 016 M0 T06
+- **상태**: `open`
+
+### KI-019 [open] AI 응답 출처 정확도 ≥ 90% 임계 미측정
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (PR #167 contract 정식화 시점 codex BLOCKING #2 — PRD §15.4 #6 측정 산식 부재 발견)
+- **Component**: `src/main/ChatService.ts` (chat_meta.cells.sources 출력) + 회귀 셋 (`tests/integration/scenarios/*` 30 케이스 — 시나리오 1 S1-C3 + 시나리오 2 비교 매트릭스 등 chat_meta 출력 케이스)
+- **영향**: PRD §15.4 #6 + §10.8 정량 임계. AI 응답이 retrieval 결과 (top-k page_id) 와 일치하는 비율 — `chat_meta.cells.sources` 각 page_id 가 실제 `retrieved_items` 내에 존재 비율. 측정 부재 시 시나리오 cover 통과해도 출처 hallucination 가능. 현 `scenario-1-academic.test.ts` S1-C3는 `chat_meta.cells.sources` schema 만 확인 — 일치 비율 산식 부재.
+- **권고 해소 방향**: Sprint 016 M0 T06 — (1) 시나리오 회귀 셋 30 케이스 (Sprint 015 T30 S1+S4 = 8 케이스 + Sprint 016 T07~T08 S2+S3 = 10 케이스 + 추가 12 케이스 = 30) 각각에 chat_meta.cells.sources ∈ retrieved_items 검증 (`expect(sources.every(s => retrievedItems.has(s))).toBe(true)`) + 정확도 카운터 ≥ 27/30 (90%). (2) 종합 보고서 (`.flowset/eval-results/sprint-016-perf-bench.md`).
+- **처리 예정 Sprint**: 016 M0 T06
+- **상태**: `open`
+
 ### KI-017 [open] tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 누락
 
 - **Severity**: LOW
@@ -257,7 +279,7 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 12 | 0 | 17 |
+| Phase 1 | 1 | 4 | 14 | 0 | 19 |
 | Phase 2 | — | — | — | — | — |
 | Phase 3 | — | — | — | — | — |
 
@@ -277,3 +299,4 @@
 - 2026-05-19 (M5-7 핫픽스): KI-005 LOW (AutoTagger.tagPage page_tags FK 위반 — NoteService note 자동 태깅 차단) 등록. PR #159 codex 정밀 검토 N-001 발견. NoteService 가 autoTagger 통합 자체 제거로 안전 차단. Sprint 015 누적 4건 → 5건. KI-003 HIGH wiring 완료 — M5-3b/M5-5/M5-6/M5-7 에 BYOK 검증 박힘 (status `in-progress` 갱신 후보, Sprint 016 또는 M5-8 분할 2편 시점 closed 권고).
 - 2026-05-19 (M6 T28~T31 종합): KI-006 MEDIUM (Workspace 전환 abort 정책 미배선) + KI-007 MEDIUM (TabManager workspace_id stash/restore) + KI-008 LOW (Workspace JSON Export/Import) + KI-009 LOW (MemoryStatsPanel React unit 0) + KI-010 LOW (MemoryStats 인덱싱 broadcast 잔여 1종) + KI-011 LOW (MemoryStats < 20ms 미측정) 6건 등록. T28 + T29 evaluator + codex 병렬 평가에서 추출. Sprint 015 누적 5건 → 11건. MEDIUM 누적 4건 도달 (KI-001 + KI-004 + KI-006 + KI-007) — 5건 batch 임계 1건 부족. Sprint 016 M0 처리 권고.
 - 2026-05-19 (Sprint 015 잔여 hotfix — `docs/WI-S016M0-docs-sprint-015-residual-hotfix`): KI-012 LOW (인덱싱 < 500ms 미측정) + KI-013 LOW (검색 < 200ms 미측정) + KI-014 LOW (워크스페이스 전환 < 1초 미측정) + KI-015 LOW (임베딩 비용 < $3/월 미측정) + KI-016 LOW (저장 용량 < 200MB/만 페이지 미측정) + KI-017 LOW (tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 누락) 6건 등록. Sprint 015 M6 T31 종합 evaluator NB ("정량 임계 5종 KI 미등록") + 본 hotfix `v04-test-classification.md` §D PARTIAL 매트릭스 회귀 누락 검증에서 추출. Sprint 015 누적 11건 → **17건** (HIGH 1 / MEDIUM 4 / LOW 12). 정량 임계 5종은 Sprint 016 M0 perf bench 셋 신규로 일괄 측정 권고. KI-017 은 KI-007 (Sprint 016 T03) 동반 해소.
+- 2026-05-19 (PR #167 Sprint 016 contract 시안 → 정식 — `docs/WI-S016M0-docs-contract-formalize`): KI-018 LOW (top-10 hit rate ≥ 80% 정확도 미측정) + KI-019 LOW (AI 응답 출처 정확도 ≥ 90% 미측정) 2건 등록. codex BLOCKING #1+#2 — PRD §15.4 정량 임계 6종 중 #3 top-10 hit rate + #6 AI 출처 정확도 누락 발견. KI-013 본문 "top-5 retrieval" → "top-10 표시" PRD §9.7 b6.1 정합 정정 동반. Sprint 015 누적 17건 → **19건** (HIGH 1 / MEDIUM 4 / LOW 14). 본 2건은 Sprint 016 M0 T06 perf/회귀 infra (시나리오 30 케이스 chat_meta.cells.sources 산식 + 50 페어 자체 hit rate 셋) 일괄 측정.

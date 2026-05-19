@@ -9,8 +9,8 @@
 - **Sprint**: **015 M0~M6 완료 (12 단계 모두 머지)** — M0 사전 분석 + M1 PRD v0.4 본문 + M2 폐기·일반화 + M3 SQLite·임베딩 + M4 인덱싱·태깅·Privacy + M5 검색·채팅·노트 + M6 워크스페이스·메모리·종합 + **잔여 hotfix (정량 임계 5종 KI 등록 + PARTIAL 4파일 회귀 누락 contract 흡수 + Sprint 016 기간 통일 + PRD §0.6.1 시나리오 표기 정정)**
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.0 정식 발행** (19 섹션, 약 5,200+ lines, 2026-05-19 release tag) — §0.6.1 시나리오 2·3 표기 hotfix 정정 (90%+ → 0%)
-- **최근 갱신**: 2026-05-19 (M6 T28~T31 4 PR + 3 hotfix + **잔여 hotfix PR #166 (예정)** 완료 — evaluator + codex 병렬 평가 4회 모두 정합 / 단위 968 → **1068 (+100)** 실측 / KI 누적 5 → **17** (M6 T28~T31 6건 + 잔여 hotfix 6건 — KI-012~016 정량 임계 5종 미측정 + KI-017 tabLabel 회귀 누락) / **66 PR 누적** (예정) / Sprint 016 contract 시안 정식화 (기간 통일 + T02/T03 회귀 매트릭스 강화))
-- **다음 세션 진입점**: `.flowset/contracts/sprint-016.md` (시안 → 정식 정정 완료) + `.flowset/known-issues.md` **MEDIUM 4건 + LOW 정량 임계 5종 + LOW PARTIAL 회귀 1종** (Sprint 016 M0 perf bench 셋 + T02 abort + T03 TabManager workspace_id batch 처리)
+- **최근 갱신**: 2026-05-19 (M6 T28~T31 4 PR + 3 hotfix + **잔여 hotfix PR #166 머지 (`f915296`)** + **contract 정식화 PR #167 (예정)** — evaluator + codex 병렬 평가 5회 모두 정합 / 단위 968 → **1068 (+100)** 실측 / KI 누적 5 → **19** (M6 T28~T31 6건 + 잔여 hotfix 6건 KI-012~017 + 본 PR #167 정식화 KI-018+019 정확도 임계 2종) / **66 PR 누적 (PR #166 머지 완료) + #167 머지 예정** / Sprint 016 contract **시안 → 정식** (기간 통일 + T02/T03 회귀 매트릭스 강화 + T06 perf/회귀 infra 8종 매트릭스 PRD §15.4 정합))
+- **다음 세션 진입점**: `.flowset/contracts/sprint-016.md` **정식 (PR #167 후 머지)** + Sprint 016 M0 첫 코드 작업 — **T01 KI-001 macOS sqlite-vec CI matrix** 또는 **T05 KI-010 IndexingService wiring** 또는 **T03 KI-007 TabManager workspace_id + KI-017 tabLabel** 선택. perf bench infra (T06) 는 M0 후반 묶음 처리 권고 (KI-011~016 6종 일괄).
 
 ## 현재 작업
 
