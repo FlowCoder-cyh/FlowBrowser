@@ -39,6 +39,12 @@ export interface UserSettingState {
    * (DomainFilter.matchUserPattern 동일).
    */
   privacyExclusions: PrivacyExclusionRule[]
+  /**
+   * Sprint 015 M6 T28 — 활성 워크스페이스 UUID. PRD §11.3.1 / §11.5.2.
+   * 디폴트 null (첫 실행 / 마이그레이션 시 services.ts 가 "📥 기본" 워크스페이스 id 로 자동 설정).
+   * 사용자 워크스페이스 전환 시 즉시 영속.
+   */
+  activeWorkspaceId: string | null
 }
 
 const DEFAULTS: UserSettingState = {
@@ -50,7 +56,8 @@ const DEFAULTS: UserSettingState = {
   cancelOnTabSwitch: false,
   onboardingShown: false,
   v04Enabled: false,
-  privacyExclusions: []
+  privacyExclusions: [],
+  activeWorkspaceId: null
 }
 
 function isValidExclusionRule(v: unknown): v is PrivacyExclusionRule {
@@ -115,7 +122,11 @@ export class UserSettingStore {
             : DEFAULTS.onboardingShown,
         v04Enabled:
           typeof parsed.v04Enabled === 'boolean' ? parsed.v04Enabled : DEFAULTS.v04Enabled,
-        privacyExclusions: normalizeExclusions(parsed.privacyExclusions)
+        privacyExclusions: normalizeExclusions(parsed.privacyExclusions),
+        activeWorkspaceId:
+          typeof parsed.activeWorkspaceId === 'string' && parsed.activeWorkspaceId.length > 0
+            ? parsed.activeWorkspaceId
+            : DEFAULTS.activeWorkspaceId
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -196,6 +207,15 @@ export class UserSettingStore {
         }
       }
       this.state.privacyExclusions = normalizeExclusions(patch.privacyExclusions)
+    }
+    if (patch.activeWorkspaceId !== undefined) {
+      if (patch.activeWorkspaceId !== null && typeof patch.activeWorkspaceId !== 'string') {
+        throw new Error('invalid activeWorkspaceId')
+      }
+      if (typeof patch.activeWorkspaceId === 'string' && patch.activeWorkspaceId.length === 0) {
+        throw new Error('invalid activeWorkspaceId')
+      }
+      this.state.activeWorkspaceId = patch.activeWorkspaceId
     }
     await this.persist()
     return this.getState()

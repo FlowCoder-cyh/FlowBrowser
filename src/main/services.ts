@@ -84,6 +84,24 @@ import {
   type NoteDeleteArgs,
   type NoteDeleteResponse
 } from './noteHandlers'
+import { WorkspaceService } from './WorkspaceService'
+import {
+  handleWorkspaceList,
+  handleWorkspaceGetCurrent,
+  handleWorkspaceCreate,
+  handleWorkspaceUpdate,
+  handleWorkspaceSwitch,
+  handleWorkspaceDelete,
+  type WorkspaceCreateArgs,
+  type WorkspaceUpdateArgs,
+  type WorkspaceSwitchArgs,
+  type WorkspaceDeleteArgs,
+  type WorkspaceMutationResponse,
+  type WorkspaceSwitchResponse,
+  type WorkspaceDeleteResponse,
+  type WorkspaceListResponse,
+  type SerializedWorkspace
+} from './workspaceHandlers'
 
 import {
   OpenAIApiKeyProvider,
@@ -131,8 +149,20 @@ let aiChatHistoryStore: AiChatHistoryStore | null = null
 let embeddingQueue: EmbeddingQueue | null = null
 let searchService: SearchService | null = null
 let noteService: NoteService | null = null
+let workspaceService: WorkspaceService | null = null
+// Sprint 015 M6 T28 — defaultWorkspaceId 는 fresh install 시 첫 워크스페이스 id (보통 "📥 기본").
+//                    activeWorkspaceId 는 사용자 전환 시점에 갱신 — `getActiveWorkspaceId` 로 통합 접근.
 let defaultWorkspaceId: string | null = null
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
+
+/**
+ * Sprint 015 M6 T28 — 활성 워크스페이스 id 통합 getter.
+ * WorkspaceService 미초기화 시 fresh install 디폴트 id (또는 null) fallback.
+ */
+function getActiveWorkspaceId(): string | null {
+  if (workspaceService) return workspaceService.getActiveId()
+  return defaultWorkspaceId
+}
 
 let consentStatePath!: string
 let domainPolicyPath!: string
@@ -197,6 +227,20 @@ export async function initServices(): Promise<void> {
       embeddingQueue
       // KI-003 / KI-005 — note 자동 태깅 본 PR 미구현. AutoTagger.tagNote 도입 시 호출자 책임으로 wiring.
     })
+    // Sprint 015 M6 T28 — WorkspaceService.
+    // UserSetting.activeWorkspaceId 가 null 이면 본 부팅 시 defaultWorkspace id 로 초기화.
+    workspaceService = new WorkspaceService({
+      db: flowbrowserDb,
+      userSettingStore,
+      defaultWorkspace: defaultWs
+    })
+    const persistedActive = (userSettingStore.getState() as { activeWorkspaceId?: string | null })
+      .activeWorkspaceId
+    if (!persistedActive) {
+      await userSettingStore.update({
+        activeWorkspaceId: defaultWs.id
+      } as never)
+    }
   } catch (err) {
     // 인프라 미준비 — search / chat / note 호출 시 graceful error 반환.
     flowbrowserDb = null
@@ -207,9 +251,10 @@ export async function initServices(): Promise<void> {
     embeddingQueue = null
     searchService = null
     noteService = null
+    workspaceService = null
     defaultWorkspaceId = null
     console.warn(
-      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 / 채팅 / 노트 비활성:',
+      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 / 채팅 / 노트 / 워크스페이스 비활성:',
       err instanceof Error ? err.message : String(err)
     )
   }
@@ -228,6 +273,54 @@ export async function initServices(): Promise<void> {
   registerSearchIpc()
   registerChatIpc()
   registerNoteIpc()
+  registerWorkspaceIpc()
+}
+
+/**
+ * Sprint 015 M6 T28 — workspace IPC.
+ * `workspace:list` — 전체 워크스페이스 목록 + active id
+ * `workspace:get-current` — 활성 워크스페이스
+ * `workspace:create` — name + icon (+ levelPreference)
+ * `workspace:update` — id + patch
+ * `workspace:switch` — id (활성 워크스페이스 변경)
+ * `workspace:delete` — id (마지막 1개 삭제 시 자동 "📥 기본" 재생성)
+ *
+ * 인프라 미초기화 시 graceful empty / error 응답.
+ */
+function registerWorkspaceIpc(): void {
+  ipcMain.handle('workspace:list', (): WorkspaceListResponse => {
+    return handleWorkspaceList({ getService: () => workspaceService })
+  })
+  ipcMain.handle(
+    'workspace:get-current',
+    (): SerializedWorkspace | null => {
+      return handleWorkspaceGetCurrent({ getService: () => workspaceService })
+    }
+  )
+  ipcMain.handle(
+    'workspace:create',
+    async (_event, args: WorkspaceCreateArgs): Promise<WorkspaceMutationResponse> => {
+      return handleWorkspaceCreate(args, { getService: () => workspaceService })
+    }
+  )
+  ipcMain.handle(
+    'workspace:update',
+    async (_event, args: WorkspaceUpdateArgs): Promise<WorkspaceMutationResponse> => {
+      return handleWorkspaceUpdate(args, { getService: () => workspaceService })
+    }
+  )
+  ipcMain.handle(
+    'workspace:switch',
+    async (_event, args: WorkspaceSwitchArgs): Promise<WorkspaceSwitchResponse> => {
+      return handleWorkspaceSwitch(args, { getService: () => workspaceService })
+    }
+  )
+  ipcMain.handle(
+    'workspace:delete',
+    async (_event, args: WorkspaceDeleteArgs): Promise<WorkspaceDeleteResponse> => {
+      return handleWorkspaceDelete(args, { getService: () => workspaceService })
+    }
+  )
 }
 
 /** Sprint 015 M5-1 — ShortcutStore 접근 헬퍼 (main/index.ts before-input-event 매칭에 사용). */
@@ -270,7 +363,7 @@ function registerSearchIpc(): void {
     'search:query',
     async (_event, args: SearchQueryArgs): Promise<SearchQueryResponse> => {
       return handleSearchQuery(args, {
-        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getEmbeddingProvider: () => providers.get('openai') ?? null,
         getSearchService: () => searchService
       })
@@ -300,7 +393,7 @@ function registerChatIpc(): void {
     'chat:request',
     async (_event, args: ChatRequestArgs): Promise<ChatRequestResponse> => {
       return handleChatRequest(args, {
-        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getChatService: ({ allowedProviders }) => {
           if (!aiChatHistoryStore) return null
           // codex M5-6 PR #158 NEEDS_CHANGES N-001 정정 — provider 선택을 allowedProviders 기반으로.
@@ -333,7 +426,7 @@ function registerChatIpc(): void {
     'chat:list-history',
     (_event, args: ChatListHistoryArgs): ChatListHistoryResponse => {
       return handleChatListHistory(args, {
-        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
         historyStore: aiChatHistoryStore
       })
     }
@@ -354,7 +447,7 @@ function registerNoteIpc(): void {
     'note:create',
     async (_event, args: NoteCreateArgs): Promise<NoteCreateResponse> => {
       return handleNoteCreate(args, {
-        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getNoteService: () => noteService
       })
     }
@@ -363,7 +456,7 @@ function registerNoteIpc(): void {
     'note:list',
     (_event, args: NoteListArgs): NoteListResponse => {
       return handleNoteList(args, {
-        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getNoteService: () => noteService
       })
     }
@@ -372,7 +465,7 @@ function registerNoteIpc(): void {
     'note:delete',
     (_event, args: NoteDeleteArgs): NoteDeleteResponse => {
       return handleNoteDelete(args, {
-        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getNoteService: () => noteService
       })
     }

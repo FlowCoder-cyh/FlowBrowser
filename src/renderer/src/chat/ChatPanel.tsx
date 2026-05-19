@@ -41,7 +41,16 @@ interface ChatMessage {
 
 type Status = 'idle' | 'loading' | 'error'
 
-export default function ChatPanel(): JSX.Element {
+interface ChatPanelProps {
+  /**
+   * 핫픽스 (codex NEEDS_CHANGES #3) — workspace switch race 방지.
+   * 부모(App.tsx)가 활성 workspaceId 명시 주입 → chat:list-history / chat:request 에 명시 전달.
+   * 미주입 시 main `getActiveWorkspaceId()` fallback (호환 유지).
+   */
+  workspaceId?: string | null
+}
+
+export default function ChatPanel({ workspaceId }: ChatPanelProps = {}): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<Status>('idle')
@@ -50,7 +59,8 @@ export default function ChatPanel(): JSX.Element {
 
   useEffect(() => {
     void loadHistory()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId])
 
   useEffect(() => {
     // 새 메시지 도착 시 자동 스크롤 끝까지
@@ -61,7 +71,7 @@ export default function ChatPanel(): JSX.Element {
 
   async function loadHistory(): Promise<void> {
     try {
-      const r = await window.chatApi.listHistory({})
+      const r = await window.chatApi.listHistory(workspaceId ? { workspaceId } : {})
       setMessages(r.messages as ChatMessage[])
     } catch {
       // history 로드 실패는 silent — 빈 상태 시작
@@ -75,7 +85,10 @@ export default function ChatPanel(): JSX.Element {
     setError(null)
     setInput('')
     try {
-      const r = await window.chatApi.request({ userMessage: trimmed })
+      const r = await window.chatApi.request({
+        userMessage: trimmed,
+        ...(workspaceId ? { workspaceId } : {})
+      })
       if (r.status === 'error') {
         setError(r.error ?? '알 수 없는 오류')
         setStatus('error')

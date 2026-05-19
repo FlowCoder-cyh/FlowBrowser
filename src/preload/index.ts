@@ -490,10 +490,68 @@ const shortcutApi = {
   }
 }
 
+// Sprint 015 M6 T28 — workspace IPC (WorkspaceService).
+type WorkspaceLevelPreference = 'novice' | 'intermediate' | 'advanced' | null
+
+interface SerializedWorkspacePayload {
+  id: string
+  name: string
+  icon: string
+  createdAt: number
+  levelPreference: WorkspaceLevelPreference
+}
+
+interface WorkspaceListResponsePayload {
+  workspaces: SerializedWorkspacePayload[]
+  activeId: string | null
+}
+
+interface WorkspaceMutationResponsePayload {
+  ok: boolean
+  workspace?: SerializedWorkspacePayload
+  error?: string
+  errorCode?: 'infra_unavailable' | 'invalid_input' | 'not_found' | 'no_change'
+}
+
+interface WorkspaceSwitchResponsePayload {
+  ok: boolean
+  active?: SerializedWorkspacePayload
+  error?: string
+  errorCode?: 'infra_unavailable' | 'invalid_input' | 'not_found'
+}
+
+interface WorkspaceDeleteResponsePayload {
+  ok: boolean
+  replacement?: SerializedWorkspacePayload
+  newActiveId?: string
+  error?: string
+  errorCode?: 'infra_unavailable' | 'invalid_input' | 'not_found'
+}
+
+const workspaceApi = {
+  list: (): Promise<WorkspaceListResponsePayload> => ipcRenderer.invoke('workspace:list'),
+  getCurrent: (): Promise<SerializedWorkspacePayload | null> =>
+    ipcRenderer.invoke('workspace:get-current'),
+  create: (args: {
+    name: string
+    icon: string
+    levelPreference?: WorkspaceLevelPreference
+  }): Promise<WorkspaceMutationResponsePayload> => ipcRenderer.invoke('workspace:create', args),
+  update: (args: {
+    id: string
+    patch: { name?: string; icon?: string; levelPreference?: WorkspaceLevelPreference }
+  }): Promise<WorkspaceMutationResponsePayload> => ipcRenderer.invoke('workspace:update', args),
+  switch: (id: string): Promise<WorkspaceSwitchResponsePayload> =>
+    ipcRenderer.invoke('workspace:switch', { id }),
+  delete: (id: string): Promise<WorkspaceDeleteResponsePayload> =>
+    ipcRenderer.invoke('workspace:delete', { id })
+}
+
 contextBridge.exposeInMainWorld('searchApi', searchApi)
 contextBridge.exposeInMainWorld('chatApi', chatApi)
 contextBridge.exposeInMainWorld('noteApi', noteApi)
 contextBridge.exposeInMainWorld('shortcutApi', shortcutApi)
+contextBridge.exposeInMainWorld('workspaceApi', workspaceApi)
 contextBridge.exposeInMainWorld('codexApi', codexApi)
 contextBridge.exposeInMainWorld('browserApi', browserApi)
 contextBridge.exposeInMainWorld('tabApi', tabApi)
@@ -525,3 +583,4 @@ export type SearchApi = typeof searchApi
 export type ChatApi = typeof chatApi
 export type NoteApi = typeof noteApi
 export type ShortcutApi = typeof shortcutApi
+export type WorkspaceApi = typeof workspaceApi
