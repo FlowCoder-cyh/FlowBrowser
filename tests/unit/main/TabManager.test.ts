@@ -567,8 +567,8 @@ describe('TabManager', () => {
       handler.mockClear()
       tm.restore({
         tabs: [
-          { id: 'r1', url: 'r1.com', title: 'R1', createdAt: 1, lastActiveAt: 2, color: null, pinned: false },
-          { id: 'r2', url: 'r2.com', title: 'R2', createdAt: 3, lastActiveAt: 4, color: null, pinned: false }
+          { id: 'r1', url: 'r1.com', title: 'R1', createdAt: 1, lastActiveAt: 2, color: null, pinned: false, workspace_id: null },
+          { id: 'r2', url: 'r2.com', title: 'R2', createdAt: 3, lastActiveAt: 4, color: null, pinned: false, workspace_id: null }
         ],
         activeId: 'r2'
       })
@@ -582,8 +582,8 @@ describe('TabManager', () => {
       const tm = new TabManager()
       tm.restore({
         tabs: [
-          { id: 'r1', url: 'r1.com', title: '', createdAt: 1, lastActiveAt: 2, color: null, pinned: false },
-          { id: 'r2', url: 'r2.com', title: '', createdAt: 3, lastActiveAt: 4, color: null, pinned: false }
+          { id: 'r1', url: 'r1.com', title: '', createdAt: 1, lastActiveAt: 2, color: null, pinned: false, workspace_id: null },
+          { id: 'r2', url: 'r2.com', title: '', createdAt: 3, lastActiveAt: 4, color: null, pinned: false, workspace_id: null }
         ],
         activeId: 'missing'
       })
@@ -596,6 +596,61 @@ describe('TabManager', () => {
       tm.restore({ tabs: [], activeId: null })
       expect(tm.size()).toBe(0)
       expect(tm.getActiveId()).toBeNull()
+    })
+  })
+
+  // Sprint 016 M0 T03a (KI-007) — workspace_id 메타
+  describe('workspace_id (Sprint 016 M0 T03a)', () => {
+    it('open() workspaceId 옵션 → 신규 탭에 박힘', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com', { workspaceId: 'ws_alpha' })
+      expect(a.workspace_id).toBe('ws_alpha')
+      expect(tm.list()[0].workspace_id).toBe('ws_alpha')
+    })
+
+    it('open() workspaceId 미지정 → null (T03c wiring 전 호환)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      expect(a.workspace_id).toBeNull()
+      // duplicate 도 원본 workspace_id (null) 보존
+      const dup = tm.duplicate(a.id)
+      expect(dup?.workspace_id).toBeNull()
+    })
+
+    it('setWorkspaceId() 변경 + emit / 같은 값 no-op (emit skip)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com')
+      const handler = vi.fn()
+      tm.subscribe(handler)
+      handler.mockClear()
+      expect(tm.setWorkspaceId(a.id, 'ws_beta')).toBe(true)
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(tm.list().find((t) => t.id === a.id)?.workspace_id).toBe('ws_beta')
+      handler.mockClear()
+      // 같은 값 — emit skip
+      expect(tm.setWorkspaceId(a.id, 'ws_beta')).toBe(true)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('setWorkspaceId() 존재하지 않는 id → false, 변동 없음', () => {
+      const tm = new TabManager()
+      tm.open('a.com')
+      const before = tm.list().map((t) => t.workspace_id)
+      expect(tm.setWorkspaceId('nope', 'ws_x')).toBe(false)
+      expect(tm.list().map((t) => t.workspace_id)).toEqual(before)
+    })
+
+    it('listByWorkspace() — workspace_id 매칭 탭만 반환 (null/다른 ws 제외)', () => {
+      const tm = new TabManager()
+      const a = tm.open('a.com', { workspaceId: 'ws_alpha' })
+      const b = tm.open('b.com', { workspaceId: 'ws_beta' })
+      const c = tm.open('c.com', { workspaceId: 'ws_alpha' })
+      tm.open('d.com') // workspace_id null
+      expect(tm.listByWorkspace('ws_alpha').map((t) => t.id)).toEqual([a.id, c.id])
+      expect(tm.listByWorkspace('ws_beta').map((t) => t.id)).toEqual([b.id])
+      expect(tm.listByWorkspace('ws_missing')).toEqual([])
+      // null 필터도 정확히 동작 (V1 마이그레이션 직후 backfill 안 된 탭)
+      expect(tm.listByWorkspace(null).map((t) => t.url)).toEqual(['d.com'])
     })
   })
 })

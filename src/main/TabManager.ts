@@ -29,6 +29,17 @@ export interface TabSession {
   color: TabColor
   /** Sprint 011 M3 — 핀(고정) 상태 (기본 false). 핀 탭은 항상 좌측 + closeOthers/closeRight 자동 제외 */
   pinned: boolean
+  /**
+   * Sprint 016 M0 T03a (KI-007) — 워크스페이스 격리 메타.
+   * null = 미할당 (V1 영속 마이그레이션 직후 + 첫 wiring 전).
+   * T03c (stash/restore wiring) 시점에 active workspace 로 자동 backfill.
+   */
+  workspace_id: string | null
+}
+
+/** Sprint 016 M0 T03a — open() 옵션. workspaceId 미지정 시 null (T03c wiring 에서 채움). */
+export interface OpenTabOptions {
+  workspaceId?: string | null
 }
 
 export type TabsChangeHandler = (snapshot: {
@@ -42,7 +53,7 @@ export class TabManager {
   private activeId: string | null = null
   private subscribers: Set<TabsChangeHandler> = new Set()
 
-  open(url: string = 'about:blank'): TabSession {
+  open(url: string = 'about:blank', opts: OpenTabOptions = {}): TabSession {
     const now = Date.now()
     const id = `tab_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`
     const session: TabSession = {
@@ -52,7 +63,8 @@ export class TabManager {
       createdAt: now,
       lastActiveAt: now,
       color: null,
-      pinned: false
+      pinned: false,
+      workspace_id: opts.workspaceId ?? null
     }
     this.tabs.set(id, session)
     // 신규 탭은 비핀이라 기존 핀 영역 뒤 (마지막)로 push — 핀 탭이 좌측에 모이는 invariant 유지
@@ -60,6 +72,32 @@ export class TabManager {
     this.activeId = id
     this.emit()
     return { ...session }
+  }
+
+  /**
+   * Sprint 016 M0 T03a (KI-007) — 탭 워크스페이스 메타 변경.
+   * 같은 값 no-op (true, emit skip). 존재하지 않는 id false.
+   * 호출자 (T03c workspaceHandlers stash/restore wiring) 가 active workspace 로 backfill.
+   */
+  setWorkspaceId(id: string, workspaceId: string | null): boolean {
+    const s = this.tabs.get(id)
+    if (!s) return false
+    if (s.workspace_id === workspaceId) return true
+    s.workspace_id = workspaceId
+    this.emit()
+    return true
+  }
+
+  /**
+   * Sprint 016 M0 T03a (KI-007) — 워크스페이스 필터 목록.
+   * workspace_id 가 정확히 일치하는 탭만 반환 (null 도 일치).
+   * order 보존, list() 와 같은 shallow clone 보장.
+   */
+  listByWorkspace(workspaceId: string | null): TabSession[] {
+    return this.order
+      .map((id) => this.tabs.get(id))
+      .filter((s): s is TabSession => s !== undefined && s.workspace_id === workspaceId)
+      .map((s) => ({ ...s }))
   }
 
   /**
@@ -261,7 +299,8 @@ export class TabManager {
   duplicate(id: string): TabSession | null {
     const src = this.tabs.get(id)
     if (!src) return null
-    return this.open(src.url)
+    // Sprint 016 M0 T03a — 원본 workspace_id 보존 (격리 invariant 유지)
+    return this.open(src.url, { workspaceId: src.workspace_id })
   }
 
   /**
@@ -303,11 +342,12 @@ export class TabManager {
     this.tabs.clear()
     this.order = []
     for (const s of state.tabs) {
-      // 영속 파일에 color/pinned 누락 시 fallback
+      // 영속 파일에 color/pinned/workspace_id 누락 시 fallback (V1 → V2 호환)
       this.tabs.set(s.id, {
         ...s,
         color: s.color ?? null,
-        pinned: s.pinned ?? false
+        pinned: s.pinned ?? false,
+        workspace_id: s.workspace_id ?? null
       })
       this.order.push(s.id)
     }

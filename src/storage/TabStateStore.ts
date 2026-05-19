@@ -2,7 +2,9 @@
  * Sprint 009 M3 — TabStateStore.
  * TabManager 상태(tabs + activeId)를 디스크에 영속해 앱 재시작 후 복원.
  *
- * JSON 영속. policyVersion=1. 손상 시 빈 상태 fallback.
+ * JSON 영속. policyVersion=2 (Sprint 016 M0 T03a — workspace_id 컬럼 신규).
+ * V1 → V2 마이그레이션: workspace_id 누락 → null fallback (T03c wiring 에서 active workspace backfill).
+ * 손상 시 빈 상태 fallback.
  */
 
 import { promises as fs } from 'node:fs'
@@ -38,6 +40,8 @@ export interface PersistedTabSession {
   color: PersistedTabColor
   /** Sprint 011 M3 — 누락 시 false fallback (호환) */
   pinned: boolean
+  /** Sprint 016 M0 T03a (KI-007) — 워크스페이스 격리 메타. V1 누락 시 null fallback (T03c backfill). */
+  workspace_id: string | null
 }
 
 export interface PersistedTabState {
@@ -46,7 +50,12 @@ export interface PersistedTabState {
   activeId: string | null
 }
 
-export const TAB_STATE_POLICY_VERSION = 1
+/**
+ * Sprint 016 M0 T03a — V1 (Sprint 009~015) → V2 (workspace_id 컬럼) 마이그레이션.
+ * V1 파일은 자동으로 V2 로 읽혀짐 (workspace_id = null fallback). 다음 save 시 V2 로 영속.
+ */
+export const TAB_STATE_POLICY_VERSION = 2
+const TAB_STATE_POLICY_V1 = 1
 
 export class TabStateStore {
   constructor(private filePath: string) {}
@@ -55,7 +64,11 @@ export class TabStateStore {
     try {
       const buf = await fs.readFile(this.filePath, 'utf-8')
       const parsed = JSON.parse(buf) as Partial<PersistedTabState>
-      if (parsed.policyVersion !== TAB_STATE_POLICY_VERSION) {
+      // Sprint 016 M0 T03a — V1 (workspace_id 누락) → V2 자동 마이그레이션. 그 외 미인지 버전은 빈 상태 fallback.
+      if (
+        parsed.policyVersion !== TAB_STATE_POLICY_VERSION &&
+        parsed.policyVersion !== TAB_STATE_POLICY_V1
+      ) {
         return this.empty()
       }
       const rawTabs = Array.isArray(parsed.tabs) ? (parsed.tabs as unknown[]) : []
@@ -82,7 +95,8 @@ export class TabStateStore {
             typeof t.color === 'string' && VALID_COLORS.has(t.color)
               ? (t.color as PersistedTabColor)
               : null,
-          pinned: typeof t.pinned === 'boolean' ? t.pinned : false
+          pinned: typeof t.pinned === 'boolean' ? t.pinned : false,
+          workspace_id: typeof t.workspace_id === 'string' ? t.workspace_id : null
         })
       }
       const activeId =

@@ -44,7 +44,8 @@ describe('TabStateStore', () => {
           createdAt: 1,
           lastActiveAt: 2,
           color: null,
-          pinned: false
+          pinned: false,
+          workspace_id: null
         },
         {
           id: 'tab_b',
@@ -53,7 +54,8 @@ describe('TabStateStore', () => {
           createdAt: 3,
           lastActiveAt: 4,
           color: null,
-          pinned: false
+          pinned: false,
+          workspace_id: null
         }
       ],
       activeId: 'tab_b'
@@ -133,7 +135,8 @@ describe('TabStateStore', () => {
             createdAt: 1,
             lastActiveAt: 2,
             color: 'red',
-            pinned: false
+            pinned: false,
+            workspace_id: null
           },
           {
             id: 'tab_b',
@@ -142,7 +145,8 @@ describe('TabStateStore', () => {
             createdAt: 3,
             lastActiveAt: 4,
             color: null,
-            pinned: false
+            pinned: false,
+            workspace_id: null
           }
         ],
         activeId: 'tab_a'
@@ -183,7 +187,8 @@ describe('TabStateStore', () => {
             createdAt: 1,
             lastActiveAt: 2,
             color: null,
-            pinned: true
+            pinned: true,
+            workspace_id: null
           },
           {
             id: 'tab_normal',
@@ -192,7 +197,8 @@ describe('TabStateStore', () => {
             createdAt: 3,
             lastActiveAt: 4,
             color: null,
-            pinned: false
+            pinned: false,
+            workspace_id: null
           }
         ],
         activeId: 'tab_normal'
@@ -230,7 +236,8 @@ describe('TabStateStore', () => {
           createdAt: 1,
           lastActiveAt: 2,
           color: null,
-          pinned: false
+          pinned: false,
+          workspace_id: null
         }
       ],
       activeId: 'tab_a'
