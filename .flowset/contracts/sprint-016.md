@@ -36,7 +36,7 @@
 | # | 작업 | 산출물 |
 |---|---|---|
 | **M0 KI MEDIUM batch (T01~T06)** | | |
-| S016-T01 | KI-001 sqlite-vec macOS CI runner 추가 (matrix windows + macos-latest) | `.github/workflows/ci.yml` |
+| S016-T01 | KI-001 sqlite-vec macOS CI runner 추가 — **1차 macos-latest (arm64) PoC (PR #168, `continue-on-error: true`)** → **2차 windows-latest + macos-intel matrix 통합 (후속 PR — required check 승격 동반) + Electron 39 native ABI rebuild PoC (별도 T 또는 T05 동반)** | `.github/workflows/ci.yml` |
 | S016-T02 | KI-006 Workspace 전환 abort 정책 wiring (IndexingService.abort + EmbeddingQueue.clear + ChatService.abortStreaming) + **tabGuard.test.ts +3 abort 회귀 + `src/renderer/src/translation/tabGuard.ts` → `src/main/TabGuard.ts` 위치 이동** (v04-test-classification §D 매트릭스 누락분 흡수) | `src/main/workspaceHandlers.ts` + 3 모듈 abort API + `src/main/TabGuard.ts` + `tests/unit/main/tabGuard.test.ts` |
 | S016-T03 | KI-007 TabManager workspace_id 필드 + stash/restore 트리거 (PARTIAL → 완전 격리) + **TabManager.test.ts +5 workspace_id 메타 회귀 + tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 (KI-017 동반)** (v04-test-classification §D 매트릭스 누락분 흡수) | `src/main/TabManager.ts` + `src/storage/TabStateStore.ts` + `tests/unit/main/TabManager.test.ts` + `tests/unit/renderer/tabLabel.test.ts` |
 | S016-T04 | KI-004 ChatRequest.response_format JSON 강제 API-level (`response_format: { type: 'json_object' }`) + AutoTagger 적용 | `src/ai/types.ts` + `src/ai/providers/OpenAIApiKeyProvider.ts` |

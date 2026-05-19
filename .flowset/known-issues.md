@@ -53,18 +53,18 @@
 
 ## KI 누적
 
-### KI-001 [open] sqlite-vec macOS native 빌드 미검증
+### KI-001 [in-progress] sqlite-vec macOS native 빌드 미검증
 
 - **Severity**: MEDIUM
 - **Phase**: 1
-- **Sprint**: 015 (M3-6 codex/evaluator 핫픽스 시점 등록)
-- **Component**: `package.json` (sqlite-vec optional dep) + `src/storage/Database.ts` (sqlite-vec 로드 호출)
-- **영향**: macOS 사용자 install 시 `sqlite-vec-darwin-x64` / `sqlite-vec-darwin-arm64` prebuilt 동작 미검증. `better-sqlite3@12.10` Electron 39 macOS ABI rebuild 도 PoC 부재. M4 인덱싱 hook 시점에 macOS 사용자에서 sqlite-vec load 실패 시 인덱싱 전체 차단 가능.
+- **Sprint**: 015 (M3-6 codex/evaluator 핫픽스 시점 등록) → 016 M0 T01 PoC 진입 (PR #168)
+- **Component**: `package.json` (sqlite-vec optional dep) + `src/storage/Database.ts` (sqlite-vec 로드 호출) + `.github/workflows/ci.yml` (macos-poc job)
+- **영향**: macOS 사용자 install 시 `sqlite-vec-darwin-x64` / `sqlite-vec-darwin-arm64` prebuilt 동작 미검증. `better-sqlite3@12.10` Electron 39 macOS ABI rebuild 도 PoC 부재. M4 인덱싱 hook 시점에 macOS 사용자에서 sqlite-vec load 실패 시 인덱싱 전체 차단 가능. `src/storage/Database.ts` L113 `sqliteVec.load(d)` 호출 fail시 throw — **fallback 미구현** (Sprint 016 contract §7 #1 "임시 in-memory cosine fallback" 차후 도입).
 - **발견 출처**: M3-spike (`.flowset/specs/m3-spike-decisions.md` §1 "macOS 검증: 본 세션 환경 한정 → 미검증") + 핸드오프 2026-05-18 §13.8 + 2026-05-18 M3 종합 evaluator §3 KI 후보 1 권고
-- **재현 절차**: macOS x64 또는 arm64 환경에서 `npm install` + `npx electron-rebuild -f -w better-sqlite3 -v 39.x.x` 실행 후 `spike/m3-poc/electron-main.cjs` 동일 PoC 재실행
-- **권고 해소 방향**: (1) macOS CI runner 추가 (`.github/workflows/*.yml` 에 `runs-on: macos-latest` 매트릭스) (2) 또는 사용자 macOS 환경에서 PoC 1회 수동 실행 후 결과 본 KI 에 기록
-- **처리 예정 Sprint**: 016 (macOS CI 추가 시 해소) — Phase 1 종료 전 권고
-- **상태**: `open`
+- **재현 절차**: macOS x64 또는 arm64 환경에서 `npm install` + `npx electron-rebuild -f -w better-sqlite3 -v 39.x.x` 실행 후 `spike/m3-poc/electron-main.cjs` 동일 PoC 재실행. 또는 본 PR #168 머지 후 GitHub Actions `macos-poc` job 실행 결과 확인.
+- **권고 해소 방향**: (1) **PR #168 진행**: macOS CI runner 추가 (`.github/workflows/ci.yml` 에 `macos-poc` job — `continue-on-error: true` PoC) — **검증 범위: sqlite-vec-darwin-arm64 + Node 20 ABI load 만**. darwin-x64 (Intel) 및 Electron 39 native ABI rebuild 는 별도 PR. (2) 1차 PoC (arm64 + Node ABI) 통과 → **부분 closed 불가, 다음 단계 진행**: (2a) windows-latest + macos-intel matrix 통합 PR → required check 승격 (2b) Electron 39 native ABI rebuild PoC (`electron-rebuild -f -w better-sqlite3 -v 39.x.x` + Electron 런타임 sqlite-vec 재load) — T05 IndexingService wiring 동반 또는 별도 T (3) PoC 실패 시 fallback (`src/storage/Database.ts` try/catch + in-memory cosine 비-벡터 검색 모드)
+- **처리 예정 Sprint**: 016 M0 T01 (PoC 진행) → 결과 후 closed 또는 fallback 도입
+- **상태**: `in-progress`
 
 ### KI-002 [open] PageCachePanel PARTIAL — v0.3 어댑터 의존 잔존
 
