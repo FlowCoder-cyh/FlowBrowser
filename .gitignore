@@ -46,3 +46,4 @@ spike/
 # Claude Code 로컬 설정 (개인용은 별도 관리)
 .claude/settings.local.json
 .claude/.session-cache/
+.claude/scheduled_tasks.lock
