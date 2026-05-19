@@ -563,9 +563,23 @@ interface MemoryStatsResponsePayload {
   errorCode?: 'infra_unavailable' | 'no_active_workspace'
 }
 
+interface MemoryInvalidatedPayload {
+  workspaceId: string
+}
+
 const memoryApi = {
   stats: (args: { workspaceId?: string } = {}): Promise<MemoryStatsResponsePayload> =>
-    ipcRenderer.invoke('memory:stats', args)
+    ipcRenderer.invoke('memory:stats', args),
+  /**
+   * T29 hotfix — PRD §07.4.2 broadcast.
+   * main → renderer 브로드캐스트 (chat / note INSERT 후 즉시 fire).
+   * 호출자 (MemoryStatsPanel) 가 받으면 stats() 즉시 재호출.
+   */
+  onInvalidated: (handler: (payload: MemoryInvalidatedPayload) => void): (() => void) => {
+    const listener = (_e: unknown, payload: MemoryInvalidatedPayload): void => handler(payload)
+    ipcRenderer.on('memory:stats-invalidated', listener)
+    return () => ipcRenderer.removeListener('memory:stats-invalidated', listener)
+  }
 }
 
 contextBridge.exposeInMainWorld('searchApi', searchApi)

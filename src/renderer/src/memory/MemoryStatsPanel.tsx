@@ -48,11 +48,12 @@ export default function MemoryStatsPanel({
       setStats(null)
       return
     }
+    const wsId = workspaceId
     let cancelled = false
     let timer: ReturnType<typeof setInterval> | null = null
     async function refresh(): Promise<void> {
       try {
-        const r = await window.memoryApi.stats({ workspaceId: workspaceId! })
+        const r = await window.memoryApi.stats({ workspaceId: wsId })
         if (cancelled) return
         if (r.ok && r.stats) {
           setStats(r.stats)
@@ -70,12 +71,17 @@ export default function MemoryStatsPanel({
       }
     }
     void refresh()
+    // T29 hotfix (codex NEEDS_CHANGES #10) — PRD §07.4.2 broadcast 즉시 갱신.
+    const offInvalidated = window.memoryApi.onInvalidated((p) => {
+      if (p.workspaceId === wsId) void refresh()
+    })
     if (pollIntervalMs > 0) {
       timer = setInterval(() => void refresh(), pollIntervalMs)
     }
     return () => {
       cancelled = true
       if (timer) clearInterval(timer)
+      offInvalidated()
     }
   }, [workspaceId, pollIntervalMs])
 

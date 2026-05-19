@@ -3,7 +3,7 @@
  * Privacy / Credentials / UsageLog / Provider 통합 진입점.
  */
 
-import { app, ipcMain, type WebContents } from 'electron'
+import { app, BrowserWindow, ipcMain, type WebContents } from 'electron'
 import { join } from 'node:path'
 import { promises as fs } from 'node:fs'
 
@@ -169,6 +169,21 @@ const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 function getActiveWorkspaceId(): string | null {
   if (workspaceService) return workspaceService.getActiveId()
   return defaultWorkspaceId
+}
+
+/**
+ * Sprint 015 M6 T29 hotfix (codex NEEDS_CHANGES #10) — PRD §07.4.2 broadcast.
+ * chat / note / 인덱싱 INSERT 후 renderer 측 MemoryStatsPanel 즉시 refresh 트리거.
+ * BrowserWindow.getAllWindows()[0] 미존재 시 (테스트 / headless) no-op.
+ */
+function broadcastMemoryInvalidated(workspaceId: string | null): void {
+  if (!workspaceId) return
+  const windows = BrowserWindow.getAllWindows()
+  for (const win of windows) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('memory:stats-invalidated', { workspaceId })
+    }
+  }
 }
 
 let consentStatePath!: string
@@ -424,7 +439,7 @@ function registerChatIpc(): void {
   ipcMain.handle(
     'chat:request',
     async (_event, args: ChatRequestArgs): Promise<ChatRequestResponse> => {
-      return handleChatRequest(args, {
+      const response = await handleChatRequest(args, {
         getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getChatService: ({ allowedProviders }) => {
           if (!aiChatHistoryStore) return null
@@ -452,6 +467,11 @@ function registerChatIpc(): void {
         },
         historyStore: aiChatHistoryStore
       })
+      // T29 hotfix — PRD §07.4.2 AI 채팅 broadcast.
+      if (response.status === 'ok') {
+        broadcastMemoryInvalidated(args.workspaceId ?? getActiveWorkspaceId())
+      }
+      return response
     }
   )
   ipcMain.handle(
@@ -478,10 +498,15 @@ function registerNoteIpc(): void {
   ipcMain.handle(
     'note:create',
     async (_event, args: NoteCreateArgs): Promise<NoteCreateResponse> => {
-      return handleNoteCreate(args, {
+      const response = await handleNoteCreate(args, {
         getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getNoteService: () => noteService
       })
+      // T29 hotfix — PRD §07.4.2 노트 생성 broadcast.
+      if (response.ok) {
+        broadcastMemoryInvalidated(args.workspaceId ?? getActiveWorkspaceId())
+      }
+      return response
     }
   )
   ipcMain.handle(
@@ -496,10 +521,15 @@ function registerNoteIpc(): void {
   ipcMain.handle(
     'note:delete',
     (_event, args: NoteDeleteArgs): NoteDeleteResponse => {
-      return handleNoteDelete(args, {
+      const response = handleNoteDelete(args, {
         getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getNoteService: () => noteService
       })
+      // T29 hotfix — 노트 삭제 시에도 broadcast (활성 ws 의 notesCount 변경).
+      if (response.ok) {
+        broadcastMemoryInvalidated(getActiveWorkspaceId())
+      }
+      return response
     }
   )
 }
