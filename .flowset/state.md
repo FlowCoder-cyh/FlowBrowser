@@ -9,8 +9,8 @@
 - **Sprint**: **015 M0~M6 완료 (12 단계 모두 머지)** — M0 사전 분석 + M1 PRD v0.4 본문 + M2 폐기·일반화 + M3 SQLite·임베딩 + M4 인덱싱·태깅·Privacy + M5 검색·채팅·노트 + M6 워크스페이스·메모리·종합 + **잔여 hotfix (정량 임계 5종 KI 등록 + PARTIAL 4파일 회귀 누락 contract 흡수 + Sprint 016 기간 통일 + PRD §0.6.1 시나리오 표기 정정)**
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.0 정식 발행** (19 섹션, 약 5,200+ lines, 2026-05-19 release tag) — §0.6.1 시나리오 2·3 표기 hotfix 정정 (90%+ → 0%)
-- **최근 갱신**: 2026-05-19 (M6 T28~T31 4 PR + 3 hotfix + 이전 세션 5 PR + **본 세션 Sprint 016 M0 T03 분할 옵션 A 3 PR (#171/#172/#173) + docs 2 PR (#174 + #175 본 hotfix) 모두 머지 완료** — **본 세션 evaluator + codex 병렬 평가 4회** (PR #171/#172/#173 사전 + #174 사후 보강) 누적 / 단위 1068 → **1089 (+21)** / KI 누적 19 → **17** (KI-017 LOW + **KI-007 MEDIUM closed** — 분할 옵션 A 3편 T03a schema + T03b TabLabel props + T03c TabBar wiring + 격리 invariant 가드) / **75 PR 누적** (내부 카운터 `PR_번호` 산식, squash 1:1 매핑 — #171 `d51efdd` + #172 `8196e19` + #173 `4462a0b` + #174 `64b4208` + #175 본 docs hotfix) / Sprint 016 M0 T03 종료)
-- **다음 세션 진입점**: `.flowset/handoffs/2026-05-19.md` **§15 본 세션 종료 핸드오프** + Sprint 016 M0 다음 코드 작업 — **권고 1순위 T05** (KI-010 LOW IndexingService wiring + KI-001 Electron ABI 동반) / **2순위 T06** (perf bench infra 8종, T05 의존) / **3순위 T04** (KI-004 MEDIUM response_format JSON API-level) / **4순위 T02** (KI-006 MEDIUM Workspace 전환 abort 정책 — T03 stash/restore 와 결합 우선 권고) / **5순위 T01 잔여** (windows + macos-intel matrix + required 승격). KI-001 1차 PoC SUCCESS 박힘 (arm64 + Node ABI), 잔여 3 단계.
+- **최근 갱신**: 2026-05-20 (이전 세션 T03 분할 옵션 A 3 PR (#171/#172/#173) + docs 2 PR (#174 + #175) + **본 세션 Sprint 016 M0 T05 (#176) 머지 완료 + 본 PR 내 hotfix 1회** — **본 세션 evaluator + codex 병렬 평가 1회** (PR #176 사전) / 단위 1089 → **1101 (+12)** — IndexingService.test.ts +7 workspaceId payload + indexingBroadcast.test.ts +5 broadcast wiring / KI 잔여 17 → **17** (KI-010 LOW closed -1 + **KI-020 LOW 신규** +1 동수, HIGH 1 / MEDIUM 3 / LOW 13) / **76 PR 누적** (#176 `cae365e`, KI-010 closed 산식 — PRD §07.4.2 broadcast 3종 인덱싱/노트/AI채팅 전부 cover))
+- **다음 세션 진입점**: `.flowset/handoffs/2026-05-20.md` **§1 본 세션 종료 핸드오프 (T05 PR #176)** + Sprint 016 M0 다음 코드 작업 — **권고 1순위 T06** (perf bench infra 8종, T05 의존 충족 — IndexingService wiring 완료) / **2순위 T04** (KI-004 MEDIUM response_format JSON API-level) / **3순위 T02** (KI-006 MEDIUM Workspace 전환 abort 정책) / **4순위 T01 잔여** (windows + macos-intel matrix + Electron ABI rebuild). KI-001 1차 PoC SUCCESS 박힘 (arm64 + Node ABI), 잔여 3 단계.
 
 ## 현재 작업
 
@@ -255,7 +255,8 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 
 ## 최근 핸드오프
 
-- **[2026-05-19](./handoffs/2026-05-19.md) — Sprint 015 M5 (§10) + M6 종합 (§11) 모두 완료 — Phase 1 종료 선언 + PRD v0.4.0 정식 발행 + Sprint 016 진입 권고**
+- **[2026-05-20](./handoffs/2026-05-20.md) — Sprint 016 M0 T05 종료 (KI-010 closed + KI-020 신규) — PR #176 머지 + dual review + 본 PR 내 hotfix**
+- [2026-05-19](./handoffs/2026-05-19.md) — Sprint 015 M5 (§10) + M6 종합 (§11) 모두 완료 — Phase 1 종료 선언 + PRD v0.4.0 정식 발행 + Sprint 016 진입 권고
 - [2026-05-18](./handoffs/2026-05-18.md) — Sprint 015 M4 5/5 + 2 hotfix 완료
 - [2026-05-17](./handoffs/2026-05-17.md) — Sprint 015 M0~M1 완료
 - [2026-05-16](./handoffs/2026-05-16.md) — 🔴 방향 전환 결정

@@ -138,16 +138,16 @@
 - **처리 예정 Sprint**: Phase 3 종료 후 MVP 직전 정리 또는 Sprint 016
 - **상태**: `open`
 
-### KI-010 [open] MemoryStatsPanel 인덱싱 완료 broadcast 미구현 (잔여 1종)
+### KI-010 [closed] MemoryStatsPanel 인덱싱 완료 broadcast 미구현 (잔여 1종)
 
 - **Severity**: LOW
 - **Phase**: 1
-- **Sprint**: 015 (M6 T29 hotfix 부분 cover)
+- **Sprint**: 015 (M6 T29 hotfix 부분 cover) → 016 M0 T05 closed (PR #176)
 - **Component**: `src/main/IndexingService.ts` (wiring 시점에 broadcast 추가) + `src/renderer/src/memory/MemoryStatsPanel.tsx` (이미 onInvalidated 구독 중)
 - **영향**: PRD §07.4.2 broadcast 3종 (인덱싱 / 노트 / AI 채팅) 중 노트 + AI 채팅 2종은 T29 hotfix 로 cover. 인덱싱 완료 broadcast 는 IndexingService 가 main process 에 wiring 안 됨 (Sprint 015 M4-5 자체는 인스턴스 정의만, services.ts wiring 0).
 - **권고 해소 방향**: IndexingService 가 services.ts 에서 인스턴스화 + did-finish-load 핸들러 결합 시점에 recordVisit 후 `broadcastMemoryInvalidated(workspaceId)` 호출. KI-006 abort 정책과 동반 처리 가능.
 - **처리 예정 Sprint**: 016 M0 또는 M1 (IndexingService wiring 시점)
-- **상태**: `open`
+- **상태**: `closed` (Sprint 016 M0 T05 PR #176 `cae365e` — services.ts `IndexingGate` (UserSetting.privacyExclusions getter wiring) + `IndexingService` 인스턴스화 + `createIndexingBroadcastHandler` factory 함수로 onStatusChange wiring 추출 — status='indexed' 시 `broadcastMemoryInvalidated(payload.workspaceId)` 호출. main/index.ts `createTabView` did-finish-load 에 `runPageIndexing` 헬퍼 — scanWebContentsFields + ParagraphExtractor.executeJavaScript + tryIndexPage. http/https allowlist 선필터 + graceful try/catch + IndexingStatusPayload.workspaceId 추가. 회귀 +12 (IndexingService.test.ts +7 workspaceId payload + indexingBroadcast.test.ts +5 broadcast wiring). dual review evaluator Pass 8/8 / codex NEEDS_CHANGES 1 + NB-5 본 PR hotfix 흡수. NB-1 (SPA did-navigate-in-page 인덱싱 누락) 후속 KI-020 신규 등록.)
 
 ### KI-011 [open] MemoryStats 카운트 < 20ms 정량 임계 미측정
 
@@ -262,6 +262,18 @@
 - **처리 예정 Sprint**: 016 M0 T06
 - **상태**: `open`
 
+### KI-020 [open] SPA `did-navigate-in-page` 자동 인덱싱 누락
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 016 (M0 T05 사전 dual review codex NB-1)
+- **Component**: `src/main/index.ts` (`createTabView` did-finish-load hook — 본 PR 에 박힘) + 잠재적 `did-navigate-in-page` 별도 hook 필요
+- **영향**: Sprint 016 M0 T05 PR #176 의 자동 페이지 인덱싱 hook 은 `did-finish-load` 1종만 결합. SPA (React/Vue Single-Page App) 의 history.pushState 기반 in-page 네비게이션 (`did-navigate-in-page`) 시점에는 인덱싱 trigger 0 — 사용자가 SPA 내 URL 변경으로 콘텐츠 탐색해도 IndexedPageStore 에 누적 안 됨. 예: GitHub 의 issue → pull request 전환, Notion 의 페이지 전환.
+- **재현 절차**: GitHub repository 페이지에서 issue 클릭 → URL 변경되나 페이지 reload 없음 → IndexedPageStoreSqlite.countPages() 증가 0
+- **권고 해소 방향**: (1) `createTabView` 에 `did-navigate-in-page` hook 추가 + `runPageIndexing` 재호출 (debounce 500ms~1s, SPA 가 단기간 여러 번 navigate 가능 — 마지막 안정 URL 만 인덱싱). (2) `did-finish-load` 와 동일 path 재사용 가능 — IndexingService 의 recordVisit UPSERT + content_hash 매칭이 중복 차단. (3) iframe nav 는 무시 (sender frame === mainFrame check).
+- **처리 예정 Sprint**: 016 M1 (시나리오 2 PM 경쟁 — GitHub/공식 docs SPA 흐름 cover 필요 시점) 또는 후속 hotfix
+- **상태**: `open`
+
 ### KI-017 [closed] tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 누락
 
 - **Severity**: LOW
@@ -303,3 +315,4 @@
 - 2026-05-19 (PR #167 Sprint 016 contract 시안 → 정식 — `docs/WI-S016M0-docs-contract-formalize`): KI-018 LOW (top-10 hit rate ≥ 80% 정확도 미측정) + KI-019 LOW (AI 응답 출처 정확도 ≥ 90% 미측정) 2건 등록. codex BLOCKING #1+#2 — PRD §15.4 정량 임계 6종 중 #3 top-10 hit rate + #6 AI 출처 정확도 누락 발견. KI-013 본문 "top-5 retrieval" → "top-10 표시" PRD §9.7 b6.1 정합 정정 동반. Sprint 015 누적 17건 → **19건** (HIGH 1 / MEDIUM 4 / LOW 14). 본 2건은 Sprint 016 M0 T06 perf/회귀 infra (시나리오 30 케이스 chat_meta.cells.sources 산식 + 50 페어 자체 hit rate 셋) 일괄 측정.
 - 2026-05-19 (Sprint 016 M0 T03b PR #172 — KI-017 closed): `formatTabLabel` 시그니처 확장 `(t, workspaceContext?: WorkspaceLabelContext | null)` + 매칭 시 `${icon} ${base}` prefix + 미매칭/null/context 미주입 시 fallback. tabLabel.test.ts +2 회귀 (매칭 + 미매칭 매트릭스 3 case). UI wiring (TabBar 활성 ws 주입) 은 T03c 위임. Phase 1 해소 0 → **1** / 잔여 19 → **18** (HIGH 1 / MEDIUM 4 / LOW 13).
 - 2026-05-19 (Sprint 016 M0 T03c PR #173 — KI-007 closed): `TabManager.setActiveWorkspaceFilter` + `activeTabByWorkspace` stash map + `backfillUnassignedWorkspaceId` + `listAll` / `snapshotAll` + `handleWorkspaceSwitch` `onWorkspaceSwitched` callback path + `services.setWorkspaceSwitchHook` + `tab:open` 시 active ws 자동 박힘 + `initializeTabs` backfill + TabBar workspace context 주입 + `workspaceApi.onSwitched` broadcast. 회귀 +7 (TabManager 4 + workspaceHandlers 3). Phase 1 해소 1 → **2** / 잔여 18 → **17** (HIGH 1 / MEDIUM 3 / LOW 13). KI-007 분할 옵션 A 3편 (T03a #171 + T03b #172 + T03c #173) 모두 머지 후 closed.
+- 2026-05-19 (Sprint 016 M0 T05 PR #176 — KI-010 closed + KI-020 신규): `IndexingGate` (UserSetting.privacyExclusions getter wiring) + `IndexingService` 인스턴스화 + `createIndexingBroadcastHandler` factory 함수로 onStatusChange wiring 추출 (status='indexed' 시 `broadcastMemoryInvalidated(payload.workspaceId)`) + `IndexingStatusPayload.workspaceId` 추가 + main/index.ts `createTabView` did-finish-load 에 `runPageIndexing` 헬퍼 (scanWebContentsFields + ParagraphExtractor.executeJavaScript + tryIndexPage, http/https allowlist 선필터, graceful try/catch) + tryIndexPage / getParagraphsExtractScript export. 회귀 +12 (IndexingService.test.ts +7 workspaceId payload + indexingBroadcast.test.ts +5 broadcast wiring). dual review evaluator Pass 8/8 / codex NEEDS_CHANGES 1 + NB-5 본 PR hotfix 흡수. NB-1 (SPA did-navigate-in-page 인덱싱 누락) **KI-020 LOW 신규 등록**. Phase 1 해소 2 → **3** / 잔여 17 → **17** (KI-010 closed -1 + KI-020 신규 +1 = 동수, HIGH 1 / MEDIUM 3 / LOW 13).
