@@ -15,7 +15,8 @@ import type {
   SearchApi,
   ChatApi,
   NoteApi,
-  ShortcutApi
+  ShortcutApi,
+  WorkspaceApi
 } from './index'
 
 declare global {
@@ -37,6 +38,7 @@ declare global {
     chatApi: ChatApi
     noteApi: NoteApi
     shortcutApi: ShortcutApi
+    workspaceApi: WorkspaceApi
   }
 }
 

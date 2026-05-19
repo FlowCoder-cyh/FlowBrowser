@@ -347,4 +347,67 @@ describe('UserSettingStore', () => {
       expect(store.getState().privacyExclusions).toEqual([])
     })
   })
+
+  // Sprint 015 M6 T28 — activeWorkspaceId (WorkspaceService 영속)
+  describe('activeWorkspaceId (Sprint 015 M6 T28)', () => {
+    it('기본값 null (services.ts bootstrap 가 fresh install 시 default UUID 주입)', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().activeWorkspaceId).toBeNull()
+    })
+
+    it('update + persist UUID 문자열', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      const fakeUuid = '11111111-2222-3333-4444-555555555555'
+      const s = await store.update({ activeWorkspaceId: fakeUuid })
+      expect(s.activeWorkspaceId).toBe(fakeUuid)
+
+      const reloaded = new UserSettingStore(path)
+      await reloaded.load()
+      expect(reloaded.getState().activeWorkspaceId).toBe(fakeUuid)
+    })
+
+    it('update null 도 허용 (워크스페이스 0 상태 신호)', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await store.update({ activeWorkspaceId: 'x' })
+      const s = await store.update({ activeWorkspaceId: null })
+      expect(s.activeWorkspaceId).toBeNull()
+    })
+
+    it('빈 문자열 거부', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await expect(store.update({ activeWorkspaceId: '' })).rejects.toThrow(
+        'invalid activeWorkspaceId'
+      )
+    })
+
+    it('비-string/비-null 거부', async () => {
+      const store = new UserSettingStore(path)
+      await store.load()
+      await expect(
+        // @ts-expect-error invalid type for test
+        store.update({ activeWorkspaceId: 123 })
+      ).rejects.toThrow('invalid activeWorkspaceId')
+    })
+
+    it('기존 파일에 activeWorkspaceId 누락 → null fallback', async () => {
+      await fs.writeFile(path, JSON.stringify({ translationMode: 'panel' }))
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().activeWorkspaceId).toBeNull()
+    })
+
+    it('디스크 파일의 빈 문자열 → null fallback', async () => {
+      await fs.writeFile(
+        path,
+        JSON.stringify({ translationMode: 'panel', activeWorkspaceId: '' })
+      )
+      const store = new UserSettingStore(path)
+      await store.load()
+      expect(store.getState().activeWorkspaceId).toBeNull()
+    })
+  })
 })

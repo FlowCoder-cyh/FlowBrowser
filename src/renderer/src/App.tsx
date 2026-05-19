@@ -1,6 +1,7 @@
 // Sprint 015 M2-6 — TranslationPanel 완전 제거 (render/restore IPC 폐기 동반).
 // Sprint 015 M5-1 — SearchBar 는 UrlBar 내부 flex item 으로 렌더 (PRD §7.4.3 상단 우측 240px).
 // Sprint 015 M5-8 — ChatPanel 신규 mount (TranslationPanel 자리 결합 — panelOpen toggle).
+// Sprint 015 M6 T28 — WorkspaceSidebar mount (좌측 240px). 전환 시 ChatPanel + 검색 결과 캐시 무효화 트리거.
 import { useEffect, useState } from 'react'
 import UrlBar from './UrlBar'
 import TabBar from './TabBar'
@@ -9,6 +10,7 @@ import OnboardingTour from './onboarding/OnboardingTour'
 import SettingsPage from './settings/SettingsPage'
 import TranslationPopup from './translation/TranslationPopup'
 import ChatPanel from './chat/ChatPanel'
+import WorkspaceSidebar from './workspace/WorkspaceSidebar'
 
 type Stage = 'loading' | 'consent' | 'browser' | 'settings'
 
@@ -16,12 +18,20 @@ export default function App(): JSX.Element {
   const [stage, setStage] = useState<Stage>('loading')
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
+  // Sprint 015 M6 T28 — 워크스페이스 전환 시 ChatPanel / 검색 결과 캐시 무효화 트리거 (key 재마운트).
+  const [workspaceVersion, setWorkspaceVersion] = useState(0)
 
   async function togglePanel(): Promise<void> {
     const next = !panelOpen
     setPanelOpen(next)
     // main process WebContentsView setBounds 동기화 (panel 자리 확보)
     await window.browserApi.setPanelOpen(next)
+  }
+
+  function handleWorkspaceChanged(_id: string): void {
+    // PRD §11.3.1 broadcast — ChatPanel / NotePanel / SearchBar 결과 무효화.
+    // 본 PR 은 ChatPanel 만 새 workspace_id 로 history 재로드 (key 재마운트).
+    setWorkspaceVersion((v) => v + 1)
   }
 
   useEffect(() => {
@@ -92,20 +102,24 @@ export default function App(): JSX.Element {
   }
 
   return (
-    <div className="app">
-      <TabBar />
-      <UrlBar
-        onOpenSettings={() => setStage('settings')}
-        panelOpen={panelOpen}
-        onTogglePanel={() => void togglePanel()}
-      />
-      <TranslationPopup />
-      {/* Sprint 015 M5-8 — ChatPanel mount (TranslationPanel 자리 결합, panelOpen toggle). */}
-      {panelOpen && (
-        <div className="side-panel side-panel--chat">
-          <ChatPanel />
-        </div>
-      )}
+    <div className="app app--with-sidebar">
+      <WorkspaceSidebar onActiveChanged={handleWorkspaceChanged} />
+      <div className="app__main">
+        <TabBar />
+        <UrlBar
+          onOpenSettings={() => setStage('settings')}
+          panelOpen={panelOpen}
+          onTogglePanel={() => void togglePanel()}
+        />
+        <TranslationPopup />
+        {/* Sprint 015 M5-8 — ChatPanel mount (TranslationPanel 자리 결합, panelOpen toggle).
+            Sprint 015 M6 T28 — workspaceVersion key 로 워크스페이스 전환 시 history 재로드 강제. */}
+        {panelOpen && (
+          <div className="side-panel side-panel--chat">
+            <ChatPanel key={`chat-${workspaceVersion}`} />
+          </div>
+        )}
+      </div>
       {showOnboarding && (
         <OnboardingTour
           onOpenSettings={handleOnboardingOpenSettings}

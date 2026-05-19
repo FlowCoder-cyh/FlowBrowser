@@ -36,6 +36,8 @@ let browserView: WebContentsView | null = null
 const URL_BAR_HEIGHT = 60
 const TAB_BAR_HEIGHT = 36
 const HEADER_HEIGHT = URL_BAR_HEIGHT + TAB_BAR_HEIGHT
+// Sprint 015 M6 T28 — WorkspaceSidebar 좌측 240px 점유. WebContentsView 가 사이드바 위에 덮이지 않도록 x 오프셋.
+const SIDEBAR_WIDTH = 240
 
 function getActiveTabView(): WebContentsView | null {
   const id = tabManager.getActiveId()
@@ -696,10 +698,11 @@ function updateBrowserViewBounds(): void {
   }
   const bounds = mainWindow.getContentBounds()
   const rightInset = panelOpen ? PANEL_WIDTH : 0
+  // Sprint 015 M6 T28 — WorkspaceSidebar 좌측 SIDEBAR_WIDTH 점유. 본 view 는 그 우측부터 시작.
   browserView.setBounds({
-    x: 0,
+    x: SIDEBAR_WIDTH,
     y: HEADER_HEIGHT,
-    width: Math.max(0, bounds.width - rightInset),
+    width: Math.max(0, bounds.width - SIDEBAR_WIDTH - rightInset),
     height: Math.max(0, bounds.height - HEADER_HEIGHT)
   })
 }
@@ -807,10 +810,11 @@ async function handleContextMenuAi(
         : 'translation'
 
   // 미리 popup 표시 (로딩 상태)
+  // Sprint 015 M6 T28 — WebContentsView 가 SIDEBAR_WIDTH 만큼 우측 시작하므로 popup anchor 도 동일 오프셋 적용.
   mainWindow.webContents.send('translation:popup-show', {
     sourceText: selectionText,
     url,
-    anchorX: webViewX,
+    anchorX: webViewX + SIDEBAR_WIDTH,
     anchorY: webViewY + HEADER_HEIGHT,
     status: 'loading',
     mode
