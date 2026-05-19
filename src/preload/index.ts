@@ -432,6 +432,47 @@ const chatApi = {
     ipcRenderer.invoke('chat:list-history', args)
 }
 
+// Sprint 015 M5-7 — note IPC (NoteService).
+interface SerializedNoteRowPayload {
+  id: string
+  workspaceId: string
+  pageId: string | null
+  visitId: string | null
+  selectedText: string
+  body: string | null
+  aiTags: string[] | null
+  createdAt: number
+  createdBy: 'user' | 'migration'
+}
+
+interface NoteCreateArgsPayload {
+  workspaceId?: string
+  selectedText: string
+  pageId?: string | null
+  visitId?: string | null
+  body?: string | null
+  initialTags?: string[]
+  enableAutoTagging?: boolean
+}
+
+interface NoteCreateResponsePayload {
+  ok: boolean
+  note?: SerializedNoteRowPayload
+  embeddingJobId?: string
+  autoTaggingStatus?: 'tagged' | 'skipped' | 'failed' | 'not_called'
+  error?: string
+  errorCode?: 'invalid_input' | 'infra_unavailable'
+}
+
+const noteApi = {
+  create: (args: NoteCreateArgsPayload): Promise<NoteCreateResponsePayload> =>
+    ipcRenderer.invoke('note:create', args),
+  list: (args: { workspaceId?: string } = {}): Promise<{ notes: SerializedNoteRowPayload[] }> =>
+    ipcRenderer.invoke('note:list', args),
+  delete: (id: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('note:delete', { id })
+}
+
 const shortcutApi = {
   getBindings: (): Promise<ShortcutBindingPayload[]> =>
     ipcRenderer.invoke('shortcut:get-bindings'),
@@ -451,6 +492,7 @@ const shortcutApi = {
 
 contextBridge.exposeInMainWorld('searchApi', searchApi)
 contextBridge.exposeInMainWorld('chatApi', chatApi)
+contextBridge.exposeInMainWorld('noteApi', noteApi)
 contextBridge.exposeInMainWorld('shortcutApi', shortcutApi)
 contextBridge.exposeInMainWorld('codexApi', codexApi)
 contextBridge.exposeInMainWorld('browserApi', browserApi)
@@ -481,4 +523,5 @@ export type TranslateApi = typeof translateApi
 export type PopupApi = typeof popupApi
 export type SearchApi = typeof searchApi
 export type ChatApi = typeof chatApi
+export type NoteApi = typeof noteApi
 export type ShortcutApi = typeof shortcutApi
