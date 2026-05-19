@@ -43,9 +43,14 @@ jobs:
   macos-poc:
     name: macOS sqlite-vec PoC (KI-001)
     runs-on: macos-latest
-    # KI-001 [open] sqlite-vec macOS native 빌드 미검증 — 1차 PoC.
+    # KI-001 [in-progress] sqlite-vec macOS native 빌드 미검증 — 1차 PoC.
+    # GitHub-hosted runner macos-latest = Apple Silicon arm64 (2024+ 이미지).
+    # 본 job 검증 범위: sqlite-vec-darwin-arm64 prebuilt + Node 20 ABI load.
+    # 검증 범위 외 (후속 T 또는 별도 PR 필요):
+    #   - darwin-x64 (Intel) — macos-15-intel / macos-26-intel runner 별도 job
+    #   - Electron 39 native ABI rebuild — electron-rebuild + Electron 런타임 load
     # fail-fast 회피: 본 job 실패해도 main `ci` job 통과 시 머지 가능.
-    # branch protection required check 영향 0 (job name 단독).
+    # branch protection required check 영향 0 (job name 단독, required 미설정).
     continue-on-error: true
     steps:
       - name: Checkout
@@ -61,7 +66,8 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Probe sqlite-vec + better-sqlite3 native load
-        # KI-001 핵심 검증: sqlite-vec-darwin-{x64,arm64} prebuilt 동작 + vec_version() 호출
+        # KI-001 핵심 검증: sqlite-vec-darwin-arm64 prebuilt 동작 + vec_version() 호출
+        # (darwin-x64 검증은 macos-intel runner 별도 PR — 본 step 범위 외)
         run: |
           node -e "
             const Database = require('better-sqlite3');
