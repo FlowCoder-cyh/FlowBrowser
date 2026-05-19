@@ -212,6 +212,27 @@ function broadcastMemoryInvalidated(workspaceId: string | null): void {
 }
 
 /**
+ * Sprint 016 M0 T05 (KI-010) — IndexingService onStatusChange → broadcast 결합 factory.
+ *
+ * 본 함수는 IndexingService 인스턴스화 시점 onStatusChange 콜백을 만들어 반환. 단위 테스트 측에서
+ * 임의의 broadcaster 를 주입해 status='indexed' 시 broadcaster 호출 정합 검증 가능 (codex T05 NEEDS_CHANGES #7 해소).
+ *
+ * 정책:
+ *   - status='indexed' 시 → broadcaster(payload.workspaceId ?? null) 호출
+ *   - status='blocked' 시 → no-op (payload.workspaceId 미정의 + Page/Visit 미생성 → broadcast 의미 없음)
+ *
+ * broadcaster 가 null workspaceId 에 대해 안전 (services 본체 `broadcastMemoryInvalidated` 는 null guard 보유).
+ */
+export function createIndexingBroadcastHandler(
+  broadcaster: (workspaceId: string | null) => void
+): (payload: IndexingStatusPayload) => void {
+  return (payload: IndexingStatusPayload): void => {
+    if (payload.result.status !== 'indexed') return
+    broadcaster(payload.workspaceId ?? null)
+  }
+}
+
+/**
  * Sprint 016 M0 T05 (KI-010) — `did-finish-load` 시점 호출용 헬퍼.
  *
  * `main/index.ts` createTabView 의 `did-finish-load` 핸들러가 호출.
@@ -349,13 +370,7 @@ export async function initServices(): Promise<void> {
       gate: indexingGate,
       pageStore: indexedPageStore,
       embeddingQueue,
-      onStatusChange: (payload: IndexingStatusPayload) => {
-        // PRD §07.4.2 broadcast 3종 (인덱싱 / 노트 / AI 채팅) — 본 시점에 인덱싱 broadcast 박힘.
-        // blocked 시 payload.workspaceId === undefined → broadcast skip (broadcastMemoryInvalidated 가 null guard).
-        if (payload.result.status === 'indexed') {
-          broadcastMemoryInvalidated(payload.workspaceId ?? null)
-        }
-      }
+      onStatusChange: createIndexingBroadcastHandler(broadcastMemoryInvalidated)
     })
   } catch (err) {
     // 인프라 미준비 — search / chat / note / memory / indexing 호출 시 graceful error 반환.

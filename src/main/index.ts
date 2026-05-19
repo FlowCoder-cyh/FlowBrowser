@@ -68,9 +68,10 @@ async function runPageIndexing(tabId: string, view: WebContentsView): Promise<vo
   const wc = view.webContents
   if (wc.isDestroyed()) return
   const url = wc.getURL()
-  if (!url || url === 'about:blank' || url.startsWith('chrome-error:') || url.startsWith('data:')) {
-    return
-  }
+  if (!url) return
+  // codex T05 NB-5 — http/https allowlist 선필터 (IndexingGate 가 결국 차단하나 본문 추출 비용 절약).
+  // file: / blob: / javascript: / data: / chrome-error: / about: 등 인덱싱 대상 외 scheme 일괄 skip.
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return
   const tab = tabManager.snapshotAll().tabs.find((t) => t.id === tabId)
   const workspaceId = tab?.workspace_id ?? null
   const isActiveTab = tabManager.getActiveId() === tabId
