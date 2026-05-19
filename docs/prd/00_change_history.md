@@ -121,7 +121,7 @@ v0.3.12까지의 핵심 완성 자산:
 - 누적 PR: 65 (M5 종료 시점 61 + M6 T28~T31 4 PR)
 - 누적 단위 테스트: 1068 (M5 종료 968 → M6 +100)
 - 시나리오 회귀 셋 cover: 시나리오 1 (학술) 100% / 시나리오 4 (재발견) 100% / 시나리오 2·3 **0% (Sprint 016 M1 cover 예정 — Sprint 015 범위 외)**. v04-direction §11 "90% cover" 목표 표기는 Sprint 016 완료 시점 측정값으로 갱신.
-- KI 누적: 11건 (HIGH 1 / MEDIUM 4 / LOW 6)
+- KI 누적: 17건 (HIGH 1 / MEDIUM 4 / LOW 12) — Sprint 015 잔여 hotfix KI-012~017 6건 등록 후 (PR #166)
 - 작성 패턴: 19 섹션 분할 (단일 책임)
 - SSOT 인용 디렉토리: `.flowset/specs/v04-*.md`
 - 다음 변경 이력 갱신: Sprint 016 Phase 2 진입 완료 시 → v0.4.1 발행

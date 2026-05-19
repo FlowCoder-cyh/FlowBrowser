@@ -10,7 +10,7 @@
 - [x] Sprint 015 M0~M6 모두 머지 (65 PR / 단위 1068)
 - [x] PRD v0.4.0 정식 발행 (2026-05-19)
 - [x] 시나리오 1·4 cover 100% (S1-C1~C5 + S4-C1~C3 회귀 셋)
-- [x] KI 누적 11건 인지 (HIGH 1 in-progress / MEDIUM 4 / LOW 6)
+- [x] KI 누적 17건 인지 (HIGH 1 in-progress / MEDIUM 4 / LOW 12) — Sprint 015 잔여 hotfix KI-012~017 6건 등록 후
 - [x] 가드레일 위반 0 (Sprint 015 13 Sprint 연속 commit-check pass)
 
 ## 1. Sprint 목표
@@ -202,7 +202,7 @@ M3 cookies partition 은 사용자 stage 격리 검증 강제 (User stage 또는
 - 방향 SSOT: `.flowset/specs/v04-direction.md` (Sprint 015 박힘)
 - 최신 핸드오프: `.flowset/handoffs/2026-05-19.md` §11 (M6 종합)
 - 가드레일: G-009 / G-013 / G-014 + **G-015 신규**
-- Known Issues: `.flowset/known-issues.md` KI-001 ~ KI-011 (11건)
+- Known Issues: `.flowset/known-issues.md` KI-001 ~ KI-017 (17건 — Sprint 015 잔여 hotfix 6건 등록 후)
 - 외부 참조:
   - Electron Partition API: https://www.electronjs.org/docs/latest/api/session
   - sqlite-vec macOS: https://github.com/asg017/sqlite-vec/releases
