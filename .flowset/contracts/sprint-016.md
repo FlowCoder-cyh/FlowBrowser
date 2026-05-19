@@ -1,9 +1,9 @@
 # Sprint 016 — Phase 2 진입 + KI batch + 어댑터 정리 + 시나리오 2·3 cover
 
-> **상태: 시안 (Sprint 015 M6 T31 시점 작성)**
+> **상태: 정식 (2026-05-19 — PR #166 잔여 hotfix `f915296` 머지 + PR #167 정식화 시점)**
 > Phase: 2 진입
-> 시작 예정: Sprint 015 M6 종료 직후 (2026-05-20+ 추정)
-> 목표 기간: **3~3.5주 (18~24일)** — §4 마일스톤 합산 정합 (이전 시안 "3~4주" 표기는 §4 합계와 불일치, 본 hotfix 통일)
+> 시작 예정: 본 정식화 PR 머지 직후 (2026-05-19+)
+> 목표 기간: **3~4주 (19~25일)** — §4 마일스톤 합산 정합 (M0 perf bench infra 추가로 본 정식화에서 4~5일 조정 — 이전 시안 18~24일 → 19~25일)
 
 ## 0. 사전 조건
 
@@ -17,7 +17,7 @@
 
 **Phase 2 진입 + Sprint 015 잔여 정리 + KI batch**:
 
-1. **KI MEDIUM 5건 batch 처리** (KI-001 sqlite-vec macOS / KI-004 response_format / KI-006 abort / KI-007 TabManager / 신규 1건 시) — `.flowset/known-issues.md` 등록 정책 5건 batch 임계 트리거
+1. **KI MEDIUM 4건 + LOW 정량 임계 6종 + LOW PARTIAL 회귀 1종 batch 처리** (MEDIUM: KI-001 sqlite-vec macOS / KI-004 response_format / KI-006 abort / KI-007 TabManager — 5건 batch 임계 1건 부족하나 Phase 2 진입 batch 동반 / LOW perf bench: KI-011 MemoryStats < 20ms / KI-012~016 정량 임계 5종 / LOW 회귀: KI-017 tabLabel +2 KI-007 동반)
 2. **시나리오 2·3 90%+ cover** — 시나리오 1·4 (100%) 와 합쳐 Phase 1 시나리오 회귀 전체 cover
 3. **어댑터 일괄 제거 (M5-8 분할 2편)** — 5종 어댑터 정리로 v0.3 자산 완전 폐기 종결
 4. **Phase 2 cookies/storage partition** — Electron `session.fromPartition('persist:ws-{uuid}')` + WorkspacePartitionManager
@@ -41,7 +41,7 @@
 | S016-T03 | KI-007 TabManager workspace_id 필드 + stash/restore 트리거 (PARTIAL → 완전 격리) + **TabManager.test.ts +5 workspace_id 메타 회귀 + tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 (KI-017 동반)** (v04-test-classification §D 매트릭스 누락분 흡수) | `src/main/TabManager.ts` + `src/storage/TabStateStore.ts` + `tests/unit/main/TabManager.test.ts` + `tests/unit/renderer/tabLabel.test.ts` |
 | S016-T04 | KI-004 ChatRequest.response_format JSON 강제 API-level (`response_format: { type: 'json_object' }`) + AutoTagger 적용 | `src/ai/types.ts` + `src/ai/providers/OpenAIApiKeyProvider.ts` |
 | S016-T05 | KI-010 IndexingService wiring (services.ts) + did-finish-load 결합 + 인덱싱 완료 broadcast | `src/main/services.ts` + `src/main/IndexingService.ts` |
-| S016-T06 | KI-011 MemoryStats < 20ms 정량 측정 + 회귀 셋 | `tests/perf/memoryStats.bench.ts` 신규 |
+| S016-T06 | **KI-011~016 정량 임계 6종 perf bench infra 신규** — 6 bench 파일 (`tests/perf/{indexing,search,workspaceSwitch,embeddingCost,storageSize,memoryStats}.bench.ts`) + 실측 결과 보고서 (`.flowset/specs/sprint-016-perf-bench.md`). 각 임계: 인덱싱 < 500ms (KI-012) / 검색 < 200ms top-5 (KI-013) / 워크스페이스 전환 < 1초 (KI-014) / 임베딩 비용 < $3/월 1만 페이지 (KI-015) / 저장 용량 < 200MB/만 페이지 (KI-016) / MemoryStats getStats < 20ms 1K+10K (KI-011) | `tests/perf/*.bench.ts` (6 파일 신규) + `.flowset/specs/sprint-016-perf-bench.md` (실측 보고서) |
 | **M1 시나리오 2·3 cover (T07~T08)** | | |
 | S016-T07 | 시나리오 2 (PM 경쟁 분석) 회귀 셋 5 케이스 (S2-C1~C5) | `tests/integration/scenarios/scenario-2-pm.test.ts` |
 | S016-T08 | 시나리오 3 (학습) 회귀 셋 5 케이스 (S3-C1~C5) | `tests/integration/scenarios/scenario-3-learning.test.ts` |
@@ -85,7 +85,7 @@
 - KI-007 TabManager stash/restore — 워크스페이스 전환 시 탭 그룹 교체 검증
 - KI-004 response_format API-level 적용 (AutoTagger + 회귀 1건)
 - KI-010 인덱싱 완료 broadcast — IndexingService wiring + MemoryStatsPanel 자동 갱신 통합
-- KI-011 MemoryStats getStats < 20ms 실측 (1K + 10K 페이지 기준)
+- KI-011~016 정량 임계 6종 perf bench infra 신규 + 실측 보고서 (KI-011 MemoryStats < 20ms 1K+10K / KI-012 인덱싱 < 500ms / KI-013 검색 < 200ms top-5 / KI-014 워크스페이스 전환 < 1초 / KI-015 임베딩 비용 < $3/월 1만 페이지 / KI-016 저장 용량 < 200MB/만 페이지). 임계 초과 항목은 후속 hotfix 또는 Sprint 017 cover 결정.
 
 ### AC-2 시나리오 2·3 cover (T07~T08)
 
@@ -131,14 +131,14 @@
 
 | M | 산출물 | 작업 | 기간 |
 |---|---|---|---|
-| **M0** | KI MEDIUM batch (6건) | T01~T06 | 3~4일 |
+| **M0** | KI MEDIUM batch (4건) + LOW perf bench infra (6종 KI-011~016) + LOW PARTIAL 회귀 (KI-017) | T01~T06 | 4~5일 |
 | **M1** | 시나리오 2·3 회귀 셋 (10 케이스) | T07~T08 | 2~3일 |
 | **M2** | 어댑터 일괄 제거 (5종) | T09~T13 | 3~4일 |
 | **M3** | Phase 2 cookies partition + Export | T14~T17 | 4~5일 |
 | **M4** | 백그라운드 번역 + 하이라이트 | T18~T22 | 4~5일 |
 | **M5** | 종합 + PRD v0.4.1 + Sprint 017 시안 | T23~T26 | 2~3일 |
 
-총 18~24일 (3~3.5주 보수 추정).
+총 19~25일 (3~4주 보수 추정 — 본 정식화에서 M0 perf bench infra 추가로 +1~+1일 조정).
 
 ## 5. 가드레일 적용
 
@@ -166,16 +166,19 @@
 특히 M0 evaluator 는 KI 6건 batch 처리의 완성도 (재현 검증 / 정량 측정 / 회귀 누락 X) 에 가중.
 M3 cookies partition 은 사용자 stage 격리 검증 강제 (User stage 또는 in-memory partition 분리 stub).
 
-**정량 임계 (Sprint 016 종료 시 종합 evaluator 입력)**:
-- 인덱싱 속도 < 500ms / 페이지 (M0 KI-005 wiring 측정)
-- 검색 응답 < 200ms (top-5 retrieval)
-- MemoryStats getStats < 20ms (KI-011 측정)
-- 워크스페이스 전환 < 1초 (PRD §11.3.2)
-- 임베딩 비용 < $3/월 (1만 페이지)
-- 저장 용량 < 200MB / 만 페이지
-- AI 응답 출처 인용 정확도 ≥ 90%
+**정량 임계 (Sprint 016 M0 T06 perf bench infra 일괄 실측 + 종료 시 종합 evaluator 입력)**:
 
-임계 미달 항목은 KI-NNN 등록.
+| # | 임계 | bench 파일 | KI |
+|---|---|---|---|
+| 1 | 인덱싱 속도 < 500ms / 페이지 | `tests/perf/indexing.bench.ts` | **KI-012** |
+| 2 | 검색 응답 < 200ms (top-5 retrieval) | `tests/perf/search.bench.ts` | **KI-013** |
+| 3 | MemoryStats getStats < 20ms (1K + 10K) | `tests/perf/memoryStats.bench.ts` | **KI-011** |
+| 4 | 워크스페이스 전환 < 1초 | `tests/perf/workspaceSwitch.bench.ts` | **KI-014** |
+| 5 | 임베딩 비용 < $3/월 (1만 페이지) | `tests/perf/embeddingCost.bench.ts` | **KI-015** |
+| 6 | 저장 용량 < 200MB / 만 페이지 | `tests/perf/storageSize.bench.ts` | **KI-016** |
+| 7 | AI 응답 출처 인용 정확도 ≥ 90% | (정성 평가 — 시나리오 회귀 셋 기반, perf bench 외) | (별도 — 시나리오 cover 통과 시 묵시 검증) |
+
+임계 미달 항목은 (1) 후속 hotfix PR 즉시 정정 또는 (2) Sprint 017 cover 결정 + KI status `open` 유지. 본 6 bench infra 자체는 PRD §15.4 정량 임계 6종 + AI 정확도 1종 = 7종 매트릭스 정합.
 
 ## 7. 리스크 / 미지수
 
@@ -211,3 +214,4 @@ M3 cookies partition 은 사용자 stage 격리 검증 강제 (User stage 또는
 ## 변경 이력
 
 - 2026-05-19: Sprint 016 contract 시안 작성 (Sprint 015 M6 T31 시점). Phase 2 진입 + KI MEDIUM batch + 시나리오 2·3 cover + 어댑터 일괄 제거 + cookies partition + 백그라운드 번역. T01~T26 26 작업, 6 마일스톤. AC-1~AC-6 6 수용 기준. G-015 신규 가드레일.
+- 2026-05-19 (PR #167 정식화 — Sprint 015 잔여 hotfix PR #166 `f915296` 머지 직후): 시안 → **정식** 승격. M0 T06 본문 확장 — KI-011 단독 → **KI-011~016 정량 임계 6종 perf bench infra** (6 bench 파일 + 실측 보고서). §0 기간 18~24일 → 19~25일 (3~4주). §1 #1 표기 정확화 (MEDIUM 4건 + LOW 6종 + LOW 1종). §6 정량 임계 표 KI 인용 7종 매트릭스. §4 M0 기간 3~4일 → 4~5일. T 번호 재정렬 0 (T07~T26 시안 그대로). 본 정식화는 evaluator 후속 조치 #4 (perf bench infra 별도 T 분할) 권고 정합.
