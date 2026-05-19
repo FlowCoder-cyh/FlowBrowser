@@ -19,6 +19,7 @@
     "build": "npm run typecheck && electron-vite build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "perf": "vitest bench --run",
     "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "engines": {

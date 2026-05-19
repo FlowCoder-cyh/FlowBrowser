@@ -10,7 +10,13 @@ export default defineConfig({
     },
     globals: false,
     pool: 'forks',
-    environmentMatchGlobs: [['tests/unit/perception/**', 'happy-dom']]
+    environmentMatchGlobs: [['tests/unit/perception/**', 'happy-dom']],
+    // Sprint 016 M0 T06 — bench infra. `npm run perf` 가 본 include 적용.
+    // test run (`npm test`) 은 위 include 만 사용 → bench 미실행 (분리).
+    benchmark: {
+      include: ['tests/perf/**/*.bench.ts'],
+      reporters: ['default']
+    }
   },
   resolve: {
     alias: {
