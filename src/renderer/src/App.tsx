@@ -1,5 +1,6 @@
-// Sprint 015 M2-6 — TranslationPanel 완전 제거 (render/restore IPC 폐기 동반). M5 ChatPanel 신규 시 동일 자리 도입.
+// Sprint 015 M2-6 — TranslationPanel 완전 제거 (render/restore IPC 폐기 동반).
 // Sprint 015 M5-1 — SearchBar 는 UrlBar 내부 flex item 으로 렌더 (PRD §7.4.3 상단 우측 240px).
+// Sprint 015 M5-8 — ChatPanel 신규 mount (TranslationPanel 자리 결합 — panelOpen toggle).
 import { useEffect, useState } from 'react'
 import UrlBar from './UrlBar'
 import TabBar from './TabBar'
@@ -7,12 +8,21 @@ import Consent from './onboarding/Consent'
 import OnboardingTour from './onboarding/OnboardingTour'
 import SettingsPage from './settings/SettingsPage'
 import TranslationPopup from './translation/TranslationPopup'
+import ChatPanel from './chat/ChatPanel'
 
 type Stage = 'loading' | 'consent' | 'browser' | 'settings'
 
 export default function App(): JSX.Element {
   const [stage, setStage] = useState<Stage>('loading')
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [panelOpen, setPanelOpen] = useState(false)
+
+  async function togglePanel(): Promise<void> {
+    const next = !panelOpen
+    setPanelOpen(next)
+    // main process WebContentsView setBounds 동기화 (panel 자리 확보)
+    await window.browserApi.setPanelOpen(next)
+  }
 
   useEffect(() => {
     void boot()
@@ -84,9 +94,18 @@ export default function App(): JSX.Element {
   return (
     <div className="app">
       <TabBar />
-      <UrlBar onOpenSettings={() => setStage('settings')} />
+      <UrlBar
+        onOpenSettings={() => setStage('settings')}
+        panelOpen={panelOpen}
+        onTogglePanel={() => void togglePanel()}
+      />
       <TranslationPopup />
-      {/* Sprint 015 M2-6 — TranslationPanel 제거. M5 ChatPanel 도입 시 동일 자리 추가. */}
+      {/* Sprint 015 M5-8 — ChatPanel mount (TranslationPanel 자리 결합, panelOpen toggle). */}
+      {panelOpen && (
+        <div className="side-panel side-panel--chat">
+          <ChatPanel />
+        </div>
+      )}
       {showOnboarding && (
         <OnboardingTour
           onOpenSettings={handleOnboardingOpenSettings}
