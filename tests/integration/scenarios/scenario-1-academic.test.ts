@@ -115,10 +115,10 @@ describe('시나리오 1 — 학술 리서치 회귀 셋', () => {
 
   /**
    * S1-C1 — 자동 인덱싱 후 시간축 검색 → top-3 에 정답 페이지 포함.
-   * 측정: top-3 hit rate (binary).
+   * 측정: top-3 hit rate (binary). cosine 정렬 결정성 추가 검증 (codex NB-1).
    */
-  it('S1-C1: 자동 인덱싱 + 의미 검색 → top-3 hit', async () => {
-    const now = Date.now()
+  it('S1-C1: 자동 인덱싱 + 의미 검색 → top-3 hit + 정렬 결정성', async () => {
+    const now = new Date('2026-05-19T12:00:00+09:00').getTime() // codex NB-4 정정 — fixed timestamp
     // 3 페이지 인덱싱 (IL-2 면역 / 단백질 구조 / 일반 뉴스)
     const il2 = await fx.pageStore.recordVisit({
       workspace_id: fx.defaultId,
@@ -152,19 +152,27 @@ describe('시나리오 1 — 학술 리서치 회귀 셋', () => {
       topK: 20,
       now
     })
-    expect(hits.length).toBeGreaterThanOrEqual(1)
+    expect(hits.length).toBe(3)
     // top-3 에 IL-2 페이지 포함 (정답)
     const top3 = hits.slice(0, 3).map((h) => h.pageId)
     expect(top3).toContain(il2.page.id)
     // 최상위는 IL-2 (의미 가장 가까움)
     expect(hits[0].pageId).toBe(il2.page.id)
+    // codex NB-1 정정 — cosine 결정성: il2 cosineSim 가 다른 페이지보다 명시 높음
+    const il2Hit = hits.find((h) => h.pageId === il2.page.id)!
+    const structHit = hits.find((h) => h.pageId === struct.page.id)!
+    const newsHit = hits.find((h) => h.pageId === news.page.id)!
+    expect(il2Hit.cosineSim).toBeGreaterThan(structHit.cosineSim)
+    expect(il2Hit.cosineSim).toBeGreaterThan(newsHit.cosineSim)
+    // cosine metric 정합 검증 — distance = 1 - cosineSim (vec0 cosine 디폴트)
+    expect(il2Hit.distance).toBeCloseTo(1 - il2Hit.cosineSim, 5)
   })
 
   /**
    * S1-C2 — 검색 결과 클릭 → 본문 캐시 + 노트 + AI 대화 모두 복원.
    */
   it('S1-C2: 검색 결과 클릭 시 본문 캐시 + 노트 + AI 대화 복원', async () => {
-    const now = Date.now()
+    const now = new Date('2026-05-19T12:00:00+09:00').getTime() // codex NB-4 — fixed timestamp
     const page = await fx.pageStore.recordVisit({
       workspace_id: fx.defaultId,
       url: 'https://academic.example/article',
@@ -274,7 +282,7 @@ describe('시나리오 1 — 학술 리서치 회귀 셋', () => {
    * S1-C4 — 노트 추가 → DB 3중 anchor (page + visit + workspace).
    */
   it('S1-C4: 노트 추가 시 3중 anchor 정확성', async () => {
-    const now = Date.now()
+    const now = new Date('2026-05-19T12:00:00+09:00').getTime() // codex NB-4 — fixed timestamp
     const page = await fx.pageStore.recordVisit({
       workspace_id: fx.defaultId,
       url: 'https://academic.example/ref',
@@ -308,7 +316,7 @@ describe('시나리오 1 — 학술 리서치 회귀 셋', () => {
    * S1-C5 — 워크스페이스 전환 → 다른 워크스페이스 retrieval 결과 0.
    */
   it('S1-C5: 워크스페이스 전환 시 retrieval 격리 (다른 ws 누설 0)', async () => {
-    const now = Date.now()
+    const now = new Date('2026-05-19T12:00:00+09:00').getTime() // codex NB-4 — fixed timestamp
     // Default ws 에 페이지 + 노트
     const pageDefault = await fx.pageStore.recordVisit({
       workspace_id: fx.defaultId,
@@ -346,28 +354,34 @@ describe('시나리오 1 — 학술 리서치 회귀 셋', () => {
       created_by: 'user'
     })
 
-    // Default ws 검색
+    // Default ws active — getActiveId() 결과를 직접 사용 (codex NB-2 정정)
+    expect(fx.workspace.getActiveId()).toBe(fx.defaultId)
     const hitsDefault = fx.search.search({
-      workspaceId: fx.defaultId,
+      workspaceId: fx.workspace.getActiveId(),
       queryEmbedding: makeVec({ 0: 1.0 }),
       topK: 10,
       now
     })
-    expect(hitsDefault.every((h) => h.workspaceId === fx.defaultId)).toBe(true)
+    // codex NB-3 정정 — 자체 ws 결과 정확 1건 존재 검증 (빈 결과로 통과 회피)
+    expect(hitsDefault.length).toBe(1)
+    expect(hitsDefault[0].pageId).toBe(pageDefault.page.id)
+    expect(hitsDefault[0].workspaceId).toBe(fx.defaultId)
     expect(hitsDefault.find((h) => h.pageId === pageAlt.page.id)).toBeUndefined()
 
     // Workspace 전환 (setActive) — UserSetting.activeWorkspaceId 갱신
     await fx.workspace.setActive(fx.altId)
     expect(fx.workspace.getActiveId()).toBe(fx.altId)
 
-    // Alt ws 검색 — Default 페이지 누설 0
+    // Alt ws 검색 — codex NB-2 정정: setActive 후 getActiveId() 그대로 활용 (명시 id 미주입)
     const hitsAlt = fx.search.search({
-      workspaceId: fx.altId,
+      workspaceId: fx.workspace.getActiveId(),
       queryEmbedding: makeVec({ 0: 1.0 }),
       topK: 10,
       now
     })
-    expect(hitsAlt.every((h) => h.workspaceId === fx.altId)).toBe(true)
+    expect(hitsAlt.length).toBe(1)
+    expect(hitsAlt[0].pageId).toBe(pageAlt.page.id)
+    expect(hitsAlt[0].workspaceId).toBe(fx.altId)
     expect(hitsAlt.find((h) => h.pageId === pageDefault.page.id)).toBeUndefined()
 
     // 노트도 ws 격리
