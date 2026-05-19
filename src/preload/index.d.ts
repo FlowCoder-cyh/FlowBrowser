@@ -14,6 +14,7 @@ import type {
   PopupApi,
   SearchApi,
   ChatApi,
+  NoteApi,
   ShortcutApi
 } from './index'
 
@@ -34,6 +35,7 @@ declare global {
     popupApi: PopupApi
     searchApi: SearchApi
     chatApi: ChatApi
+    noteApi: NoteApi
     shortcutApi: ShortcutApi
   }
 }

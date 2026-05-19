@@ -38,6 +38,8 @@ import {
   IndexedPageStoreSqlite,
   NoteStore,
   AiChatHistoryStore,
+  TagStore,
+  EmbeddingQueue,
   defaultCredentialsPath,
   defaultUsageLogPath,
   defaultTranslationCachePath,
@@ -71,6 +73,18 @@ import {
   type ChatListHistoryArgs,
   type ChatListHistoryResponse
 } from './chatHandlers'
+import { NoteService } from './NoteService'
+import {
+  handleNoteCreate,
+  handleNoteList,
+  handleNoteDelete,
+  type NoteCreateArgs,
+  type NoteCreateResponse,
+  type NoteListArgs,
+  type NoteListResponse,
+  type NoteDeleteArgs,
+  type NoteDeleteResponse
+} from './noteHandlers'
 
 import {
   OpenAIApiKeyProvider,
@@ -115,7 +129,10 @@ let vectorIndex: VectorIndex | null = null
 let indexedPageStore: IndexedPageStoreSqlite | null = null
 let noteStore: NoteStore | null = null
 let aiChatHistoryStore: AiChatHistoryStore | null = null
+let tagStore: TagStore | null = null
+let embeddingQueue: EmbeddingQueue | null = null
 let searchService: SearchService | null = null
+let noteService: NoteService | null = null
 let defaultWorkspaceId: string | null = null
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 
@@ -171,23 +188,33 @@ export async function initServices(): Promise<void> {
     })
     noteStore = new NoteStore(flowbrowserDb)
     aiChatHistoryStore = new AiChatHistoryStore(flowbrowserDb)
+    tagStore = new TagStore(flowbrowserDb)
+    embeddingQueue = new EmbeddingQueue(flowbrowserDb)
     searchService = new SearchService({
       vectorIndex,
       pageStore: indexedPageStore,
       noteStore
     })
+    noteService = new NoteService({
+      noteStore,
+      embeddingQueue,
+      tagStore
+      // autoTagger 는 M5-7 본 PR 미주입 — KI-003 정합 (BYOK 명시 동의 시점에 호출자 책임)
+    })
   } catch (err) {
-    // 인프라 미준비 — search / chat 호출 시 graceful error 반환.
-    // 기타 IPC (translate / cache / glossary / shortcut) 는 영향 없음.
+    // 인프라 미준비 — search / chat / note 호출 시 graceful error 반환.
     flowbrowserDb = null
     vectorIndex = null
     indexedPageStore = null
     noteStore = null
     aiChatHistoryStore = null
+    tagStore = null
+    embeddingQueue = null
     searchService = null
+    noteService = null
     defaultWorkspaceId = null
     console.warn(
-      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 / 채팅 비활성:',
+      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 / 채팅 / 노트 비활성:',
       err instanceof Error ? err.message : String(err)
     )
   }
@@ -205,6 +232,7 @@ export async function initServices(): Promise<void> {
   registerShortcutIpc()
   registerSearchIpc()
   registerChatIpc()
+  registerNoteIpc()
 }
 
 /** Sprint 015 M5-1 — ShortcutStore 접근 헬퍼 (main/index.ts before-input-event 매칭에 사용). */
@@ -312,6 +340,45 @@ function registerChatIpc(): void {
       return handleChatListHistory(args, {
         getActiveWorkspaceId: () => defaultWorkspaceId,
         historyStore: aiChatHistoryStore
+      })
+    }
+  )
+}
+
+/**
+ * Sprint 015 M5-7 — note IPC.
+ * `note:create` — NoteService.createNote (NoteStore + EmbeddingQueue + optional AutoTagger)
+ * `note:list` — NoteService.listNotes (workspace 별)
+ * `note:delete` — NoteService.deleteNote
+ *
+ * KI-003 BYOK 정합: AutoTagger 자동 호출 차단 — 본 PR 인프라 wiring 미주입 (autoTagger=undefined).
+ * 호출자가 명시 동의 후 NoteService 인스턴스에 autoTagger 주입 (Sprint 016+ 또는 사용자 settings UI).
+ */
+function registerNoteIpc(): void {
+  ipcMain.handle(
+    'note:create',
+    async (_event, args: NoteCreateArgs): Promise<NoteCreateResponse> => {
+      return handleNoteCreate(args, {
+        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getNoteService: () => noteService
+      })
+    }
+  )
+  ipcMain.handle(
+    'note:list',
+    (_event, args: NoteListArgs): NoteListResponse => {
+      return handleNoteList(args, {
+        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getNoteService: () => noteService
+      })
+    }
+  )
+  ipcMain.handle(
+    'note:delete',
+    (_event, args: NoteDeleteArgs): NoteDeleteResponse => {
+      return handleNoteDelete(args, {
+        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getNoteService: () => noteService
       })
     }
   )
