@@ -386,6 +386,52 @@ const searchApi = {
     ipcRenderer.invoke('search:get-content', args)
 }
 
+// Sprint 015 M5-6 — chat IPC (ChatService + AiChatHistoryStore).
+interface ChatRetrievedItemPayload {
+  type: 'page' | 'note'
+  id: string
+  page_id?: string
+  visit_id?: string
+}
+
+interface SerializedChatRowPayload {
+  id: string
+  workspaceId: string
+  pageId: string | null
+  visitId: string | null
+  role: 'user' | 'assistant' | 'system' | 'error'
+  content: string
+  retrievedItems: ChatRetrievedItemPayload[] | null
+  chatMeta: unknown | null
+  status: 'ok' | 'pending' | 'failed' | 'aborted'
+  createdAt: number
+}
+
+interface ChatRequestArgsPayload {
+  workspaceId?: string
+  userMessage: string
+  pageId?: string | null
+  visitId?: string | null
+  levelPreference?: 'novice' | 'intermediate' | 'advanced' | null
+  customSystemPrompt?: string
+  modelHint?: string
+  allowedProviders?: ReadonlyArray<'openai' | 'codex' | 'anthropic' | 'gemini' | 'local'>
+}
+
+interface ChatRequestResponsePayload {
+  status: 'ok' | 'error'
+  messages?: SerializedChatRowPayload[]
+  error?: string
+  errorCode?: 'byok_required' | 'chat_unsupported' | 'provider_error' | 'invalid_input'
+}
+
+const chatApi = {
+  request: (args: ChatRequestArgsPayload): Promise<ChatRequestResponsePayload> =>
+    ipcRenderer.invoke('chat:request', args),
+  listHistory: (args: { workspaceId?: string } = {}): Promise<{ messages: SerializedChatRowPayload[] }> =>
+    ipcRenderer.invoke('chat:list-history', args)
+}
+
 const shortcutApi = {
   getBindings: (): Promise<ShortcutBindingPayload[]> =>
     ipcRenderer.invoke('shortcut:get-bindings'),
@@ -404,6 +450,7 @@ const shortcutApi = {
 }
 
 contextBridge.exposeInMainWorld('searchApi', searchApi)
+contextBridge.exposeInMainWorld('chatApi', chatApi)
 contextBridge.exposeInMainWorld('shortcutApi', shortcutApi)
 contextBridge.exposeInMainWorld('codexApi', codexApi)
 contextBridge.exposeInMainWorld('browserApi', browserApi)
@@ -433,4 +480,5 @@ export type UserSettingApi = typeof userSettingApi
 export type TranslateApi = typeof translateApi
 export type PopupApi = typeof popupApi
 export type SearchApi = typeof searchApi
+export type ChatApi = typeof chatApi
 export type ShortcutApi = typeof shortcutApi
