@@ -26,9 +26,13 @@ export const WORKSPACE_ICON_PRESETS = [
 export type WorkspaceIconPreset = (typeof WORKSPACE_ICON_PRESETS)[number]
 
 /**
- * 이모지 1 grapheme 검증.
- * Intl.Segmenter 가 있으면 grapheme 단위 1개 + emoji 코드포인트 검사.
- * 없으면 코드포인트 1~4개 fallback.
+ * 이모지 1 grapheme 검증 — codex hotfix (NEEDS_CHANGES #2) 정합.
+ *
+ * main `validateWorkspaceIcon` 와 동일 정책:
+ *   1. preset 그대로 통과
+ *   2. Intl.Segmenter 로 grapheme 1개만 허용
+ *   3. base codepoint 가 emoji-presentation codepoint 여야 함 (modifier / FE0F / ZWJ 단독 거부)
+ *   4. 잔여 codepoint 는 FE0F / ZWJ / skin tone / 또 다른 base emoji 허용
  */
 export function isValidUserEmoji(raw: string): boolean {
   const trimmed = raw.trim()
@@ -51,19 +55,42 @@ export function isValidUserEmoji(raw: string): boolean {
     grapheme = trimmed
   }
 
-  let hasEmojiCp = false
-  for (const ch of grapheme) {
-    const cp = ch.codePointAt(0)!
+  const baseCp = grapheme.codePointAt(0)!
+  if (!isBaseEmojiCodepoint(baseCp)) return false
+  let i = baseCp > 0xffff ? 2 : 1
+  while (i < grapheme.length) {
+    const cp = grapheme.codePointAt(i)!
     if (
-      (cp >= 0x1f000 && cp <= 0x1ffff) ||
-      (cp >= 0x2600 && cp <= 0x27bf) ||
-      (cp >= 0x2300 && cp <= 0x23ff) ||
       cp === 0xfe0f ||
       cp === 0x200d ||
+      (cp >= 0x1f3fb && cp <= 0x1f3ff) ||
+      isBaseEmojiCodepoint(cp) ||
       (cp >= 0x1f1e6 && cp <= 0x1f1ff)
     ) {
-      hasEmojiCp = true
+      i += cp > 0xffff ? 2 : 1
+    } else {
+      return false
     }
   }
-  return hasEmojiCp
+  return true
+}
+
+function isBaseEmojiCodepoint(cp: number): boolean {
+  // skin tone modifier 는 base 자격 X
+  if (cp >= 0x1f3fb && cp <= 0x1f3ff) return false
+  if (cp >= 0x1f300 && cp <= 0x1f5ff) return true
+  if (cp >= 0x1f600 && cp <= 0x1f64f) return true
+  if (cp >= 0x1f680 && cp <= 0x1f6ff) return true
+  if (cp >= 0x1f700 && cp <= 0x1f77f) return true
+  if (cp >= 0x1f780 && cp <= 0x1f7ff) return true
+  if (cp >= 0x1f800 && cp <= 0x1f8ff) return true
+  if (cp >= 0x1f900 && cp <= 0x1f9ff) return true
+  if (cp >= 0x1fa00 && cp <= 0x1faff) return true
+  if (cp >= 0x2600 && cp <= 0x26ff) return true
+  if (cp >= 0x2700 && cp <= 0x27bf) return true
+  if (cp >= 0x1f1e6 && cp <= 0x1f1ff) return true
+  if (cp === 0x231a || cp === 0x231b) return true
+  if (cp >= 0x23e9 && cp <= 0x23ec) return true
+  if (cp === 0x23f0 || cp === 0x23f3) return true
+  return false
 }

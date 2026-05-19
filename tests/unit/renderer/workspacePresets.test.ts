@@ -59,4 +59,28 @@ describe('renderer workspace presets', () => {
       expect(() => validateWorkspaceIcon(v)).toThrow(WorkspaceValidationError)
     }
   })
+
+  // 핫픽스 (codex NEEDS_CHANGES #2) — modifier-only 거부 정합
+  // String.fromCodePoint 명시 — 파일 인코딩 안전성 확보 (invisible char 직접 표기 회피)
+  it('rejects standalone modifier (FE0F / ZWJ / skin tone) on both sides', () => {
+    const modifierOnly = [
+      String.fromCodePoint(0xfe0f),
+      String.fromCodePoint(0x200d),
+      String.fromCodePoint(0x1f3fb)
+    ]
+    for (const v of modifierOnly) {
+      expect(isValidUserEmoji(v)).toBe(false)
+      expect(() => validateWorkspaceIcon(v)).toThrow(WorkspaceValidationError)
+    }
+  })
+
+  it('accepts ZWJ family on both sides', () => {
+    expect(isValidUserEmoji('👨‍👩‍👧')).toBe(true)
+    expect(validateWorkspaceIcon('👨‍👩‍👧')).toBe('👨‍👩‍👧')
+  })
+
+  it('accepts skin tone modified base on both sides', () => {
+    expect(isValidUserEmoji('👋🏻')).toBe(true)
+    expect(validateWorkspaceIcon('👋🏻')).toBe('👋🏻')
+  })
 })

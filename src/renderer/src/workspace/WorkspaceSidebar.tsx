@@ -27,14 +27,27 @@ interface SerializedWorkspace {
 interface WorkspaceSidebarProps {
   /** 활성 워크스페이스가 변경되면 호출 — 부모(App.tsx)가 chat/note/search 패널 재로드 책임. */
   onActiveChanged?: (id: string) => void
+  /**
+   * 핫픽스 (codex BLOCKING) — modal open 시 WebContentsView native layer 가 modal 을 가리므로
+   * 부모(App.tsx)가 browser stage 인 동안 view 가시성 토글. 미주입 시 무조작 (테스트 / 비-browser stage).
+   */
+  onModalToggle?: (open: boolean) => void
 }
 
-export default function WorkspaceSidebar({ onActiveChanged }: WorkspaceSidebarProps): JSX.Element {
+export default function WorkspaceSidebar({
+  onActiveChanged,
+  onModalToggle
+}: WorkspaceSidebarProps): JSX.Element {
   const [workspaces, setWorkspaces] = useState<SerializedWorkspace[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [createOpen, setCreateOpen] = useState(false)
+  const [createOpen, setCreateOpenRaw] = useState(false)
   const [pending, setPending] = useState<string | null>(null)
+
+  function setCreateOpen(next: boolean): void {
+    setCreateOpenRaw(next)
+    onModalToggle?.(next)
+  }
 
   useEffect(() => {
     void refresh()

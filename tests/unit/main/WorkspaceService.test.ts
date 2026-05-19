@@ -279,4 +279,45 @@ describe('validateWorkspaceIcon', () => {
     expect(() => validateWorkspaceIcon(123 as never)).toThrow(WorkspaceValidationError)
     expect(() => validateWorkspaceIcon(null as never)).toThrow(WorkspaceValidationError)
   })
+
+  // 핫픽스 (codex NEEDS_CHANGES #2) — modifier-only 거부 / Extended_Pictographic 정밀 검증
+  // 보이지 않는 문자는 파일 인코딩 안전성을 위해 String.fromCodePoint 로 명시.
+  it('rejects standalone variation selector (FE0F)', () => {
+    const vs = String.fromCodePoint(0xfe0f)
+    expect(() => validateWorkspaceIcon(vs)).toThrow(WorkspaceValidationError)
+  })
+
+  it('rejects standalone ZWJ', () => {
+    const zwj = String.fromCodePoint(0x200d)
+    expect(() => validateWorkspaceIcon(zwj)).toThrow(WorkspaceValidationError)
+  })
+
+  it('rejects standalone skin tone modifier', () => {
+    const skin = String.fromCodePoint(0x1f3fb)
+    expect(() => validateWorkspaceIcon(skin)).toThrow(WorkspaceValidationError)
+  })
+
+  it('rejects keycap-only attempt (digit + FE0F + 20E3)', () => {
+    // U+0031 (digit 1) base 가 emoji codepoint 아님 → 거부.
+    // PRD §11.5.1 "preset 12종 또는 사용자 이모지 1자" — keycap 시퀀스는 모호하므로 거부 정책.
+    const keycap =
+      String.fromCodePoint(0x0031) + String.fromCodePoint(0xfe0f) + String.fromCodePoint(0x20e3)
+    expect(() => validateWorkspaceIcon(keycap)).toThrow(WorkspaceValidationError)
+  })
+
+  it('accepts ZWJ family (👨‍👩‍👧)', () => {
+    expect(validateWorkspaceIcon('👨‍👩‍👧')).toBe('👨‍👩‍👧')
+  })
+
+  it('accepts emoji with skin tone (👋🏻)', () => {
+    expect(validateWorkspaceIcon('👋🏻')).toBe('👋🏻')
+  })
+
+  it('accepts emoji clock (⌚)', () => {
+    expect(validateWorkspaceIcon('⌚')).toBe('⌚')
+  })
+
+  it('rejects misc technical non-emoji (⎈ U+2388)', () => {
+    expect(() => validateWorkspaceIcon('⎈')).toThrow(WorkspaceValidationError)
+  })
 })

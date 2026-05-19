@@ -98,11 +98,18 @@ function validateName(raw: unknown): string {
 }
 
 /**
- * `icon` 검증 — preset 12종 또는 사용자 이모지 1자 (코드포인트 1~4 — ZWJ sequence 포함).
- * UTF-16 surrogate pair / variation selector (U+FE0F) 모두 1 이모지로 취급.
+ * `icon` 검증 — preset 12종 또는 사용자 이모지 1 grapheme cluster.
  *
- * 정책: preset 그대로 허용 / 그 외에는 grapheme 단위 1개 + emoji 코드포인트 범위 검사.
- * Node 18+ `Intl.Segmenter('en', { granularity: 'grapheme' })` 사용 — 한 grapheme cluster 만 허용.
+ * 정책 (codex hotfix — NEEDS_CHANGES #2):
+ *   1. preset 그대로 허용
+ *   2. Intl.Segmenter 로 grapheme 1개만 허용
+ *   3. base codepoint 가 반드시 emoji-presentation codepoint 여야 함 (Extended_Pictographic 근사)
+ *   4. variation selector (U+FE0F) / ZWJ (U+200D) / skin tone modifier (U+1F3FB~1F3FF) 는
+ *      **단독으로** emoji 자격 부여 X — base 가 반드시 emoji codepoint 여야 함
+ *   5. 한글 / latin / 숫자 / control char 거부
+ *
+ * Node 18+ `Intl.Segmenter` 가 ZWJ family, regional indicator pair 를 1 grapheme 으로 정확 분할.
+ * fallback path 는 Node 18 미만 또는 jsdom 환경 — Sprint 015 vitest 환경에서 Intl.Segmenter 보장.
  */
 export function validateWorkspaceIcon(raw: unknown): string {
   if (typeof raw !== 'string') throw new WorkspaceValidationError('invalid_icon')
@@ -110,7 +117,6 @@ export function validateWorkspaceIcon(raw: unknown): string {
   if (trimmed.length === 0) throw new WorkspaceValidationError('invalid_icon')
   if ((WORKSPACE_PRESET_ICONS as readonly string[]).includes(trimmed)) return trimmed
 
-  // grapheme 1개 만 허용 (사용자 이모지). 한글 1자도 grapheme 1 — 정책상 emoji codepoint 필요.
   let grapheme: string | null = null
   let count = 0
   if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
@@ -121,31 +127,64 @@ export function validateWorkspaceIcon(raw: unknown): string {
       if (count > 1) throw new WorkspaceValidationError('invalid_icon')
     }
   } else {
-    // Fallback — Array.from (코드포인트 단위, ZWJ sequence 는 분할).
+    // Fallback (Intl.Segmenter 부재) — 보수적 1~4 codepoint 검사. ZWJ family (5~7 cp) 거부.
     const cps = Array.from(trimmed)
     if (cps.length === 0 || cps.length > 4) throw new WorkspaceValidationError('invalid_icon')
     grapheme = trimmed
   }
   if (grapheme === null || count !== 1) throw new WorkspaceValidationError('invalid_icon')
 
-  // emoji codepoint 범위 검사 (BMP emoji + SMP emoji + variation selector + ZWJ).
-  // 한글/라틴 알파벳/숫자는 거부.
-  let hasEmojiCp = false
-  for (const ch of grapheme) {
-    const cp = ch.codePointAt(0)!
+  // 첫 codepoint 가 base emoji 여야 함 (Extended_Pictographic 근사).
+  // FE0F / ZWJ / skin tone 단독은 base 자격 X.
+  const baseCp = grapheme.codePointAt(0)!
+  if (!isBaseEmojiCodepoint(baseCp)) {
+    throw new WorkspaceValidationError('invalid_icon')
+  }
+  // 잔여 codepoint 는 FE0F / ZWJ / skin tone / 또 다른 base 만 허용.
+  // (호환성: 'A️' 같은 latin + VS 는 base 검사에서 이미 거부됨).
+  let i = baseCp > 0xffff ? 2 : 1 // skip first codepoint (surrogate pair = 2 utf16 unit)
+  while (i < grapheme.length) {
+    const cp = grapheme.codePointAt(i)!
     if (
-      (cp >= 0x1f000 && cp <= 0x1ffff) || // SMP emoji block (대부분)
-      (cp >= 0x2600 && cp <= 0x27bf) || // misc symbols + dingbats
-      (cp >= 0x2300 && cp <= 0x23ff) || // misc technical
-      cp === 0xfe0f || // variation selector-16
-      cp === 0x200d || // ZWJ
-      (cp >= 0x1f1e6 && cp <= 0x1f1ff) // regional indicators (국기)
+      cp === 0xfe0f ||
+      cp === 0x200d ||
+      (cp >= 0x1f3fb && cp <= 0x1f3ff) || // skin tone modifier
+      isBaseEmojiCodepoint(cp) || // ZWJ sequence 의 추가 base
+      (cp >= 0x1f1e6 && cp <= 0x1f1ff) // regional indicator (국기 second half)
     ) {
-      hasEmojiCp = true
+      i += cp > 0xffff ? 2 : 1
+    } else {
+      throw new WorkspaceValidationError('invalid_icon')
     }
   }
-  if (!hasEmojiCp) throw new WorkspaceValidationError('invalid_icon')
   return grapheme
+}
+
+/**
+ * base emoji codepoint 검사 (Extended_Pictographic 의 보수적 근사).
+ * Unicode Emoji 15.1 기준 주요 block.
+ */
+function isBaseEmojiCodepoint(cp: number): boolean {
+  // skin tone modifier (U+1F3FB ~ U+1F3FF) 는 base 자격 X — 단독 거부.
+  if (cp >= 0x1f3fb && cp <= 0x1f3ff) return false
+  // SMP emoji block 의 base 만 (modifier / skin tone 제외).
+  if (cp >= 0x1f300 && cp <= 0x1f5ff) return true // misc symbols + pictographs
+  if (cp >= 0x1f600 && cp <= 0x1f64f) return true // emoticons
+  if (cp >= 0x1f680 && cp <= 0x1f6ff) return true // transport + map
+  if (cp >= 0x1f700 && cp <= 0x1f77f) return true // alchemical
+  if (cp >= 0x1f780 && cp <= 0x1f7ff) return true // geometric ext
+  if (cp >= 0x1f800 && cp <= 0x1f8ff) return true // supplemental arrows
+  if (cp >= 0x1f900 && cp <= 0x1f9ff) return true // supplemental symbols
+  if (cp >= 0x1fa00 && cp <= 0x1faff) return true // symbols and pictographs ext-A
+  if (cp >= 0x2600 && cp <= 0x26ff) return true // misc symbols
+  if (cp >= 0x2700 && cp <= 0x27bf) return true // dingbats
+  if (cp >= 0x1f1e6 && cp <= 0x1f1ff) return true // regional indicator (국기 first half)
+  // 일부 BMP 추가 emoji (예: ☺ U+263A 는 misc symbols 범위 안에 이미 포함)
+  // 일부 misc technical (예: ⌚ U+231A, ⌛ U+231B)
+  if (cp === 0x231a || cp === 0x231b) return true
+  if (cp >= 0x23e9 && cp <= 0x23ec) return true
+  if (cp === 0x23f0 || cp === 0x23f3) return true
+  return false
 }
 
 function validateLevelPreference(raw: unknown): LevelPreference {
