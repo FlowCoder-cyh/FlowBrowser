@@ -37,6 +37,7 @@ import {
   VectorIndex,
   IndexedPageStoreSqlite,
   NoteStore,
+  AiChatHistoryStore,
   defaultCredentialsPath,
   defaultUsageLogPath,
   defaultTranslationCachePath,
@@ -61,6 +62,15 @@ import {
   type SearchQueryArgs,
   type SearchQueryResponse
 } from './searchHandlers'
+import { ChatService } from './ChatService'
+import {
+  handleChatRequest,
+  handleChatListHistory,
+  type ChatRequestArgs,
+  type ChatRequestResponse,
+  type ChatListHistoryArgs,
+  type ChatListHistoryResponse
+} from './chatHandlers'
 
 import {
   OpenAIApiKeyProvider,
@@ -98,11 +108,13 @@ let pageResultStore!: PageResultStore
 let tabStateStore!: TabStateStore
 let shortcutStore!: ShortcutStore
 // Sprint 015 M5-3b — v0.4 SQLite 인프라 wiring (검색 활용).
-// FlowbrowserDatabase 가 없으면 search:query graceful error 반환 (renderer 에 "검색 인덱스 미준비" 표시).
+// FlowbrowserDatabase 가 없으면 search:query / chat:request graceful error 반환.
+// Sprint 015 M5-6 — AiChatHistoryStore 추가 (chat 영속).
 let flowbrowserDb: FlowbrowserDatabase | null = null
 let vectorIndex: VectorIndex | null = null
 let indexedPageStore: IndexedPageStoreSqlite | null = null
 let noteStore: NoteStore | null = null
+let aiChatHistoryStore: AiChatHistoryStore | null = null
 let searchService: SearchService | null = null
 let defaultWorkspaceId: string | null = null
 const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
@@ -158,22 +170,24 @@ export async function initServices(): Promise<void> {
       defaultWorkspaceId: defaultWs.id
     })
     noteStore = new NoteStore(flowbrowserDb)
+    aiChatHistoryStore = new AiChatHistoryStore(flowbrowserDb)
     searchService = new SearchService({
       vectorIndex,
       pageStore: indexedPageStore,
       noteStore
     })
   } catch (err) {
-    // 인프라 미준비 — search:query / search:get-content 호출 시 graceful error 반환.
+    // 인프라 미준비 — search / chat 호출 시 graceful error 반환.
     // 기타 IPC (translate / cache / glossary / shortcut) 는 영향 없음.
     flowbrowserDb = null
     vectorIndex = null
     indexedPageStore = null
     noteStore = null
+    aiChatHistoryStore = null
     searchService = null
     defaultWorkspaceId = null
     console.warn(
-      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 비활성:',
+      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 / 채팅 비활성:',
       err instanceof Error ? err.message : String(err)
     )
   }
@@ -190,6 +204,7 @@ export async function initServices(): Promise<void> {
   registerCodexIpc()
   registerShortcutIpc()
   registerSearchIpc()
+  registerChatIpc()
 }
 
 /** Sprint 015 M5-1 — ShortcutStore 접근 헬퍼 (main/index.ts before-input-event 매칭에 사용). */
@@ -245,6 +260,46 @@ function registerSearchIpc(): void {
       args: { pageId: string }
     ): { content: string; title: string; url: string } | null => {
       return handleSearchGetContent(args, { pageStore: indexedPageStore })
+    }
+  )
+}
+
+/**
+ * Sprint 015 M5-6 — chat IPC.
+ * `chat:request` — workspace 메모리 retrieval + ChatService.chat() + AiChatHistoryStore 영속.
+ * `chat:list-history` — AiChatHistoryStore.listByWorkspace.
+ *
+ * KI-003 BYOK wiring — ChatService 의 디폴트 allowedProviders=['openai'] 강제.
+ * 사용자 명시 동의 시 args.allowedProviders override (UI 책임).
+ */
+function registerChatIpc(): void {
+  ipcMain.handle(
+    'chat:request',
+    async (_event, args: ChatRequestArgs): Promise<ChatRequestResponse> => {
+      return handleChatRequest(args, {
+        getActiveWorkspaceId: () => defaultWorkspaceId,
+        getChatService: ({ allowedProviders }) => {
+          const provider = providers.get('openai')
+          if (!provider || !aiChatHistoryStore) return null
+          return new ChatService({
+            provider,
+            historyStore: aiChatHistoryStore,
+            allowedProviders: allowedProviders as
+              | ReadonlyArray<'openai' | 'codex' | 'anthropic' | 'gemini' | 'local'>
+              | undefined
+          })
+        },
+        historyStore: aiChatHistoryStore
+      })
+    }
+  )
+  ipcMain.handle(
+    'chat:list-history',
+    (_event, args: ChatListHistoryArgs): ChatListHistoryResponse => {
+      return handleChatListHistory(args, {
+        getActiveWorkspaceId: () => defaultWorkspaceId,
+        historyStore: aiChatHistoryStore
+      })
     }
   )
 }
