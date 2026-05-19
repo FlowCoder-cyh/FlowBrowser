@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **1 종료 선언** (AI 콘텐츠 메모리 + 워크스페이스 베이스 인프라, Sprint 015 M6 T28~T31 모두 머지)
-- **Sprint**: **015 M0~M6 완료 (12 단계 모두 머지)** — M0 사전 분석 + M1 PRD v0.4 본문 + M2 폐기·일반화 + M3 SQLite·임베딩 + M4 인덱싱·태깅·Privacy + M5 검색·채팅·노트 + M6 워크스페이스·메모리·종합
+- **Phase**: **1 형식적 종료 선언** (AI 콘텐츠 메모리 + 워크스페이스 베이스 인프라, Sprint 015 M6 T28~T31 모두 머지) — **실용 검증은 Sprint 016 M0~M1 후 확정** (정량 임계 6종 미측정 + 시나리오 2·3 0% + 어댑터 5종 위임 + KI MEDIUM 5건 batch 임계 도달)
+- **Sprint**: **015 M0~M6 완료 (12 단계 모두 머지)** — M0 사전 분석 + M1 PRD v0.4 본문 + M2 폐기·일반화 + M3 SQLite·임베딩 + M4 인덱싱·태깅·Privacy + M5 검색·채팅·노트 + M6 워크스페이스·메모리·종합 + **잔여 hotfix (정량 임계 5종 KI 등록 + PARTIAL 4파일 회귀 누락 contract 흡수 + Sprint 016 기간 통일 + PRD §0.6.1 시나리오 표기 정정)**
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: **v0.4.0 정식 발행** (19 섹션, 약 5,200+ lines, 2026-05-19 release tag)
-- **최근 갱신**: 2026-05-19 (M6 T28~T31 4 PR + 3 hotfix 완료 — evaluator + codex 병렬 평가 4회 모두 정합 / 단위 968 → **1068 (+100)** 실측 / KI 누적 5 → **11** (KI-006 MEDIUM abort + KI-007 MEDIUM TabManager + KI-008 LOW Export + KI-009 LOW React unit + KI-010 LOW 인덱싱 broadcast + KI-011 LOW < 20ms 미측정) / **65 PR 누적** / Sprint 016 contract 시안 작성)
-- **다음 세션 진입점**: `.flowset/handoffs/2026-05-19.md` §11 (M6 T28~T31 종합) + `.flowset/contracts/sprint-016.md` 시안 + `.flowset/known-issues.md` MEDIUM 4건 batch 임계 (KI-001 / KI-004 / KI-006 / KI-007 — 5건 batch 트리거 1건 부족)
+- **PRD 버전**: **v0.4.0 정식 발행** (19 섹션, 약 5,200+ lines, 2026-05-19 release tag) — §0.6.1 시나리오 2·3 표기 hotfix 정정 (90%+ → 0%)
+- **최근 갱신**: 2026-05-19 (M6 T28~T31 4 PR + 3 hotfix + **잔여 hotfix PR #166 (예정)** 완료 — evaluator + codex 병렬 평가 4회 모두 정합 / 단위 968 → **1068 (+100)** 실측 / KI 누적 5 → **17** (M6 T28~T31 6건 + 잔여 hotfix 6건 — KI-012~016 정량 임계 5종 미측정 + KI-017 tabLabel 회귀 누락) / **66 PR 누적** (예정) / Sprint 016 contract 시안 정식화 (기간 통일 + T02/T03 회귀 매트릭스 강화))
+- **다음 세션 진입점**: `.flowset/contracts/sprint-016.md` (시안 → 정식 정정 완료) + `.flowset/known-issues.md` **MEDIUM 4건 + LOW 정량 임계 5종 + LOW PARTIAL 회귀 1종** (Sprint 016 M0 perf bench 셋 + T02 abort + T03 TabManager workspace_id batch 처리)
 
 ## 현재 작업
 

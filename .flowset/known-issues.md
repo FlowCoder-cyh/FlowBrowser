@@ -184,13 +184,80 @@
 - **처리 예정 Sprint**: 015 M5-5 (ChatService 도입) 또는 Sprint 016 정확도 측정 시점
 - **상태**: `open`
 
+### KI-012 [open] 인덱싱 속도 < 500ms / 페이지 임계 미측정
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M6 T31 종합 evaluator NB 후 Sprint 016 M0 hotfix 등록)
+- **Component**: `src/main/IndexingService.ts` (recordVisit 진입 ~ 완료 broadcast 까지)
+- **영향**: PRD §11.3.2 + Sprint 016 contract §6 정량 임계. 시나리오 1·2 (대량 인덱싱) 사용자 체감 직결. 단위 테스트는 in-memory SQLite — 실디스크 WAL + EmbeddingClient 호출 시 차이 미측정.
+- **권고 해소 방향**: Sprint 016 M0 perf bench 셋 (`tests/perf/indexing.bench.ts` 신규) — recordVisit 진입 → recordVisit 완료 ms 측정. 임계 초과 시 EmbeddingQueue 비동기 우선 (인덱싱 본체는 즉시 반환 + 임베딩 백그라운드) 정책 강화.
+- **처리 예정 Sprint**: 016 M0
+- **상태**: `open`
+
+### KI-013 [open] 검색 응답 < 200ms (top-5 retrieval) 임계 미측정
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M6 T31 종합 evaluator NB 후 Sprint 016 M0 hotfix 등록)
+- **Component**: `src/main/SearchService.ts` (search:query 진입 ~ results 반환)
+- **영향**: PRD §11.3.2 + Sprint 016 contract §6 정량 임계. 시나리오 1·4 (Cmd+K 즉시 검색) 사용자 체감 직결. Query 임베딩 비용 (~100~300ms 평균) + vec0 JOIN top-k 시간 미측정.
+- **권고 해소 방향**: Sprint 016 M0 perf bench (`tests/perf/search.bench.ts` 신규) — embed 호출 mock + vec0 JOIN ms 측정. AIResponseCache TTL 30일 hit 시 < 50ms 검증.
+- **처리 예정 Sprint**: 016 M0
+- **상태**: `open`
+
+### KI-014 [open] 워크스페이스 전환 < 1초 임계 미측정
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M6 T31 종합 evaluator NB 후 Sprint 016 M0 hotfix 등록)
+- **Component**: `src/main/workspaceHandlers.ts` (`handleWorkspaceSwitch`) + `src/main/WorkspaceService.ts`
+- **영향**: PRD §11.3.2 + Sprint 016 contract §6 정량 임계. 워크스페이스 사이드바 클릭 ~ active ws 전환 완료 broadcast 까지. KI-006 abort 정책 (Sprint 016 T02) + KI-007 TabManager stash/restore (T03) 적용 후 측정.
+- **권고 해소 방향**: Sprint 016 M3 (cookies/storage partition 도입) 시점에 e2e timer 측정. KI-006 + KI-007 closed 직후 1차 측정 권고.
+- **처리 예정 Sprint**: 016 M0 (1차 baseline) + M3 (partition 도입 후 재측정)
+- **상태**: `open`
+
+### KI-015 [open] 임베딩 비용 < $3/월 (1만 페이지) 임계 미측정
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M6 T31 종합 evaluator NB 후 Sprint 016 M0 hotfix 등록)
+- **Component**: `src/ai/embedding/EmbeddingClient.ts` (OpenAI text-embedding-3-small 호출 횟수 + 토큰 합산)
+- **영향**: PRD §9.7 + Sprint 016 contract §6 정량 임계. 1만 페이지 / 월 사용자 시나리오 — 비용 임계 초과 시 BYOK 디폴트 모델 변경 (3-small → 3-large 보류) 권고.
+- **권고 해소 방향**: Sprint 016 M0 EmbeddingClient 호출 횟수 + 평균 token usage 측정 셋 (Mock OpenAI API + token counter). AIResponseCache TTL 7일 dedup hit rate 측정 동반.
+- **처리 예정 Sprint**: 016 M0
+- **상태**: `open`
+
+### KI-016 [open] 저장 용량 < 200MB / 만 페이지 임계 미측정
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M6 T31 종합 evaluator NB 후 Sprint 016 M0 hotfix 등록)
+- **Component**: `src/storage/IndexedPageStore.ts` + `src/storage/schema/v04.sql` (page content + visit + vec0 embedding row 합산)
+- **영향**: PRD §11.3.2 + Sprint 016 contract §6 정량 임계. 사용자 디스크 SSD 용량 — 1만 페이지 시 200MB 임계 초과 시 본문 캐시 압축 (zstd) + vec0 row dimension 축소 (text-embedding-3-small 512 dim → 384 dim quantize) 권고.
+- **권고 해소 방향**: Sprint 016 M0 DB 용량 측정 (1K + 1만 페이지 모킹 시 .sqlite 파일 크기). 임계 초과 시 본문 캐시 zstd 압축 도입 검토.
+- **처리 예정 Sprint**: 016 M0
+- **상태**: `open`
+
+### KI-017 [open] tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 누락
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M6 T28 본 hotfix 시점 발견 — `v04-test-classification.md` §D PARTIAL 매트릭스 일정 "M6" 미이행)
+- **Component**: `tests/unit/renderer/tabLabel.test.ts` (현 5 케이스 → 약 7 목표) + `src/renderer/src/TabLabel.tsx` (워크스페이스 아이콘/이름 표시 props)
+- **영향**: PRD §11.2.1 워크스페이스 컨텍스트 (탭 라벨에 워크스페이스 아이콘·이름 표시) 시각 회귀 cover 부재. 시나리오 1·5 워크스페이스 격리 시각 검증 누락. KI-007 (TabManager workspace_id) 의존 — workspace_id prop 도입 후 +2 회귀.
+- **재현 절차**: Sprint 016 M0 T03 진행 시 TabManager workspace_id 도입 직후 TabLabel 컴포넌트가 active 워크스페이스 아이콘/이름 표시. 본 회귀 셋 부재로 시각 미검증.
+- **권고 해소 방향**: Sprint 016 T03 (KI-007 closed) 시점 동반 처리 — `tabLabel.test.ts`에 (1) workspace_id 매칭 시 아이콘+이름 표시 (2) workspace 미매칭 시 디폴트 라벨 fallback 2 케이스 추가.
+- **처리 예정 Sprint**: 016 T03 (KI-007 동반)
+- **상태**: `open`
+
 ---
 
 ## 통계 (Phase 단위)
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 6 | 0 | 11 |
+| Phase 1 | 1 | 4 | 12 | 0 | 17 |
 | Phase 2 | — | — | — | — | — |
 | Phase 3 | — | — | — | — | — |
 
@@ -209,3 +276,4 @@
 - 2026-05-18 (M4-2 핫픽스): KI-003 HIGH (G-003 BYOK wiring 강제) + KI-004 MEDIUM (ChatRequest.response_format JSON 강제 API-level) 등록. M4-2 codex 정밀 검토 KI 후보 1/2 추출. Sprint 015 누적 2건 → 4건. HIGH 첫 등록 — M4-5 wiring 시점 즉시 처리 정책 적용.
 - 2026-05-19 (M5-7 핫픽스): KI-005 LOW (AutoTagger.tagPage page_tags FK 위반 — NoteService note 자동 태깅 차단) 등록. PR #159 codex 정밀 검토 N-001 발견. NoteService 가 autoTagger 통합 자체 제거로 안전 차단. Sprint 015 누적 4건 → 5건. KI-003 HIGH wiring 완료 — M5-3b/M5-5/M5-6/M5-7 에 BYOK 검증 박힘 (status `in-progress` 갱신 후보, Sprint 016 또는 M5-8 분할 2편 시점 closed 권고).
 - 2026-05-19 (M6 T28~T31 종합): KI-006 MEDIUM (Workspace 전환 abort 정책 미배선) + KI-007 MEDIUM (TabManager workspace_id stash/restore) + KI-008 LOW (Workspace JSON Export/Import) + KI-009 LOW (MemoryStatsPanel React unit 0) + KI-010 LOW (MemoryStats 인덱싱 broadcast 잔여 1종) + KI-011 LOW (MemoryStats < 20ms 미측정) 6건 등록. T28 + T29 evaluator + codex 병렬 평가에서 추출. Sprint 015 누적 5건 → 11건. MEDIUM 누적 4건 도달 (KI-001 + KI-004 + KI-006 + KI-007) — 5건 batch 임계 1건 부족. Sprint 016 M0 처리 권고.
+- 2026-05-19 (Sprint 015 잔여 hotfix — `docs/WI-S016M0-docs-sprint-015-residual-hotfix`): KI-012 LOW (인덱싱 < 500ms 미측정) + KI-013 LOW (검색 < 200ms 미측정) + KI-014 LOW (워크스페이스 전환 < 1초 미측정) + KI-015 LOW (임베딩 비용 < $3/월 미측정) + KI-016 LOW (저장 용량 < 200MB/만 페이지 미측정) + KI-017 LOW (tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 누락) 6건 등록. Sprint 015 M6 T31 종합 evaluator NB ("정량 임계 5종 KI 미등록") + 본 hotfix `v04-test-classification.md` §D PARTIAL 매트릭스 회귀 누락 검증에서 추출. Sprint 015 누적 11건 → **17건** (HIGH 1 / MEDIUM 4 / LOW 12). 정량 임계 5종은 Sprint 016 M0 perf bench 셋 신규로 일괄 측정 권고. KI-017 은 KI-007 (Sprint 016 T03) 동반 해소.

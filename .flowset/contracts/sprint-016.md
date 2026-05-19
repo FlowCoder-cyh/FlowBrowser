@@ -3,7 +3,7 @@
 > **상태: 시안 (Sprint 015 M6 T31 시점 작성)**
 > Phase: 2 진입
 > 시작 예정: Sprint 015 M6 종료 직후 (2026-05-20+ 추정)
-> 목표 기간: 3~4주
+> 목표 기간: **3~3.5주 (18~24일)** — §4 마일스톤 합산 정합 (이전 시안 "3~4주" 표기는 §4 합계와 불일치, 본 hotfix 통일)
 
 ## 0. 사전 조건
 
@@ -37,8 +37,8 @@
 |---|---|---|
 | **M0 KI MEDIUM batch (T01~T06)** | | |
 | S016-T01 | KI-001 sqlite-vec macOS CI runner 추가 (matrix windows + macos-latest) | `.github/workflows/ci.yml` |
-| S016-T02 | KI-006 Workspace 전환 abort 정책 wiring (IndexingService.abort + EmbeddingQueue.clear + ChatService.abortStreaming) | `src/main/workspaceHandlers.ts` + 3 모듈 abort API |
-| S016-T03 | KI-007 TabManager workspace_id 필드 + stash/restore 트리거 (PARTIAL → 완전 격리) | `src/main/TabManager.ts` + `src/storage/TabStateStore.ts` |
+| S016-T02 | KI-006 Workspace 전환 abort 정책 wiring (IndexingService.abort + EmbeddingQueue.clear + ChatService.abortStreaming) + **tabGuard.test.ts +3 abort 회귀 + `src/renderer/src/translation/tabGuard.ts` → `src/main/TabGuard.ts` 위치 이동** (v04-test-classification §D 매트릭스 누락분 흡수) | `src/main/workspaceHandlers.ts` + 3 모듈 abort API + `src/main/TabGuard.ts` + `tests/unit/main/tabGuard.test.ts` |
+| S016-T03 | KI-007 TabManager workspace_id 필드 + stash/restore 트리거 (PARTIAL → 완전 격리) + **TabManager.test.ts +5 workspace_id 메타 회귀 + tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 (KI-017 동반)** (v04-test-classification §D 매트릭스 누락분 흡수) | `src/main/TabManager.ts` + `src/storage/TabStateStore.ts` + `tests/unit/main/TabManager.test.ts` + `tests/unit/renderer/tabLabel.test.ts` |
 | S016-T04 | KI-004 ChatRequest.response_format JSON 강제 API-level (`response_format: { type: 'json_object' }`) + AutoTagger 적용 | `src/ai/types.ts` + `src/ai/providers/OpenAIApiKeyProvider.ts` |
 | S016-T05 | KI-010 IndexingService wiring (services.ts) + did-finish-load 결합 + 인덱싱 완료 broadcast | `src/main/services.ts` + `src/main/IndexingService.ts` |
 | S016-T06 | KI-011 MemoryStats < 20ms 정량 측정 + 회귀 셋 | `tests/perf/memoryStats.bench.ts` 신규 |
