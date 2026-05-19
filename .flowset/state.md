@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **1** (AI 콘텐츠 메모리 + 워크스페이스 베이스 인프라, Sprint 015 진행 중)
-- **Sprint**: **015 M0~M5 완료 (8/8 PR) + M6 진입 대기** (M5-1 ~ M5-8 모두 머지. M5-8 분할 1편 = ChatPanel mount, 분할 2편 = 어댑터 정리 4종 Sprint 016 위임)
+- **Phase**: **1 종료 선언** (AI 콘텐츠 메모리 + 워크스페이스 베이스 인프라, Sprint 015 M6 T28~T31 모두 머지)
+- **Sprint**: **015 M0~M6 완료 (12 단계 모두 머지)** — M0 사전 분석 + M1 PRD v0.4 본문 + M2 폐기·일반화 + M3 SQLite·임베딩 + M4 인덱싱·태깅·Privacy + M5 검색·채팅·노트 + M6 워크스페이스·메모리·종합
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: **v0.4.0 본문 완성** (19 섹션, 약 5,200+ lines + M4-2/M4-4 §8.6.1/§8.8.3/§13.5.2/§13.5.3 정정 — 정식 release tag 는 Sprint 015 M6 종료 시점)
-- **최근 갱신**: 2026-05-19 (M5-3 ~ M5-8 자율 진행 7 PR + 6 hotfix 완료 — evaluator + codex 병렬 평가 8회 모두 정합 / 단위 779 → **968 (+189)** 실측 / KI 누적 4 → 5 (KI-005 신규 — AutoTagger.tagPage note FK 위반 LOW, 안전 디폴트로 차단) / **61 PR 누적** / KI-003 HIGH wiring 완료)
-- **다음 세션 진입점**: `.flowset/handoffs/2026-05-19.md` §10 (본 세션 종합) + `.flowset/contracts/sprint-015.md` §2 M6 (T28~T31 워크스페이스 사이드바 + 메모리 통계 + 종합 evaluator) + `.flowset/known-issues.md` KI-003 (HIGH closed 후보) / KI-005 (LOW 신규)
+- **PRD 버전**: **v0.4.0 정식 발행** (19 섹션, 약 5,200+ lines, 2026-05-19 release tag)
+- **최근 갱신**: 2026-05-19 (M6 T28~T31 4 PR + 3 hotfix 완료 — evaluator + codex 병렬 평가 4회 모두 정합 / 단위 968 → **1068 (+100)** 실측 / KI 누적 5 → **11** (KI-006 MEDIUM abort + KI-007 MEDIUM TabManager + KI-008 LOW Export + KI-009 LOW React unit + KI-010 LOW 인덱싱 broadcast + KI-011 LOW < 20ms 미측정) / **65 PR 누적** / Sprint 016 contract 시안 작성)
+- **다음 세션 진입점**: `.flowset/handoffs/2026-05-19.md` §11 (M6 T28~T31 종합) + `.flowset/contracts/sprint-016.md` 시안 + `.flowset/known-issues.md` MEDIUM 4건 batch 임계 (KI-001 / KI-004 / KI-006 / KI-007 — 5건 batch 트리거 1건 부족)
 
 ## 현재 작업
 
@@ -232,6 +232,11 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
   - M4-3 ✅ DwellTracker + IndexedPageStoreSqlite.updateVisitDwell (PR #144, +21)
   - M4-2 ✅ AutoTagger + JSON schema 6 kind + freeform fallback (PR #146 + #148 hotfix, +23) / KI-003 HIGH + KI-004 MEDIUM 등록
   - M4-5 ✅ M4 통합 회귀 시나리오 1+3 + DwellTracker + Privacy 차단 매트릭스 (PR #147, +10)
+- **M6** ✅ 완료 (4 PR — 단위 968 → **1068 (+100)** / **65 PR 누적**, evaluator + codex 병렬 평가 4회 정합)
+  - T28 ✅ WorkspaceService + WorkspaceSidebar + preset 12종 (PR #162 + hotfix BLOCKING 1 + NEEDS_CHANGES 2 해소, +75)
+  - T29 ✅ MemoryStatsPanel + MemoryService + memory IPC (PR #163 + hotfix broadcast 도입, +17)
+  - T30 ✅ 시나리오 1·4 회귀 8 케이스 (PR #164 + codex NB 5 해소, +8)
+  - T31 ✅ PRD v0.4.0 정식 발행 + KI 6건 등록 + Sprint 016 contract 시안 + 핸드오프 §11
 - **M5** ✅ 완료 (8/8 PR — 단위 681 → **968 (+287)** / **61 PR 누적**, evaluator + codex 병렬 평가 11회 정합)
   - M5-1 ✅ Shortcut + SearchBar UI (PR #150 + 본 PR 내 hotfix, +61)
   - M5-2 ✅ TimeRangeParser (PR #151 + 본 PR 내 hotfix, +37)
@@ -242,16 +247,15 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
   - M5-6 ✅ ChatPanel + chat_meta 표 schema + chat IPC (PR #158 + hotfix, +27) — PRD §10.3.2 정합 schema 정정
   - M5-7 ✅ NoteService + note IPC (PR #159 + hotfix, +27) — selectedText guard + AutoTagger note FK 위반 차단 (KI-005 신규)
   - M5-8 ✅ ChatPanel App.tsx mount 분할 1편 (PR #160, +0) — 어댑터 일괄 제거 4종 (ProviderAdapter.translate / executeTranslateRequest / TranslationCache adapter / PageResultStore adapter / fetchImpl 통일) Sprint 016 위임
-- **M6** (다음 세션 진입): T28 워크스페이스 사이드바 + preset 12종 + T29 메모리 통계 UI + T30 단위 테스트 시나리오 회귀 + T31 PRD v0.4.0 발행 + Sprint 015 종합 evaluator
 
-### 시나리오 cover 목표
-- 시나리오 1 (학술): M4 통합 회귀로 자동 인덱싱 + 자동 태깅 cover. M5 SearchService 도입 후 100%
-- 시나리오 4 (우연재발견): **M5 책임** (검색 + retrieval) — M4 통합 회귀 미cover (codex M4 종합 NB 정정)
-- 시나리오 2 (PM 경쟁) / 3 (학습): **90%+** (Phase 1만으로, Notion Export = Phase 3)
+### 시나리오 cover 결과 (Sprint 015 M6 T30 완료)
+- 시나리오 1 (학술): **100%** (S1-C1~C5 회귀 셋 5/5 통과 — tests/integration/scenarios/scenario-1-academic.test.ts)
+- 시나리오 4 (우연재발견): **100%** (S4-C1~C3 회귀 셋 3/3 통과 — tests/integration/scenarios/scenario-4-recall.test.ts)
+- 시나리오 2 (PM 경쟁) / 3 (학습): **Sprint 016 cover 예정** — 본 Sprint 015 범위 외 (contract AC-8 90%+ 목표는 Phase 1 종료 직전 측정)
 
 ## 최근 핸드오프
 
-- **[2026-05-19](./handoffs/2026-05-19.md) — Sprint 015 M5 전체 8/8 PR 완료 + M6 진입 권고 (필독, §10 본 세션 종합)**
+- **[2026-05-19](./handoffs/2026-05-19.md) — Sprint 015 M5 (§10) + M6 종합 (§11) 모두 완료 — Phase 1 종료 선언 + PRD v0.4.0 정식 발행 + Sprint 016 진입 권고**
 - [2026-05-18](./handoffs/2026-05-18.md) — Sprint 015 M4 5/5 + 2 hotfix 완료
 - [2026-05-17](./handoffs/2026-05-17.md) — Sprint 015 M0~M1 완료
 - [2026-05-16](./handoffs/2026-05-16.md) — 🔴 방향 전환 결정

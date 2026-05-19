@@ -91,6 +91,74 @@
 - **처리 예정 Sprint**: 015 M4-5 또는 M5 (wiring 시점)
 - **상태**: `open`
 
+### KI-006 [open] Workspace 전환 시 진행 작업 abort 정책 미배선
+
+- **Severity**: MEDIUM
+- **Phase**: 1
+- **Sprint**: 015 (M6 T28 evaluator + codex KI 후보 #1)
+- **Component**: `src/main/workspaceHandlers.ts` (`handleWorkspaceSwitch`) + `src/main/IndexingService.ts` (abort API 신규 노출) + `src/storage/EmbeddingQueue.ts` (clear API 신규) + `src/main/ChatService.ts` (abortStreaming API 신규)
+- **영향**: 사용자 워크스페이스 전환 시 이전 ws 의 인덱싱 진행 / 임베딩 큐 / 채팅 streaming 이 그대로 진행되어 GPT 호출이 새 ws 에 연결되지 않은 ws_id 로 계속 발생. 비용 묵시 소진 + 노이즈 데이터 INSERT 가능. PRD §11.3.1 명시 abort 4-step 흐름 미구현.
+- **재현 절차**: 워크스페이스 A 에서 페이지 인덱싱 중 워크스페이스 B 로 전환 → A 의 임베딩 큐 / Visit INSERT 가 A 워크스페이스로 계속 기록
+- **권고 해소 방향**: `WorkspaceHandlerDeps` 에 abort callback 3종 (`abortIndexing` / `clearEmbeddingQueue` / `abortChatStreaming`) 주입 → `handleWorkspaceSwitch` 진입 시 호출. main `setActive` 후 broadcast `workspace:switched` 활용.
+- **처리 예정 Sprint**: 016 (M0 또는 M1)
+- **상태**: `open`
+
+### KI-007 [open] TabManager workspace_id 메타 + 탭 그룹 stash/restore 미구현
+
+- **Severity**: MEDIUM
+- **Phase**: 1
+- **Sprint**: 015 (M6 T28 evaluator KI 후보 #2)
+- **Component**: `src/main/TabManager.ts` (workspace_id 필드 신규) + `src/storage/TabStateStore.ts` (영속 schema 확장) + `src/main/workspaceHandlers.ts` (stash/restore 트리거)
+- **영향**: PRD §11.2.1 의 탭 격리 PARTIAL 라 본 PR (T28) 단계에서 허용 범위이나, contract AC-7 명시 "탭 전부 교체" 미달. 워크스페이스 전환해도 동일 탭 그룹 유지 → 시나리오 1·2·3 격리 검증 어려움.
+- **재현 절차**: ws A 에서 GitHub 탭 5개 → ws B 전환 → 여전히 GitHub 탭 5개 그대로
+- **권고 해소 방향**: TabState schema 확장 (`workspace_id` NOT NULL) + TabManager filter by activeWorkspaceId + setActiveTabView 시 stash/restore. Phase 2 cookies partition (WorkspacePartitionManager) 와 동반 처리.
+- **처리 예정 Sprint**: 016 (Phase 2 cookies partition 동반)
+- **상태**: `open`
+
+### KI-008 [open] Workspace JSON Export/Import 미구현
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M6 T28 evaluator KI 후보 #3)
+- **Component**: `src/main/WorkspaceService.ts` (`exportJson` / `importJson` 신규 메서드) + `src/renderer/src/workspace/WorkspaceSidebar.tsx` (Export 버튼 + handler)
+- **영향**: PRD §11.5.6 "Phase 1, M6" 명시 산출물이나 contract T28 산출물 목록에 포함 0. 사용자 워크스페이스 삭제 직전 안전망 부재 (현재 cascade DELETE 후 복구 불가).
+- **권고 해소 방향**: IPC 2종 (`workspace:export-json` / `workspace:import-json`) + UI 우클릭 메뉴 추가. v0.4 자체 schema (Workspace + Page + Visit + Note + AiChatHistory + Tag 전체).
+- **처리 예정 Sprint**: 016 M0 또는 Phase 3 종료 전 정리
+- **상태**: `open`
+
+### KI-009 [open] MemoryStatsPanel React 컴포넌트 단위 테스트 0
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M6 T29 evaluator NB-7)
+- **Component**: `src/renderer/src/memory/MemoryStatsPanel.tsx`
+- **영향**: 폴링 동작 / workspaceId prop 변경 시 즉시 재로드 / error fallback UI / loading state / broadcast onInvalidated 구독 — React component 단위 미검증. pure logic 17 cover 완전 + 시나리오 통합 회귀로 부분 cover.
+- **권고 해소 방향**: vitest + @testing-library/react + IPC mock 으로 4 케이스 (mount / workspaceId 변경 / 폴링 / error). renderer 환경 happy-dom 활성 필요.
+- **처리 예정 Sprint**: Phase 3 종료 후 MVP 직전 정리 또는 Sprint 016
+- **상태**: `open`
+
+### KI-010 [open] MemoryStatsPanel 인덱싱 완료 broadcast 미구현 (잔여 1종)
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M6 T29 hotfix 부분 cover)
+- **Component**: `src/main/IndexingService.ts` (wiring 시점에 broadcast 추가) + `src/renderer/src/memory/MemoryStatsPanel.tsx` (이미 onInvalidated 구독 중)
+- **영향**: PRD §07.4.2 broadcast 3종 (인덱싱 / 노트 / AI 채팅) 중 노트 + AI 채팅 2종은 T29 hotfix 로 cover. 인덱싱 완료 broadcast 는 IndexingService 가 main process 에 wiring 안 됨 (Sprint 015 M4-5 자체는 인스턴스 정의만, services.ts wiring 0).
+- **권고 해소 방향**: IndexingService 가 services.ts 에서 인스턴스화 + did-finish-load 핸들러 결합 시점에 recordVisit 후 `broadcastMemoryInvalidated(workspaceId)` 호출. KI-006 abort 정책과 동반 처리 가능.
+- **처리 예정 Sprint**: 016 M0 또는 M1 (IndexingService wiring 시점)
+- **상태**: `open`
+
+### KI-011 [open] MemoryStats 카운트 < 20ms 정량 임계 미측정
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 015 (M6 T29 evaluator 항목 3 Partial)
+- **Component**: `src/main/MemoryService.ts` (`getStats` 5개 prepared SELECT)
+- **영향**: PRD §11.3.2 임계 측정 데이터 부재. 실측 < 20ms 정량 검증 필요 (10K page workspace 기준). 단위 테스트는 in-memory SQLite — 실디스크 WAL mode + 인덱스 활용 시 차이 가능성.
+- **권고 해소 방향**: T31 종합 evaluator 또는 Sprint 016 M0 에 stopwatch 측정 셋 추가 (1K / 10K 페이지 시 getStats 실측 ms). 임계 초과 시 denormalized 카운트 컬럼 (workspaces 테이블에 신규) 도입 권고.
+- **처리 예정 Sprint**: 016 M0
+- **상태**: `open`
+
 ### KI-005 [open] AutoTagger.tagPage(pageId=note.id) page_tags FK 위반 — note 자동 태깅 차단
 
 - **Severity**: LOW (현 시점 wiring 미활성 — NoteService.opts.autoTagger 미주입 + 통합 자체 제거)
@@ -122,7 +190,7 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 2 | 2 | 0 | 5 |
+| Phase 1 | 1 | 4 | 6 | 0 | 11 |
 | Phase 2 | — | — | — | — | — |
 | Phase 3 | — | — | — | — | — |
 
@@ -140,3 +208,4 @@
 - 2026-05-18 (M3 종료 핫픽스): KI-001 MEDIUM (sqlite-vec macOS 미검증) + KI-002 LOW (PageCachePanel PARTIAL) 등록. evaluator + codex 병렬 평가에서 추출. Sprint 015 누적 0건 → 2건 (KI 등록 정책 본격 발동).
 - 2026-05-18 (M4-2 핫픽스): KI-003 HIGH (G-003 BYOK wiring 강제) + KI-004 MEDIUM (ChatRequest.response_format JSON 강제 API-level) 등록. M4-2 codex 정밀 검토 KI 후보 1/2 추출. Sprint 015 누적 2건 → 4건. HIGH 첫 등록 — M4-5 wiring 시점 즉시 처리 정책 적용.
 - 2026-05-19 (M5-7 핫픽스): KI-005 LOW (AutoTagger.tagPage page_tags FK 위반 — NoteService note 자동 태깅 차단) 등록. PR #159 codex 정밀 검토 N-001 발견. NoteService 가 autoTagger 통합 자체 제거로 안전 차단. Sprint 015 누적 4건 → 5건. KI-003 HIGH wiring 완료 — M5-3b/M5-5/M5-6/M5-7 에 BYOK 검증 박힘 (status `in-progress` 갱신 후보, Sprint 016 또는 M5-8 분할 2편 시점 closed 권고).
+- 2026-05-19 (M6 T28~T31 종합): KI-006 MEDIUM (Workspace 전환 abort 정책 미배선) + KI-007 MEDIUM (TabManager workspace_id stash/restore) + KI-008 LOW (Workspace JSON Export/Import) + KI-009 LOW (MemoryStatsPanel React unit 0) + KI-010 LOW (MemoryStats 인덱싱 broadcast 잔여 1종) + KI-011 LOW (MemoryStats < 20ms 미측정) 6건 등록. T28 + T29 evaluator + codex 병렬 평가에서 추출. Sprint 015 누적 5건 → 11건. MEDIUM 누적 4건 도달 (KI-001 + KI-004 + KI-006 + KI-007) — 5건 batch 임계 1건 부족. Sprint 016 M0 처리 권고.
