@@ -12,7 +12,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { FlowbrowserDatabase } from '../../../src/storage/Database'
 import { NoteStore } from '../../../src/storage/NoteStore'
 import { EmbeddingQueue } from '../../../src/storage/EmbeddingQueue'
-import { TagStore } from '../../../src/storage/TagStore'
 import { NoteService } from '../../../src/main/NoteService'
 import {
   handleNoteCreate,
@@ -32,8 +31,7 @@ function setup(): Fx {
   const ws = fb.ensureDefaultWorkspace()
   const service = new NoteService({
     noteStore: new NoteStore(fb),
-    embeddingQueue: new EmbeddingQueue(fb),
-    tagStore: new TagStore(fb)
+    embeddingQueue: new EmbeddingQueue(fb)
   })
   return { fb, service, workspaceId: ws.id }
 }

@@ -38,7 +38,6 @@ import {
   IndexedPageStoreSqlite,
   NoteStore,
   AiChatHistoryStore,
-  TagStore,
   EmbeddingQueue,
   defaultCredentialsPath,
   defaultUsageLogPath,
@@ -129,7 +128,6 @@ let vectorIndex: VectorIndex | null = null
 let indexedPageStore: IndexedPageStoreSqlite | null = null
 let noteStore: NoteStore | null = null
 let aiChatHistoryStore: AiChatHistoryStore | null = null
-let tagStore: TagStore | null = null
 let embeddingQueue: EmbeddingQueue | null = null
 let searchService: SearchService | null = null
 let noteService: NoteService | null = null
@@ -188,7 +186,6 @@ export async function initServices(): Promise<void> {
     })
     noteStore = new NoteStore(flowbrowserDb)
     aiChatHistoryStore = new AiChatHistoryStore(flowbrowserDb)
-    tagStore = new TagStore(flowbrowserDb)
     embeddingQueue = new EmbeddingQueue(flowbrowserDb)
     searchService = new SearchService({
       vectorIndex,
@@ -197,9 +194,8 @@ export async function initServices(): Promise<void> {
     })
     noteService = new NoteService({
       noteStore,
-      embeddingQueue,
-      tagStore
-      // autoTagger 는 M5-7 본 PR 미주입 — KI-003 정합 (BYOK 명시 동의 시점에 호출자 책임)
+      embeddingQueue
+      // KI-003 / KI-005 — note 자동 태깅 본 PR 미구현. AutoTagger.tagNote 도입 시 호출자 책임으로 wiring.
     })
   } catch (err) {
     // 인프라 미준비 — search / chat / note 호출 시 graceful error 반환.
@@ -208,7 +204,6 @@ export async function initServices(): Promise<void> {
     indexedPageStore = null
     noteStore = null
     aiChatHistoryStore = null
-    tagStore = null
     embeddingQueue = null
     searchService = null
     noteService = null

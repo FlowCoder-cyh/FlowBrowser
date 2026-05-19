@@ -1,17 +1,18 @@
 /**
  * Sprint 015 M5-7 — NoteService 단위 테스트.
  *
- * in-memory FlowbrowserDatabase + NoteStore + EmbeddingQueue + TagStore.
+ * in-memory FlowbrowserDatabase + NoteStore + EmbeddingQueue.
+ *
+ * codex M5-7 PR #159 NEEDS_CHANGES 정정 후 — AutoTagger 통합 자체 제거 (KI-005 후속).
+ * AutoTagger.tagPage 가 page_tags FK 위반 (note.id 가 pages 외래키 충족 X) 발견 시점 차단.
  *
  * cover:
  *   - createNote — NoteStore.create + EmbeddingQueue.enqueue 정합
- *   - 빈 selectedText (whitespace) → 임베딩 큐 skip
- *   - body 없음 + selectedText 있음 → 임베딩 큐 등록
- *   - body 있음 + selectedText 있음 → 임베딩 큐 등록
- *   - listNotes — workspace 별 chronological
- *   - deleteNote — true/false
- *   - autoTagger 주입 — enableAutoTagging=true 시 tagPage 호출, tags attachToNote
- *   - autoTagger 미주입 + enableAutoTagging=true → not_called
+ *   - whitespace-only selectedText → throw (NoteService 자체 guard, codex 회귀)
+ *   - workspaceId 빈 문자열 → throw
+ *   - body / selectedText / initialTags / pageId+visitId anchor / priority
+ *   - enableAutoTagging=true 시도 'not_called' 반환 (KI-005 안전 디폴트)
+ *   - listNotes / deleteNote
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
@@ -19,49 +20,55 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { FlowbrowserDatabase } from '../../../src/storage/Database'
 import { NoteStore } from '../../../src/storage/NoteStore'
 import { EmbeddingQueue } from '../../../src/storage/EmbeddingQueue'
-import { TagStore } from '../../../src/storage/TagStore'
 import { NoteService } from '../../../src/main/NoteService'
-import type { AutoTaggerService } from '../../../src/main/NoteService'
-
-function makeMockAutoTagger(opts: { fail?: boolean; tags?: Array<{ id: string; kind: string; name: string }> } = {}): AutoTaggerService {
-  return {
-    async tagPage(_input) {
-      if (opts.fail) {
-        return { status: 'failed', reason: 'mock_fail', rawText: '' } as never
-      }
-      const tags = opts.tags ?? [{ id: 'tag-1', kind: 'topic', name: 'mock' }]
-      return {
-        status: 'tagged',
-        tags: tags as never[],
-        schemaParsed: true,
-        rawText: JSON.stringify({ tags })
-      } as never
-    }
-  } as AutoTaggerService
-}
 
 interface Fx {
   fb: FlowbrowserDatabase
   noteStore: NoteStore
   embeddingQueue: EmbeddingQueue
-  tagStore: TagStore
   workspaceId: string
+  service: NoteService
 }
 
 function setup(): Fx {
   const fb = FlowbrowserDatabase.openInMemory()
   fb.applySchema()
   const ws = fb.ensureDefaultWorkspace()
-  return {
-    fb,
-    noteStore: new NoteStore(fb),
-    embeddingQueue: new EmbeddingQueue(fb),
-    tagStore: new TagStore(fb),
-    workspaceId: ws.id
-  }
+  const noteStore = new NoteStore(fb)
+  const embeddingQueue = new EmbeddingQueue(fb)
+  const service = new NoteService({ noteStore, embeddingQueue })
+  return { fb, noteStore, embeddingQueue, workspaceId: ws.id, service }
 }
 
-describe('NoteService — createNote', () => {
+describe('NoteService — createNote 입력 검증 (codex PR #159 NEEDS_CHANGES 회귀)', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setup()
+  })
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  it('selectedText 빈 문자열 → throw', async () => {
+    await expect(
+      fx.service.createNote({ workspaceId: fx.workspaceId, selectedText: '' })
+    ).rejects.toThrow(/selectedText/)
+  })
+
+  it('selectedText whitespace-only → throw (NoteStore 통과 차단)', async () => {
+    await expect(
+      fx.service.createNote({ workspaceId: fx.workspaceId, selectedText: '   ' })
+    ).rejects.toThrow(/selectedText/)
+  })
+
+  it('workspaceId 빈 문자열 → throw', async () => {
+    await expect(
+      fx.service.createNote({ workspaceId: '', selectedText: 'x' })
+    ).rejects.toThrow(/workspaceId/)
+  })
+})
+
+describe('NoteService — createNote 정상 path', () => {
   let fx: Fx
   beforeEach(() => {
     fx = setup()
@@ -71,12 +78,7 @@ describe('NoteService — createNote', () => {
   })
 
   it('selectedText 만 — note 영속 + 임베딩 큐 등록 + autoTaggingStatus=not_called', async () => {
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore
-    })
-    const r = await service.createNote({
+    const r = await fx.service.createNote({
       workspaceId: fx.workspaceId,
       selectedText: '핵심 인용'
     })
@@ -88,12 +90,7 @@ describe('NoteService — createNote', () => {
   })
 
   it('body + selectedText — 본문 결합 임베딩 큐 등록', async () => {
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore
-    })
-    const r = await service.createNote({
+    const r = await fx.service.createNote({
       workspaceId: fx.workspaceId,
       selectedText: '인용',
       body: '내 메모'
@@ -104,12 +101,7 @@ describe('NoteService — createNote', () => {
   })
 
   it('initialTags 전달 — ai_tags 영속', async () => {
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore
-    })
-    const r = await service.createNote({
+    const r = await fx.service.createNote({
       workspaceId: fx.workspaceId,
       selectedText: 'CAR-T',
       initialTags: ['glossary', 'domain:medicine']
@@ -117,8 +109,7 @@ describe('NoteService — createNote', () => {
     expect(r.note.ai_tags).toEqual(['glossary', 'domain:medicine'])
   })
 
-  it('pageId / visitId anchor — note 영속에 박힘 (FK 정합 위해 page+visit 미리 생성)', async () => {
-    // FK 정합 — page + visit 미리 생성
+  it('pageId / visitId anchor — note 영속에 박힘', async () => {
     const { IndexedPageStoreSqlite } = await import(
       '../../../src/storage/IndexedPageStoreSqlite'
     )
@@ -132,12 +123,7 @@ describe('NoteService — createNote', () => {
       visited_at: Date.now()
     })
 
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore
-    })
-    const r = await service.createNote({
+    const r = await fx.service.createNote({
       workspaceId: fx.workspaceId,
       selectedText: '인용',
       pageId: page.id,
@@ -147,13 +133,8 @@ describe('NoteService — createNote', () => {
     expect(r.note.visit_id).toBe(visit.id)
   })
 
-  it('priority 디폴트 10 (활성 탭 우선) — EmbeddingQueue.enqueue 호출', async () => {
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore
-    })
-    await service.createNote({
+  it('priority 디폴트 10 (활성 탭 우선)', async () => {
+    await fx.service.createNote({
       workspaceId: fx.workspaceId,
       selectedText: '인용'
     })
@@ -162,9 +143,19 @@ describe('NoteService — createNote', () => {
     expect(claimed!.priority).toBe(10)
     expect(claimed!.target_type).toBe('note')
   })
+
+  it('priority override (백그라운드 1)', async () => {
+    await fx.service.createNote({
+      workspaceId: fx.workspaceId,
+      selectedText: '인용',
+      priority: 1
+    })
+    const claimed = fx.embeddingQueue.claimNext()
+    expect(claimed!.priority).toBe(1)
+  })
 })
 
-describe('NoteService — AutoTagger 통합', () => {
+describe('NoteService — KI-005 안전 디폴트 (note 자동 태깅 미구현)', () => {
   let fx: Fx
   beforeEach(() => {
     fx = setup()
@@ -173,81 +164,23 @@ describe('NoteService — AutoTagger 통합', () => {
     fx.fb.close()
   })
 
-  it('autoTagger 미주입 + enableAutoTagging=true → not_called', async () => {
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore
-    })
-    const r = await service.createNote({
+  it('enableAutoTagging=true → not_called', async () => {
+    // codex M5-7 PR #159: AutoTagger.tagPage(pageId=note.id) 가 page_tags FK 위반 발견
+    // → 안전 디폴트로 호출 자체 차단. AutoTagger.tagNote 도입 후 (Sprint 016+) 활성.
+    const r = await fx.service.createNote({
       workspaceId: fx.workspaceId,
-      selectedText: '인용',
+      selectedText: 'x',
       enableAutoTagging: true
     })
     expect(r.autoTaggingStatus).toBe('not_called')
   })
 
-  it('autoTagger 주입 + enableAutoTagging=true → tagged', async () => {
-    // tagStore에 tag 미리 생성 (AutoTagger 가 return 한 tags 가 실제 row 가정)
-    const tagRow = fx.tagStore.ensureTag({
-      workspace_id: fx.workspaceId,
-      kind: 'topic',
-      name: 'mock'
-    })
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore,
-      autoTagger: makeMockAutoTagger({
-        tags: [{ id: tagRow.id, kind: 'topic', name: 'mock' }]
-      })
-    })
-    const r = await service.createNote({
+  it('enableAutoTagging=false → not_called', async () => {
+    const r = await fx.service.createNote({
       workspaceId: fx.workspaceId,
-      selectedText: '본문',
-      enableAutoTagging: true
-    })
-    expect(r.autoTaggingStatus).toBe('tagged')
-  })
-
-  it('autoTagger throw → failed', async () => {
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore,
-      autoTagger: {
-        async tagPage() {
-          throw new Error('mock failure')
-        }
-      } as AutoTaggerService
-    })
-    const r = await service.createNote({
-      workspaceId: fx.workspaceId,
-      selectedText: '본문',
-      enableAutoTagging: true
-    })
-    expect(r.autoTaggingStatus).toBe('failed')
-  })
-
-  it('enableAutoTagging=false → autoTagger 미호출 (BYOK 안전 디폴트)', async () => {
-    let called = false
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore,
-      autoTagger: {
-        async tagPage() {
-          called = true
-          return { status: 'skipped', reason: 'empty_content' } as never
-        }
-      } as AutoTaggerService
-    })
-    const r = await service.createNote({
-      workspaceId: fx.workspaceId,
-      selectedText: '본문',
+      selectedText: 'x',
       enableAutoTagging: false
     })
-    expect(called).toBe(false)
     expect(r.autoTaggingStatus).toBe('not_called')
   })
 })
@@ -262,34 +195,19 @@ describe('NoteService — list / delete', () => {
   })
 
   it('listNotes — workspace 별', async () => {
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore
-    })
-    await service.createNote({ workspaceId: fx.workspaceId, selectedText: 'a' })
-    await service.createNote({ workspaceId: fx.workspaceId, selectedText: 'b' })
-    const notes = service.listNotes(fx.workspaceId)
+    await fx.service.createNote({ workspaceId: fx.workspaceId, selectedText: 'a' })
+    await fx.service.createNote({ workspaceId: fx.workspaceId, selectedText: 'b' })
+    const notes = fx.service.listNotes(fx.workspaceId)
     expect(notes).toHaveLength(2)
   })
 
   it('deleteNote — 존재 시 true', async () => {
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore
-    })
-    const r = await service.createNote({ workspaceId: fx.workspaceId, selectedText: 'x' })
-    expect(service.deleteNote(r.note.id)).toBe(true)
-    expect(service.listNotes(fx.workspaceId)).toHaveLength(0)
+    const r = await fx.service.createNote({ workspaceId: fx.workspaceId, selectedText: 'x' })
+    expect(fx.service.deleteNote(r.note.id)).toBe(true)
+    expect(fx.service.listNotes(fx.workspaceId)).toHaveLength(0)
   })
 
   it('deleteNote — 미존재 시 false', () => {
-    const service = new NoteService({
-      noteStore: fx.noteStore,
-      embeddingQueue: fx.embeddingQueue,
-      tagStore: fx.tagStore
-    })
-    expect(service.deleteNote('nonexistent-uuid')).toBe(false)
+    expect(fx.service.deleteNote('nonexistent-uuid')).toBe(false)
   })
 })
