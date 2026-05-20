@@ -73,6 +73,17 @@ export interface ChatRequest {
    * 최대 응답 토큰 (provider 가 지원 시 적용).
    */
   maxOutputTokens?: number
+  /**
+   * Sprint 016 M0 T04 (KI-004) — 응답 포맷 강제 (API-level).
+   *
+   * - `'text'` (디폴트): 자유 텍스트
+   * - `'json_object'`: JSON 객체 반환 강제. OpenAI Chat Completions `response_format: { type: 'json_object' }` 직결.
+   *
+   * provider 미지원 시 silent ignore (e.g. Codex Login Responses API 는 본 옵션 미적용 — instructions 로 우회).
+   *
+   * AutoTagger / 향후 schema parse 호출자가 `'json_object'` 지정 → freeform fallback 의존성 축소.
+   */
+  responseFormat?: 'text' | 'json_object'
 }
 
 export interface ChatResponse {

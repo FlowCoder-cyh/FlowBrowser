@@ -123,7 +123,14 @@ export class AutoTagger {
         content: composeUserMessage({ title: input.title, content: trimmed })
       }
     ]
-    const request: ChatRequest = { messages, modelHint: input.modelHint }
+    // Sprint 016 M0 T04 (KI-004) — response_format JSON 강제 (API-level).
+    // OpenAI Chat Completions response_format: { type: 'json_object' } → freeform fallback 의존성 축소.
+    // Codex Login Provider 는 미지원 (Responses API 는 instructions 로 우회 — silent ignore).
+    const request: ChatRequest = {
+      messages,
+      modelHint: input.modelHint,
+      responseFormat: 'json_object'
+    }
 
     let rawText: string
     try {

@@ -82,6 +82,36 @@ describe('OpenAIApiKeyProvider — chat (M2-7)', () => {
     expect(body.temperature).toBe(0.5)
     expect(body.max_tokens).toBe(256)
     expect(body.stream).toBe(false)
+    // Sprint 016 M0 T04 (KI-004) — responseFormat 미주입 시 response_format 미설정
+    expect(body.response_format).toBeUndefined()
+    fetchSpy.mockRestore()
+  })
+
+  it('KI-004 — responseFormat=json_object 시 body 에 response_format: { type: json_object } 전달', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse(chatResponseBody('{"tags":[]}')))
+    const p = new OpenAIApiKeyProvider(() => 'sk-test')
+    await p.chat!({
+      messages: [{ role: 'user', content: 'hi' }],
+      responseFormat: 'json_object'
+    })
+    const body = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit)?.body))
+    expect(body.response_format).toEqual({ type: 'json_object' })
+    fetchSpy.mockRestore()
+  })
+
+  it('KI-004 — responseFormat=text 시 body 에 response_format 미설정 (기본 free text)', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse(chatResponseBody('plain text')))
+    const p = new OpenAIApiKeyProvider(() => 'sk-test')
+    await p.chat!({
+      messages: [{ role: 'user', content: 'hi' }],
+      responseFormat: 'text'
+    })
+    const body = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit)?.body))
+    expect(body.response_format).toBeUndefined()
     fetchSpy.mockRestore()
   })
 
