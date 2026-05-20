@@ -83,15 +83,26 @@ jobs:
             db.close();
           "
 
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # Sprint 016 M0 T01 잔여 — Electron 39 ABI rebuild 는 반드시 Node 20 ABI 의존 step
+      # (typecheck / test) 이후에 수행. rebuild 가 better-sqlite3 의 NODE_MODULE_VERSION 을
+      # Electron ABI 로 교체하므로, 그 이후 Node 20 환경에서 load 시 mismatch fail 위험 (이전
+      # 회귀 commit 9a7a799 에서 확인). 본 hotfix 로 step 순서 정합.
       - name: Electron 39 ABI rebuild PoC (electron-rebuild)
-        # Sprint 016 M0 T01 잔여 — Electron 런타임 native ABI rebuild 검증.
         # `npm run rebuild` = `electron-rebuild -f -w better-sqlite3`. Electron 39 ABI 로 better-sqlite3 재컴파일.
         # 실패 시 본 step 만 continue-on-error (Node 20 ABI 검증은 직전 step 으로 cover).
         continue-on-error: true
         run: npm run rebuild
 
       - name: Probe sqlite-vec + better-sqlite3 native load (Electron 39 ABI)
-        # ABI rebuild 후 재load. 실패 시 Electron 환경 KI-001 잔여 확정.
+        # ABI rebuild 후 재load. 본 step 의 Node 런타임은 Node 20 이라 ABI mismatch 가 정상 검출 신호.
+        # 실 Electron 런타임에서 load 가능한지는 Electron app 실행 시점 확인 (본 step 의 fail 은
+        # ABI 가 Electron 39 로 교체되었음을 역설적으로 입증 — 정상 패턴).
         continue-on-error: true
         run: |
           node -e "
@@ -99,15 +110,9 @@ jobs:
             const sv = require('sqlite-vec');
             const db = new Database(':memory:');
             sv.load(db);
-            console.log('post-rebuild load OK:', db.prepare('SELECT vec_version() AS v').get().v);
+            console.log('post-rebuild load (Node 20 ABI context):', db.prepare('SELECT vec_version() AS v').get().v);
             db.close();
           "
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Unit tests
-        run: npm test
 
   macos-intel-poc:
     name: macOS Intel sqlite-vec PoC (KI-001 2차)
