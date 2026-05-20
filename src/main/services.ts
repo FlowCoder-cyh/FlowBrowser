@@ -370,6 +370,9 @@ export async function initServices(): Promise<void> {
       gate: indexingGate,
       pageStore: indexedPageStore,
       embeddingQueue,
+      // Sprint 016 M0 T02-followup (KI-006, codex BLOCKING #2) — VectorIndex 주입 시 unchanged 분기에서
+      // vector 미존재 (이전 abort 등) 감지 후 재 enqueue 회복 path 활성. 누락 시 영구 미생성 차단.
+      vectorIndex,
       onStatusChange: createIndexingBroadcastHandler(broadcastMemoryInvalidated)
     })
   } catch (err) {
@@ -469,7 +472,15 @@ function registerWorkspaceIpc(): void {
         // Sprint 016 M0 T03c (KI-007) — main/index.ts 가 등록한 후속 wiring callback (TabManager 필터 + BrowserView refresh).
         onWorkspaceSwitched: (ws) => {
           if (workspaceSwitchHook) workspaceSwitchHook(ws)
-        }
+        },
+        // Sprint 016 M0 T02-followup (KI-006) — 워크스페이스 전환 abort 정책 callback 3종 실 wiring.
+        //   T02 (PR #186) 가 인터페이스만 박은 상태에서, 본 PR (T02-followup) 로 실 구현 wiring.
+        //   각 callback throw 는 workspaceHandlers 의 invokeAbortCallback 가 swallow + console.warn.
+        abortIndexing: (ws) => indexingService?.abort(ws),
+        clearEmbeddingQueue: (ws) => {
+          if (embeddingQueue) embeddingQueue.clearWorkspace(ws)
+        },
+        abortChatStreaming: (ws) => ChatService.abortStreaming(ws)
       })
     }
   )

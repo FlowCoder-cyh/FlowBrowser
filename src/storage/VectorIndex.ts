@@ -150,6 +150,17 @@ export class VectorIndex {
   }
 
   /**
+   * Sprint 016 M0 T02-followup (KI-006) — 페이지 vector 존재 여부.
+   *
+   * IndexingService unchanged 분기에서 임베딩 누락 회복 판단에 사용 (recordVisit unchanged 라도
+   * vector 미존재 시 abort 등으로 enqueue 누락된 케이스 → 재 enqueue 강제).
+   */
+  hasPageEmbedding(pageId: string): boolean {
+    const row = this.db.prepare('SELECT 1 AS x FROM vec_pages WHERE page_id = ? LIMIT 1').get(pageId)
+    return row !== undefined
+  }
+
+  /**
    * 노트 임베딩 UPSERT. 기존 note_id 행이 있으면 교체.
    */
   upsertNoteEmbedding(noteId: string, workspaceId: string, embedding: EmbeddingInput): void {

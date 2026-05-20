@@ -525,3 +525,267 @@ describe('IndexingService — gate stub 격리', () => {
     fb.close()
   })
 })
+
+/**
+ * Sprint 016 M0 T02-followup (KI-006) — workspace abort 정책 (race-safe generation 패턴).
+ *
+ * codex BLOCKING #1 흡수 — boolean Set 1회 suppress 의 race condition 해소:
+ *   - generation counter: abort(ws) → +1
+ *   - indexPage 시작 시 startGen 캡처, 종료 직전 currentGen 비교
+ *   - startGen < currentGen 이면 suppress (abort 이전 in-flight 모두 차단)
+ *   - abort 이후 새 indexPage 는 정상 (오탐 차단)
+ */
+describe('IndexingService — workspace abort (Sprint 016 M0 T02-followup, KI-006, generation 패턴)', () => {
+  let fx: Fx
+
+  beforeEach(() => {
+    fx = setup()
+  })
+
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  it('in-flight 시작 후 abort → Visit 영속 + emit suppress + skipReason=aborted', async () => {
+    // generation 패턴: indexPage 시작 (startGen=0 캡처) → abort (gen=1) → 종료 시 suppress
+    const p = fx.service.indexPage({
+      url: 'https://example.com/aborted',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: fx.defaultWsId
+    })
+    fx.service.abort(fx.defaultWsId)
+    expect(fx.service.getAbortGeneration(fx.defaultWsId)).toBe(1)
+    const result = await p
+    expect(result.status).toBe('indexed')
+    if (result.status !== 'indexed') return
+    expect(result.embeddingSkipReason).toBe('aborted')
+    expect(result.embeddingJobId).toBeUndefined()
+    // Visit 영속 — DB TX 완료 상태 유지
+    expect(fx.pageStore.countPages(fx.defaultWsId)).toBe(1)
+    expect(fx.pageStore.countVisits(fx.defaultWsId)).toBe(1)
+    // 임베딩 큐 enqueue 차단
+    expect(fx.embeddingQueue.stats().pending).toBe(0)
+    // emit suppress
+    expect(fx.events.length).toBe(0)
+  })
+
+  it('abort 이후 새 indexPage → 정상 처리 (오탐 차단)', async () => {
+    fx.service.abort(fx.defaultWsId)
+    // 이전에 시작된 in-flight 없으면 새 indexPage 는 currentGen 그대로 시작 → suppress 안 함
+    const result = await fx.service.indexPage({
+      url: 'https://example.com/post-abort',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: fx.defaultWsId
+    })
+    expect(result.status).toBe('indexed')
+    if (result.status !== 'indexed') return
+    // generation 캡처 = currentGen 1, 종료 시 currentGen 1 → 동일 → 정상
+    expect(result.embeddingSkipReason).toBeUndefined()
+    expect(result.embeddingJobId).toBeDefined()
+    expect(fx.events.length).toBe(1)
+    expect(fx.events[0].url).toBe('https://example.com/post-abort')
+  })
+
+  it('동시 in-flight 2건 + abort → 둘 다 suppress (race-safe, codex BLOCKING #1)', async () => {
+    // 2건 indexPage 시작 (await 안 함 — Promise 보관)
+    const p1 = fx.service.indexPage({
+      url: 'https://example.com/race1',
+      content: 'body1',
+      hasPasswordField: false,
+      workspaceId: fx.defaultWsId
+    })
+    const p2 = fx.service.indexPage({
+      url: 'https://example.com/race2',
+      content: 'body2',
+      hasPasswordField: false,
+      workspaceId: fx.defaultWsId
+    })
+    // 둘 다 시작된 직후 abort 호출
+    fx.service.abort(fx.defaultWsId)
+    const [r1, r2] = await Promise.all([p1, p2])
+    // 둘 다 suppress
+    expect(r1.status === 'indexed' && r1.embeddingSkipReason === 'aborted').toBe(true)
+    expect(r2.status === 'indexed' && r2.embeddingSkipReason === 'aborted').toBe(true)
+    // Visit 둘 다 영속
+    expect(fx.pageStore.countVisits(fx.defaultWsId)).toBe(2)
+    // 임베딩 큐 enqueue 0 (둘 다 suppress)
+    expect(fx.embeddingQueue.stats().pending).toBe(0)
+    // emit 0 (둘 다 suppress)
+    expect(fx.events.length).toBe(0)
+  })
+
+  it('abort 다른 ws 영향 0 (ws 격리)', async () => {
+    const altWs = fx.fb.createWorkspace({ name: 'Alt', icon: '🧪' })
+    fx.service.abort(altWs.id)
+    const result = await fx.service.indexPage({
+      url: 'https://example.com/default-normal',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: fx.defaultWsId
+    })
+    expect(result.status).toBe('indexed')
+    if (result.status !== 'indexed') return
+    expect(result.embeddingSkipReason).toBeUndefined()
+    expect(result.embeddingJobId).toBeDefined()
+    expect(fx.events.length).toBe(1)
+    expect(fx.events[0].workspaceId).toBe(fx.defaultWsId)
+    // alt 의 abort generation 유지
+    expect(fx.service.getAbortGeneration(altWs.id)).toBe(1)
+    expect(fx.service.getAbortGeneration(fx.defaultWsId)).toBe(0)
+  })
+
+  it('abort + blocked (gate 차단) 흐름 — gate 차단이 우선 (Visit 미생성)', async () => {
+    fx.service.abort(fx.defaultWsId)
+    const result = await fx.service.indexPage({
+      url: 'https://example.com/p',
+      content: 'body',
+      hasPasswordField: true,
+      workspaceId: fx.defaultWsId
+    })
+    expect(result.status).toBe('blocked')
+    expect(fx.pageStore.countPages()).toBe(0)
+    // blocked emit 발생 (workspaceId undefined)
+    expect(fx.events.length).toBe(1)
+    expect(fx.events[0].workspaceId).toBeUndefined()
+    expect(fx.events[0].result.status).toBe('blocked')
+    // generation 은 indexed path 만 소비 — blocked 시 유지 (그대로 1)
+    expect(fx.service.getAbortGeneration(fx.defaultWsId)).toBe(1)
+  })
+
+  it('abort 2회 호출 → generation 2 누적 (multiple abort 시퀀스)', async () => {
+    fx.service.abort(fx.defaultWsId)
+    fx.service.abort(fx.defaultWsId)
+    expect(fx.service.getAbortGeneration(fx.defaultWsId)).toBe(2)
+    // 이전 시작 in-flight 없으면 신규는 정상
+    const result = await fx.service.indexPage({
+      url: 'https://example.com/after-double-abort',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: fx.defaultWsId
+    })
+    expect(result.status === 'indexed' && result.embeddingSkipReason === undefined).toBe(true)
+  })
+})
+
+/**
+ * Sprint 016 M0 T02-followup (KI-006, codex BLOCKING #2) — unchanged 분기 vector 회복.
+ *
+ * VectorIndex 주입 시 unchanged 케이스에서 vector 미존재 감지 → enqueue 강제 (영구 누락 차단).
+ * 이전 abort 또는 worker 실패로 embedding 미생성된 페이지 재방문 시 회복.
+ */
+describe('IndexingService — unchanged 분기 vector 회복 (Sprint 016 M0 T02-followup, KI-006)', () => {
+  it('VectorIndex 주입 + vector 미존재 + unchanged → enqueue 회복', async () => {
+    const { VectorIndex } = await import('../../../src/storage/VectorIndex')
+    const fb = FlowbrowserDatabase.openInMemory()
+    fb.applySchema()
+    const wsId = fb.ensureDefaultWorkspace().id
+    const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: wsId })
+    const embeddingQueue = new EmbeddingQueue(fb)
+    const vectorIndex = new VectorIndex(fb)
+    const gate = new IndexingGate()
+    const service = new IndexingService({ gate, pageStore, embeddingQueue, vectorIndex })
+
+    // 첫 방문 — enqueue 1건
+    const first = await service.indexPage({
+      url: 'https://example.com/recover',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: wsId
+    })
+    expect(first.status === 'indexed' && first.embeddingJobId !== undefined).toBe(true)
+    expect(embeddingQueue.stats().pending).toBe(1)
+
+    // 재방문 + 동일 content — unchanged. vector 없으면 enqueue 회복.
+    // (vector 미생성 상태 — embedding worker 가 처리 안 함)
+    expect(vectorIndex.hasPageEmbedding((first as { pageId: string }).pageId)).toBe(false)
+
+    const second = await service.indexPage({
+      url: 'https://example.com/recover',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: wsId
+    })
+    expect(second.status).toBe('indexed')
+    if (second.status !== 'indexed') return
+    // 회복: embeddingJobId 있음, skipReason 없음 (unchanged 라도 vector 미존재라 re-enqueue)
+    expect(second.embeddingJobId).toBeDefined()
+    expect(second.embeddingSkipReason).toBeUndefined()
+    expect(second.action).toBe('unchanged')
+    // 큐 2건 누적
+    expect(embeddingQueue.stats().pending).toBe(2)
+
+    fb.close()
+  })
+
+  it('VectorIndex 주입 + vector 존재 + unchanged → enqueue skip (회복 안 함)', async () => {
+    const { VectorIndex, EMBEDDING_DIMENSIONS } = await import('../../../src/storage/VectorIndex')
+    const fb = FlowbrowserDatabase.openInMemory()
+    fb.applySchema()
+    const wsId = fb.ensureDefaultWorkspace().id
+    const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: wsId })
+    const embeddingQueue = new EmbeddingQueue(fb)
+    const vectorIndex = new VectorIndex(fb)
+    const gate = new IndexingGate()
+    const service = new IndexingService({ gate, pageStore, embeddingQueue, vectorIndex })
+
+    const first = await service.indexPage({
+      url: 'https://example.com/done',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: wsId
+    })
+    if (first.status !== 'indexed') throw new Error('first must be indexed')
+    // vector 영속 (worker 처리 완료 시뮬)
+    const dummyVec = new Float32Array(EMBEDDING_DIMENSIONS)
+    dummyVec[0] = 1.0
+    vectorIndex.upsertPageEmbedding(first.pageId, wsId, dummyVec)
+    expect(vectorIndex.hasPageEmbedding(first.pageId)).toBe(true)
+
+    // 재방문 + 동일 content — vector 있음 → unchanged skip
+    const second = await service.indexPage({
+      url: 'https://example.com/done',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: wsId
+    })
+    expect(second.status === 'indexed' && second.embeddingSkipReason === 'unchanged').toBe(true)
+    if (second.status !== 'indexed') return
+    expect(second.embeddingJobId).toBeUndefined()
+    // 큐 1건 유지 (회복 안 함)
+    expect(embeddingQueue.stats().pending).toBe(1)
+
+    fb.close()
+  })
+
+  it('VectorIndex 미주입 (이전 동작 호환) — unchanged 항상 skip', async () => {
+    const fb = FlowbrowserDatabase.openInMemory()
+    fb.applySchema()
+    const wsId = fb.ensureDefaultWorkspace().id
+    const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: wsId })
+    const embeddingQueue = new EmbeddingQueue(fb)
+    const gate = new IndexingGate()
+    // vectorIndex 미주입
+    const service = new IndexingService({ gate, pageStore, embeddingQueue })
+
+    await service.indexPage({
+      url: 'https://example.com/no-vec',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: wsId
+    })
+    const second = await service.indexPage({
+      url: 'https://example.com/no-vec',
+      content: 'body',
+      hasPasswordField: false,
+      workspaceId: wsId
+    })
+    // vectorIndex 미주입이라 unchanged 분기는 항상 skip (이전 동작 호환)
+    expect(second.status === 'indexed' && second.embeddingSkipReason === 'unchanged').toBe(true)
+    if (second.status !== 'indexed') return
+    expect(second.embeddingJobId).toBeUndefined()
+
+    fb.close()
+  })
+})
