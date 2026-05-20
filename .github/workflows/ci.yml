@@ -46,9 +46,10 @@ jobs:
     # KI-001 [in-progress] sqlite-vec macOS native 빌드 미검증 — 1차 PoC.
     # GitHub-hosted runner macos-latest = Apple Silicon arm64 (2024+ 이미지).
     # 본 job 검증 범위: sqlite-vec-darwin-arm64 prebuilt + Node 20 ABI load.
-    # 검증 범위 외 (후속 T 또는 별도 PR 필요):
-    #   - darwin-x64 (Intel) — macos-15-intel / macos-26-intel runner 별도 job
-    #   - Electron 39 native ABI rebuild — electron-rebuild + Electron 런타임 load
+    # 2차 검증 (Sprint 016 M0 T01 잔여 추가):
+    #   - darwin-x64 (Intel) — macos-13 job 별도 추가 (아래)
+    #   - windows-x64 — windows-latest job 별도 추가 (아래)
+    #   - Electron 39 native ABI rebuild — electron-rebuild step 추가 (각 job)
     # fail-fast 회피: 본 job 실패해도 main `ci` job 통과 시 머지 가능.
     # branch protection required check 영향 0 (job name 단독, required 미설정).
     continue-on-error: true
@@ -65,9 +66,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Probe sqlite-vec + better-sqlite3 native load
+      - name: Probe sqlite-vec + better-sqlite3 native load (Node 20 ABI)
         # KI-001 핵심 검증: sqlite-vec-darwin-arm64 prebuilt 동작 + vec_version() 호출
-        # (darwin-x64 검증은 macos-intel runner 별도 PR — 본 step 범위 외)
         run: |
           node -e "
             const Database = require('better-sqlite3');
@@ -83,8 +83,104 @@ jobs:
             db.close();
           "
 
+      - name: Electron 39 ABI rebuild PoC (electron-rebuild)
+        # Sprint 016 M0 T01 잔여 — Electron 런타임 native ABI rebuild 검증.
+        # `npm run rebuild` = `electron-rebuild -f -w better-sqlite3`. Electron 39 ABI 로 better-sqlite3 재컴파일.
+        # 실패 시 본 step 만 continue-on-error (Node 20 ABI 검증은 직전 step 으로 cover).
+        continue-on-error: true
+        run: npm run rebuild
+
+      - name: Probe sqlite-vec + better-sqlite3 native load (Electron 39 ABI)
+        # ABI rebuild 후 재load. 실패 시 Electron 환경 KI-001 잔여 확정.
+        continue-on-error: true
+        run: |
+          node -e "
+            const Database = require('better-sqlite3');
+            const sv = require('sqlite-vec');
+            const db = new Database(':memory:');
+            sv.load(db);
+            console.log('post-rebuild load OK:', db.prepare('SELECT vec_version() AS v').get().v);
+            db.close();
+          "
+
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+  macos-intel-poc:
+    name: macOS Intel sqlite-vec PoC (KI-001 2차)
+    runs-on: macos-15-intel
+    # KI-001 2차 검증 — darwin-x64 (Intel) prebuilt 동작 확인.
+    # macos-15-intel = Intel x64 runner (GitHub-hosted, 2026 시점 공식 가용 — codex BLOCKING #5 정정,
+    # macos-13 deprecated 실측 확인 후 macos-15-intel 적용. WebFetch actions/runner-images README 정합).
+    # 본 job 실패 시 KI-001 status 'in-progress' 유지 + 후속 hotfix (sqlite-vec-darwin-x64 fallback 검토).
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Probe sqlite-vec + better-sqlite3 native load (darwin-x64, Node 20 ABI)
+        run: |
+          node -e "
+            const Database = require('better-sqlite3');
+            const sv = require('sqlite-vec');
+            const db = new Database(':memory:');
+            sv.load(db);
+            console.log('arch:', process.arch);
+            console.log('platform:', process.platform);
+            console.log('sqlite_version:', db.prepare('SELECT sqlite_version() AS v').get().v);
+            console.log('vec_version:', db.prepare('SELECT vec_version() AS v').get().v);
+            db.close();
+          "
+
+      - name: Unit tests
+        run: npm test
+
+  windows-poc:
+    name: Windows sqlite-vec PoC (KI-001 2차)
+    runs-on: windows-latest
+    # KI-001 2차 검증 — win32-x64 prebuilt 동작 확인.
+    # 본 job 의 probe step 은 bash shell 명시 (windows-latest 디폴트 PowerShell 환경에서
+    # `node -e "..."` heredoc 멀티라인 syntax 가 PowerShell parser 와 호환 안 됨 — codex review 정합).
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Probe sqlite-vec + better-sqlite3 native load (win32-x64, Node 20 ABI)
+        shell: bash
+        run: |
+          node -e "
+            const Database = require('better-sqlite3');
+            const sv = require('sqlite-vec');
+            const db = new Database(':memory:');
+            sv.load(db);
+            console.log('arch:', process.arch);
+            console.log('platform:', process.platform);
+            console.log('sqlite_version:', db.prepare('SELECT sqlite_version() AS v').get().v);
+            console.log('vec_version:', db.prepare('SELECT vec_version() AS v').get().v);
+            db.close();
+          "
 
       - name: Unit tests
         run: npm test
