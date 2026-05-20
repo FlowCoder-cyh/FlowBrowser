@@ -20,9 +20,7 @@ import type {
   ChatResponse,
   EmbedRequest,
   EmbedResponse,
-  ProviderInfo,
-  TranslationInput,
-  TranslationOutput
+  ProviderInfo
 } from '../types'
 import {
   DeviceCodeFlow,
@@ -31,7 +29,7 @@ import {
 } from '../codex/DeviceCodeFlow'
 import { resolveCodexAuthIdentity } from '../codex/JwtDecoder'
 import { accumulateResponsesStream } from '../codex/SseStreamParser'
-import { buildSystemPrompt, buildUserPrompt } from './OpenAIApiKeyProvider'
+// Sprint 016 M2 T09 — buildSystemPrompt/buildUserPrompt import 제거 (translate 본체 폐기로 사용처 0).
 
 const CODEX_RESPONSES_BASE_URL = 'https://chatgpt.com/backend-api/codex'
 // Sprint 014 M3-7 핫픽스: ChatGPT 백엔드가 받는 정확 모델명은 gpt-5.5 / gpt-5.4-mini / gpt-5.2
@@ -131,99 +129,9 @@ export class CodexLoginProvider implements ProviderAdapter {
     }
   }
 
-  async translate(input: TranslationInput): Promise<TranslationOutput> {
-    const startedAt = Date.now()
-    const model = this.resolveModel(input.modelHint)
-    // Sprint 014 M3-8 핫픽스: Responses API는 system prompt를 instructions 필드로,
-    // user prompt만 input으로 받는다. 기존엔 [system+user]를 input 배열로 보내
-    // "Instructions are required" 400 발생.
-    const instructions = buildSystemPrompt(input)
-    const userContent = buildUserPrompt(input)
-
-    let token = await this.ensureFreshToken()
-    let identity = resolveCodexAuthIdentity(token.accessToken)
-    if (!identity.accountId) {
-      throw new ProviderError(
-        'Codex Login 토큰에서 ChatGPT account_id를 찾지 못했습니다. 재로그인 필요.',
-        'auth_invalid',
-        false
-      )
-    }
-
-    let res = await this.callResponses(
-      token.accessToken,
-      identity.accountId,
-      model,
-      instructions,
-      userContent
-    )
-
-    // 401/403 시 refresh 1회 시도 후 재호출
-    if (res.status === 401 || res.status === 403) {
-      try {
-        const fresh = await this.flow.refreshTokens(token.refreshToken)
-        this.tokenAccess.update(fresh)
-        token = fresh
-        identity = resolveCodexAuthIdentity(token.accessToken)
-        if (!identity.accountId) {
-          throw new Error('refresh 후 account_id 추출 실패')
-        }
-        res = await this.callResponses(
-          token.accessToken,
-          identity.accountId,
-          model,
-          instructions,
-          userContent
-        )
-      } catch (err) {
-        throw new ProviderError(
-          `Codex Login 인증 만료: ${err instanceof Error ? err.message : String(err)}`,
-          'auth_invalid',
-          false
-        )
-      }
-    }
-
-    if (res.status === 401 || res.status === 403) {
-      throw new ProviderError('Codex Login 인증 만료 (refresh 후도 실패)', 'auth_invalid', false)
-    }
-    if (res.status === 429) {
-      throw new ProviderError(
-        'ChatGPT 구독 사용 한도 도달. 잠시 후 다시 시도하세요.',
-        'rate_limit',
-        true
-      )
-    }
-    if (res.status >= 500) {
-      throw new ProviderError(`Codex Login 서버 오류: ${res.status}`, 'server_error', true)
-    }
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '')
-      throw new ProviderError(
-        `Codex Login 요청 실패: ${res.status} ${errBody}`,
-        'bad_request',
-        false
-      )
-    }
-
-    // Sprint 014 M3-11: SSE 스트림 파싱 (ChatGPT 백엔드는 stream: true 강제)
-    if (!res.body) {
-      throw new ProviderError('Codex Login 응답 body가 비어 있습니다.', 'server_error', true)
-    }
-    const accumulated = await accumulateResponsesStream(res.body)
-    if (!accumulated.text) {
-      throw new ProviderError('Codex Login 응답에 결과가 없습니다.', 'server_error', true)
-    }
-    return {
-      translatedText: accumulated.text,
-      modelUsed: accumulated.model ?? model,
-      inputTokens: accumulated.inputTokens ?? 0,
-      outputTokens: accumulated.outputTokens ?? 0,
-      // ChatGPT 구독 한도 내 호출은 별도 비용 청구 없음으로 추정 (Phase 1 PoC #1 측정 후 확정)
-      estimatedCostUsd: 0,
-      durationMs: Date.now() - startedAt
-    }
-  }
+  // Sprint 016 M2 T09 — translate() 메서드 + Responses API instructions 분리 (M3-8 패턴) 제거.
+  //   selection 번역은 services.ts buildTranslationChatRequest 가 messages [system, user] 구성 → provider.chat() 호출.
+  //   chat() 내부 splitMessagesForResponsesApi 가 system → instructions 분리 자동 처리.
 
   /**
    * Sprint 015 M2-7 — Chat 호출. Codex Responses API (chatgpt.com/backend-api/codex/responses).
@@ -419,42 +327,8 @@ export class CodexLoginProvider implements ProviderAdapter {
     }
   }
 
-  private async callResponses(
-    accessToken: string,
-    accountId: string,
-    model: string,
-    instructions: string,
-    userInput: string
-  ): Promise<Response> {
-    // Sprint 014 M3-10: Hermes(NousResearch/hermes-agent) agent/transports/codex.py 분석.
-    // ChatGPT 백엔드 Responses API는 store: false 필수 + tools/tool_choice/parallel_tool_calls
-    // 메타 필드도 요구. M3-9는 store 누락으로 "Store must be set to false" 400.
-    return this.fetchImpl(`${CODEX_RESPONSES_BASE_URL}/responses`, {
-      method: 'POST',
-      headers: this.buildHeaders(accessToken, accountId),
-      body: JSON.stringify({
-        model,
-        instructions,
-        input: [
-          {
-            type: 'message',
-            role: 'user',
-            content: [{ type: 'input_text', text: userInput }]
-          }
-        ],
-        tools: [],
-        tool_choice: 'auto',
-        parallel_tool_calls: true,
-        store: false,
-        stream: true,
-        // Sprint 014 M3-12: gpt-5.5는 reasoning 모델. effort='low'로 응답 속도 개선
-        // (Hermes _effort_clamp = {"minimal": "low"} — low가 최소). 번역 use case는
-        // 깊은 추론 불필요.
-        reasoning: { effort: 'low', summary: null },
-        include: []
-      })
-    })
-  }
+  // Sprint 016 M2 T09 — callResponses (translate 전용 single-user-input path) 제거.
+  //   chat() 의 callResponsesRaw (input 배열 multi-turn) 단일 사용.
 
   private resolveModel(hint?: string): string {
     if (hint && AVAILABLE_MODELS.includes(hint)) return hint

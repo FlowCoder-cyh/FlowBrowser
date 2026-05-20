@@ -23,9 +23,7 @@ import type {
   ChatRequest,
   ChatResponse,
   ProviderInfo,
-  ProviderType,
-  TranslationInput,
-  TranslationOutput
+  ProviderType
 } from '../../../src/ai/types'
 
 interface MockProviderOpts {
@@ -50,9 +48,6 @@ function makeMockProvider(opts: MockProviderOpts = {}): ProviderAdapter {
     } as ProviderInfo,
     async validate() {
       return { ok: true }
-    },
-    async translate(_input: TranslationInput): Promise<TranslationOutput> {
-      throw new Error('not implemented')
     }
   }
   if (supportsChat) {

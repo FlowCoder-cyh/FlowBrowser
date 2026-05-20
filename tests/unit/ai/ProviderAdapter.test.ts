@@ -482,14 +482,13 @@ describe('OpenAIApiKeyProvider — fetchImpl 주입 (T13)', () => {
     globalSpy.mockRestore()
   })
 
-  it('translate / validate / embed 모두 주입된 fetchImpl 사용 (4 endpoint 일관성)', async () => {
+  it('validate / chat / embed 모두 주입된 fetchImpl 사용 (3 endpoint 일관성, T09 후)', async () => {
+    // Sprint 016 M2 T09 — translate() 메서드 폐기로 4 endpoint → 3 endpoint.
     const injected = vi
       .fn()
       // validate
       .mockResolvedValueOnce(new Response('[]', { status: 200 }))
-      // translate
-      .mockResolvedValueOnce(jsonResponse(chatResponseBody('번역')))
-      // chat
+      // chat (selection 번역도 chat 으로 통합)
       .mockResolvedValueOnce(jsonResponse(chatResponseBody('대답')))
       // embed
       .mockResolvedValueOnce(jsonResponse(embedResponseBody([[0.1, 0.2]])))
@@ -497,14 +496,8 @@ describe('OpenAIApiKeyProvider — fetchImpl 주입 (T13)', () => {
       fetchImpl: injected as unknown as typeof fetch
     })
     await p.validate()
-    await p.translate({
-      sourceText: 'hi',
-      sourceLanguage: 'en',
-      targetLanguage: 'ko',
-      requestType: 'selection'
-    })
     await p.chat!({ messages: [{ role: 'user', content: 'hi' }] })
     await p.embed!({ texts: ['hi'], dimensions: 2 })
-    expect(injected).toHaveBeenCalledTimes(4)
+    expect(injected).toHaveBeenCalledTimes(3)
   })
 })

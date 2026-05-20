@@ -26,9 +26,7 @@ import type { ProviderAdapter } from '../../../src/ai/ProviderAdapter'
 import type {
   EmbedRequest,
   EmbedResponse,
-  ProviderInfo,
-  TranslationInput,
-  TranslationOutput
+  ProviderInfo
 } from '../../../src/ai/types'
 
 const MS_PER_DAY = 86_400_000
@@ -67,9 +65,6 @@ function makeMockProvider(opts: {
     } as ProviderInfo,
     async validate() {
       return { ok: true }
-    },
-    async translate(_input: TranslationInput): Promise<TranslationOutput> {
-      throw new Error('not implemented in mock')
     }
   }
   if (supportsEmbed) {

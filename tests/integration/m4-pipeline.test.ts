@@ -73,9 +73,6 @@ function makeProvider(scriptedResponses: string[]): StubProvider {
         durationMs: 250
       }
     },
-    async translate() {
-      throw new Error('not used in M4 pipeline')
-    },
     async validate() {
       return { ok: true }
     }

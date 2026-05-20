@@ -50,9 +50,6 @@ function makeChatStub(responseText: string): StubProvider {
         durationMs: 250
       }
     },
-    async translate() {
-      throw new Error('not used')
-    },
     async validate() {
       return { ok: true }
     }
@@ -74,9 +71,6 @@ function makeChatThrowStub(error: Error): StubProvider {
     async chat(): Promise<ChatResponse> {
       throw error
     },
-    async translate() {
-      throw new Error('not used')
-    },
     async validate() {
       return { ok: true }
     }
@@ -94,9 +88,6 @@ function makeNoChatStub(): ProviderAdapter {
   }
   return {
     info,
-    async translate() {
-      throw new Error('not used')
-    },
     async validate() {
       return { ok: true }
     }

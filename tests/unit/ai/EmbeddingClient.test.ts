@@ -58,9 +58,6 @@ function fakeProvider(opts: {
   }
   const base: ProviderAdapter = {
     info,
-    async translate(_input) {
-      throw new Error('not used')
-    },
     async validate() {
       return { ok: true }
     }
