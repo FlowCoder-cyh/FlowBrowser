@@ -4,8 +4,9 @@ export type { CredentialRecord, ProviderType as CredentialProviderType } from '.
 export { UsageLog, defaultUsageLogPath, V04_FEATURES } from './UsageLog'
 export type { UsageLogEntry, Feature, V03Feature, V04Feature, UsageStatus } from './UsageLog'
 
-export { TranslationCache, defaultTranslationCachePath } from './TranslationCache'
-export type { CacheEntry, CacheKeyInput, CacheOptions, CacheRequestType } from './TranslationCache'
+// Sprint 016 M2 T10b — TranslationCache 클래스 + .legacy.test 통째 폐기.
+//   selection 번역 cache 는 AIResponseCache(kind='translation') 단독 backend (services.ts 직접 호출).
+//   v0.3 → v0.4 마이그레이션 (`translation-cache.json` → `ai-response-cache.json`) 은 migrations/v03_to_v04.ts 유지.
 
 export {
   AIResponseCache,
