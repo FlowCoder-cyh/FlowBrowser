@@ -162,12 +162,8 @@ const usageApi = {
     ipcRenderer.invoke('usage:purge-older-than', beforeMs)
 }
 
-const cacheApi = {
-  stats: (): Promise<{ count: number; hitTotal: number }> => ipcRenderer.invoke('cache:stats'),
-  clearAll: (): Promise<void> => ipcRenderer.invoke('cache:clear-all'),
-  invalidateGlossary: (version: string): Promise<number> =>
-    ipcRenderer.invoke('cache:invalidate-glossary', version)
-}
+// Sprint 016 M2 T11 — cache:* IPC + cacheApi 통째 폐기. renderer 호출자 0 확인 후 제거.
+//   selection 번역 캐시는 T10 (executeTranslateRequest → chat 마이그레이션) 시점에 AIResponseCache 직접 책임.
 
 // Sprint 016 M2 T12 — PageResultStore 어댑터 + pageResultApi + PageCachePanel UI 통째 폐기 (KI-002 closed).
 //   v0.4 인덱싱 통계는 memoryApi (memory:stats) 가 흡수.
@@ -604,7 +600,6 @@ contextBridge.exposeInMainWorld('consentApi', consentApi)
 contextBridge.exposeInMainWorld('credentialApi', credentialApi)
 contextBridge.exposeInMainWorld('privacyApi', privacyApi)
 contextBridge.exposeInMainWorld('usageApi', usageApi)
-contextBridge.exposeInMainWorld('cacheApi', cacheApi)
 contextBridge.exposeInMainWorld('glossaryApi', glossaryApi)
 contextBridge.exposeInMainWorld('userSettingApi', userSettingApi)
 contextBridge.exposeInMainWorld('translateApi', translateApi)
@@ -617,7 +612,6 @@ export type ConsentApi = typeof consentApi
 export type CredentialApi = typeof credentialApi
 export type PrivacyApi = typeof privacyApi
 export type UsageApi = typeof usageApi
-export type CacheApi = typeof cacheApi
 export type GlossaryApi = typeof glossaryApi
 export type UserSettingApi = typeof userSettingApi
 export type TranslateApi = typeof translateApi

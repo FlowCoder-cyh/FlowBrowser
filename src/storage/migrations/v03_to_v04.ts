@@ -392,37 +392,110 @@ async function migratePageResults(
   ])
 }
 
+/**
+ * Sprint 016 M2 T11 (codex BLOCKING #1 + #2 hotfix) — v0.3 TranslationCache 영속 shape 정합 + AIResponseCache 가 읽을 수 있는 raw array output.
+ *
+ * 입력 shape:
+ *   - v0.3 TranslationCache.persistOnce() 는 `JSON.stringify(all)` = raw array `CacheEntry[]` (정합).
+ *   - 일부 v0.3.x fixture / legacy 는 `{ entries: { key: entry } }` wrapper 가능 — 호환 위해 양쪽 허용.
+ *
+ * 출력 shape:
+ *   - AIResponseCache.load() 가 raw array `AICacheEntry[]` 기대 (parseEntry: id/kind/key/value/hitCount/createdAt/updatedAt/lastAccessedAt/expiresAt 필수).
+ *   - 본 마이그레이션은 TranslationCache.buildKey() 와 동일 알고리즘으로 composite key 재구성 + value 는 `{id, sourceText, translatedText, domain, createdAt}` (이전 어댑터 모드와 정합).
+ */
+interface V03TranslationCacheEntry {
+  id?: string
+  sourceHash?: string
+  sourceText?: string
+  translatedText?: string
+  sourceLanguage?: string
+  targetLanguage?: string
+  providerType?: string
+  requestType?: string
+  glossaryVersion?: string
+  domain?: string | null
+  hitCount?: number
+  createdAt?: number
+  updatedAt?: number
+  lastAccessedAt?: number
+  expiresAt?: number
+}
+
 async function migrateTranslationCache(
   userDataDir: string,
   counts: MigrationCounts,
   logPath: string
 ): Promise<void> {
   const path = join(userDataDir, 'translation-cache.json')
-  const data = await readJsonOptional<{
-    entries?: Record<string, { requestType?: string } & Record<string, unknown>>
-  }>(path)
-  if (!data?.entries) {
+  const dataRaw = await readJsonOptional<
+    V03TranslationCacheEntry[] | { entries?: Record<string, V03TranslationCacheEntry> }
+  >(path)
+  const entries: V03TranslationCacheEntry[] = Array.isArray(dataRaw)
+    ? dataRaw
+    : dataRaw?.entries
+    ? Object.values(dataRaw.entries)
+    : []
+  if (!entries.length) {
     await appendLog(logPath, ['[migrate] translation-cache.json: 0 entries'])
     return
   }
-  const next: Record<string, unknown> = {}
-  for (const [key, entry] of Object.entries(data.entries)) {
-    if (entry.requestType === 'summary') {
+  const aiCacheEntries: Array<Record<string, unknown>> = []
+  const now = Date.now()
+  for (const e of entries) {
+    if (e.requestType === 'summary') {
       counts.cache_entries_skipped += 1
       continue
     }
-    next[key] = { ...entry, kind: 'translation' }
+    // TranslationCache.buildKey 와 정합한 composite key 재구성 (sourceHash + 5-tuple)
+    if (!e.sourceHash || !e.sourceLanguage || !e.targetLanguage || !e.providerType || !e.requestType) {
+      counts.cache_entries_skipped += 1
+      continue
+    }
+    const composite = [
+      e.sourceHash,
+      e.sourceLanguage,
+      e.targetLanguage,
+      e.providerType,
+      e.requestType,
+      e.glossaryVersion ?? 'default'
+    ].join('|')
+    const createdAt = e.createdAt ?? now
+    const updatedAt = e.updatedAt ?? createdAt
+    const lastAccessedAt = e.lastAccessedAt ?? createdAt
+    const expiresAt = e.expiresAt ?? createdAt + 90 * 24 * 60 * 60 * 1000
+    aiCacheEntries.push({
+      id: e.id ?? `aic_${createdAt.toString(36)}_${counts.cache_entries_kept.toString(36)}`,
+      kind: 'translation',
+      key: composite,
+      value: {
+        id: e.id ?? composite,
+        sourceText: e.sourceText ?? '',
+        translatedText: e.translatedText ?? '',
+        domain: e.domain ?? null,
+        createdAt
+      },
+      metadata: {
+        sourceHash: e.sourceHash,
+        sourceLanguage: e.sourceLanguage,
+        targetLanguage: e.targetLanguage,
+        providerType: e.providerType,
+        requestType: e.requestType,
+        glossaryVersion: e.glossaryVersion ?? 'default'
+      },
+      hitCount: typeof e.hitCount === 'number' && e.hitCount >= 0 ? Math.floor(e.hitCount) : 0,
+      createdAt,
+      updatedAt,
+      lastAccessedAt,
+      expiresAt
+    })
     counts.cache_entries_kept += 1
   }
-  // 변환된 cache 는 ai-response-cache.json 으로 export — 폐기 source 보존 (Step 4 에서 .deprecated)
+  // 변환된 cache 는 ai-response-cache.json 으로 export (AIResponseCache.persistOnce 와 동일 shape = raw array).
+  // 원본 translation-cache.json 은 Step 4 에서 .deprecated 접미사 (30일 후 삭제 권고).
   const aiCachePath = join(userDataDir, 'ai-response-cache.json')
-  await fs.writeFile(
-    aiCachePath,
-    JSON.stringify({ entries: next, version: 2 }, null, 0),
-    'utf-8'
-  )
+  await fs.writeFile(aiCachePath, JSON.stringify(aiCacheEntries, null, 0), 'utf-8')
   await appendLog(logPath, [
-    `[migrate] cache: ${counts.cache_entries_kept} kept (translation kind) + ${counts.cache_entries_skipped} skipped (summary)`
+    `[migrate] cache: ${counts.cache_entries_kept} kept (translation kind) + ${counts.cache_entries_skipped} skipped (summary/invalid)`
   ])
 }
 

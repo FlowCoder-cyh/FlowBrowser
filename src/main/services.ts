@@ -395,7 +395,6 @@ export async function initServices(): Promise<void> {
   registerPrivacyIpc()
   registerUsageIpc()
   registerTranslateIpc()
-  registerCacheIpc()
   registerGlossaryIpc()
   registerUserSettingIpc()
   registerCodexIpc()
@@ -684,17 +683,9 @@ function registerUserSettingIpc(): void {
   )
 }
 
-function registerCacheIpc(): void {
-  ipcMain.handle('cache:stats', () => translationCache.stats())
-  ipcMain.handle('cache:clear-all', async (): Promise<void> => {
-    await translationCache.clearAll()
-  })
-  ipcMain.handle(
-    'cache:invalidate-glossary',
-    async (_event, version: string): Promise<number> =>
-      translationCache.invalidateByGlossaryVersion(version)
-  )
-}
+// Sprint 016 M2 T11 — cache:* IPC 3종 (stats / clear-all / invalidate-glossary) + cacheApi 통째 폐기.
+//   renderer 호출자 0 확인 후 제거. glossary mutation 시 캐시 무효화는 services.ts 내부 호출 유지.
+//   TranslationCache 클래스 자체는 T10 (executeTranslateRequest → ChatService.chat) 후 폐기 예정.
 
 function registerGlossaryIpc(): void {
   ipcMain.handle('glossary:list', (): GlossaryTerm[] => glossaryStore.list())

@@ -145,16 +145,39 @@ describe('migrateV03ToV04 — 8 회귀 케이스', () => {
   })
 
   // 3. TranslationCache → AIResponseCache kind:translation + summary skip
-  it("case 3: TranslationCache 매핑 (translation kind, requestType='summary' skip)", async () => {
-    await writeJson(join(fx.userDataDir, 'translation-cache.json'), {
-      entries: {
-        k1: { sourceText: 'a', targetText: '가', requestType: 'selection', createdAt: 100 },
-        k2: { sourceText: 'b', targetText: '나', requestType: 'paragraph', createdAt: 200 },
-        k3: { sourceText: 'c', targetText: '다', requestType: 'summary', createdAt: 300 }, // skip
-        k4: { sourceText: 'd', targetText: '라', requestType: 'page', createdAt: 400 }
-      },
-      version: 1
+  // Sprint 016 M2 T11 (codex BLOCKING #1 + #2 hotfix) — v0.3 실 영속 shape = raw array `CacheEntry[]`.
+  // 마이그레이션 output 도 AIResponseCache.load() 가 읽을 수 있는 raw array `AICacheEntry[]` 정합.
+  it("case 3: TranslationCache 매핑 (raw array v0.3 영속 → AIResponseCache raw array, summary skip)", async () => {
+    const now = Date.now()
+    const baseEntry = (
+      id: string,
+      sourceText: string,
+      translatedText: string,
+      requestType: string,
+      createdAt: number
+    ): Record<string, unknown> => ({
+      id,
+      sourceHash: `hash_${id}`,
+      sourceText,
+      translatedText,
+      sourceLanguage: 'en',
+      targetLanguage: 'ko',
+      providerType: 'openai',
+      requestType,
+      glossaryVersion: 'default',
+      domain: null,
+      hitCount: 2,
+      createdAt,
+      updatedAt: createdAt,
+      lastAccessedAt: createdAt,
+      expiresAt: createdAt + 90 * 24 * 60 * 60 * 1000
     })
+    await writeJson(join(fx.userDataDir, 'translation-cache.json'), [
+      baseEntry('k1', 'a', '가', 'selection', now),
+      baseEntry('k2', 'b', '나', 'paragraph', now + 1),
+      baseEntry('k3', 'c', '다', 'summary', now + 2), // skip
+      baseEntry('k4', 'd', '라', 'page', now + 3)
+    ])
     const result = await migrateV03ToV04({
       userDataDir: fx.userDataDir,
       fb: fx.fb,
@@ -165,11 +188,53 @@ describe('migrateV03ToV04 — 8 회귀 케이스', () => {
     expect(result.counts.cache_entries_skipped).toBe(1) // k3 summary
     const aiCachePath = join(fx.userDataDir, 'ai-response-cache.json')
     expect(await exists(aiCachePath)).toBe(true)
-    const parsed = JSON.parse(await fs.readFile(aiCachePath, 'utf-8'))
-    expect(Object.keys(parsed.entries)).toHaveLength(3)
-    for (const e of Object.values(parsed.entries) as Array<{ kind?: string }>) {
-      expect(e.kind).toBe('translation')
+    // 검증: AIResponseCache 가 실제로 마이그레이션 output 을 읽고 lookup 가능
+    const { AIResponseCache } = await import('../../../../src/storage/AIResponseCache')
+    const cache = new AIResponseCache(aiCachePath)
+    await cache.load()
+    expect(cache.sizeOf('translation')).toBe(3)
+    const composite = ['hash_k1', 'en', 'ko', 'openai', 'selection', 'default'].join('|')
+    const hit = await cache.lookup({ kind: 'translation', key: composite })
+    expect(hit).not.toBeNull()
+    expect((hit?.value as { translatedText?: string })?.translatedText).toBe('가')
+  })
+
+  // 3b. Sprint 016 M2 T11 hotfix — legacy wrapper shape `{ entries: { key: entry } }` 호환성 보존.
+  it("case 3b: TranslationCache wrapper shape `{ entries }` 도 정합 마이그레이션", async () => {
+    const now = Date.now()
+    const baseEntry = {
+      id: 'w1',
+      sourceHash: 'hash_w1',
+      sourceText: 'wrapper',
+      translatedText: '래퍼',
+      sourceLanguage: 'en',
+      targetLanguage: 'ko',
+      providerType: 'openai',
+      requestType: 'selection',
+      glossaryVersion: 'default',
+      domain: null,
+      hitCount: 0,
+      createdAt: now,
+      updatedAt: now,
+      lastAccessedAt: now,
+      expiresAt: now + 90 * 24 * 60 * 60 * 1000
     }
+    await writeJson(join(fx.userDataDir, 'translation-cache.json'), {
+      entries: { w1: baseEntry },
+      version: 1
+    })
+    const result = await migrateV03ToV04({
+      userDataDir: fx.userDataDir,
+      fb: fx.fb,
+      noteStore: fx.noteStore,
+      pageStore: fx.pageStore
+    })
+    expect(result.counts.cache_entries_kept).toBe(1)
+    const aiCachePath = join(fx.userDataDir, 'ai-response-cache.json')
+    const { AIResponseCache } = await import('../../../../src/storage/AIResponseCache')
+    const cache = new AIResponseCache(aiCachePath)
+    await cache.load()
+    expect(cache.sizeOf('translation')).toBe(1)
   })
 
   // 4. PageResults → Page + Visit (workspace_id 부여)

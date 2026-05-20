@@ -6,7 +6,6 @@ import type {
   CredentialApi,
   PrivacyApi,
   UsageApi,
-  CacheApi,
   GlossaryApi,
   UserSettingApi,
   TranslateApi,
@@ -28,7 +27,6 @@ declare global {
     credentialApi: CredentialApi
     privacyApi: PrivacyApi
     usageApi: UsageApi
-    cacheApi: CacheApi
     glossaryApi: GlossaryApi
     userSettingApi: UserSettingApi
     translateApi: TranslateApi

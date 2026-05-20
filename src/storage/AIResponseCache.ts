@@ -11,16 +11,15 @@
  * 본 M2-1 단계는 단독 JSON 영속 (ai-response-cache.json).
  * M3 통합 DB 진입 시 schema/v04.sql 의 cache 테이블로 흡수.
  *
- * 어댑터 호환성:
- *   - feature flag `flowbrowser.v04.enabled` false (디폴트) 시 TranslationCache 가 본 모듈을 사용하지 않음
- *   - flag true 시 TranslationCache 가 본 모듈을 내부 backend 로 위임 (kind='translation' 통일)
+ * Sprint 016 M2 T11 — TranslationCache 어댑터 모드 제거 후 본 모듈은 단독 cache layer.
+ *   v0.4 selection 번역 chat 마이그레이션 (T10) 시점에 chat / embedding / tag 모두 본 모듈로 통합 예정.
  *
  * LRU 정책 주의 (M2-1 시점):
  *   - `maxBytes` 임계는 **전체 kind 공유** (kind 별 격리 X). embedding 대량 쓰기가 translation/tag 를 함께 밀어낼 수 있음.
  *   - kind 별 quota 는 Sprint 016+ M3 임베딩 도입 시 재평가 (PRD §15 비용/저장 임계 측정 후 결정).
  *
  * Side-effect free lookup (M2-1 codex 권고):
- *   - `peek(kind, key)` — hitCount / lastAccessedAt 증가 없이 entry 조회. upsert 경로 (TranslationCache.store) 에서 사용.
+ *   - `peek(kind, key)` — hitCount / lastAccessedAt 증가 없이 entry 조회. upsert 경로 (chat / embedding 캐시) 에서 사용.
  *   - `lookup(kind, key)` — hitCount += 1 + lastAccessedAt 갱신. 진짜 cache hit 경로에서만 사용.
  */
 
@@ -153,7 +152,7 @@ export class AIResponseCache {
   /**
    * Side-effect free 조회 (M2-1 codex 권고).
    * hitCount / lastAccessedAt 증가 없이 entry 반환. expired entry 도 그대로 노출 (호출자가 검사).
-   * 용도: upsert 경로 (TranslationCache.store backend 분기) 에서 기존 createdAt/id 보존용 조회.
+   * 용도: upsert 경로 (chat / embedding / tag store) 에서 기존 createdAt/id 보존용 조회.
    */
   peek<TValue = unknown>(args: AICacheLookupInput): AICacheEntry<TValue> | null {
     this.ensureLoaded()
