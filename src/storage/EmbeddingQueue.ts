@@ -64,6 +64,8 @@ export class EmbeddingQueue {
   private readonly stmtCountByStatus: Stmt<{ status: EmbeddingJobStatus; c: number }>
   private readonly stmtDeleteSucceeded: Stmt
   private readonly stmtCancel: Stmt
+  /** Sprint 016 M0 T02-followup (KI-006) — workspace 전환 시 pending 잡 일괄 제거. */
+  private readonly stmtClearWorkspacePending: Stmt
   private readonly claimTxn: () => EmbeddingJobRow | null
 
   constructor(fb: FlowbrowserDatabase) {
@@ -100,6 +102,9 @@ export class EmbeddingQueue {
     )
     this.stmtCancel = this.db.prepare(
       `DELETE FROM embedding_queue WHERE id = ? AND status IN ('pending', 'failed')`
+    )
+    this.stmtClearWorkspacePending = this.db.prepare(
+      `DELETE FROM embedding_queue WHERE workspace_id = ? AND status = 'pending'`
     )
     // 단일 TX — race condition 방지 (UPDATE WHERE status='pending' 동시 claim 안전)
     this.claimTxn = this.db.transaction((): EmbeddingJobRow | null => {
@@ -177,5 +182,17 @@ export class EmbeddingQueue {
   /** pending / failed 잡 취소 (in_progress / succeeded 는 보존). */
   cancel(id: string): boolean {
     return this.stmtCancel.run(id).changes > 0
+  }
+
+  /**
+   * Sprint 016 M0 T02-followup (KI-006) — 워크스페이스 전환 시 prev workspace 의 pending 잡 일괄 제거.
+   *
+   * PRD §11.8 정합 — 전환 시 진행 중 임베딩 요청은 새 ws 에 누설되면 안 됨. pending 만 제거 (in_progress
+   * 는 worker 가 markSucceeded/markFailed 후 자연 종료, succeeded/failed 는 영속).
+   *
+   * @returns 제거된 row 수
+   */
+  clearWorkspace(workspace_id: string): number {
+    return this.stmtClearWorkspacePending.run(workspace_id).changes
   }
 }

@@ -325,3 +325,121 @@ describe('ChatService — listHistory', () => {
     expect(list[2].content).toBe('q2')
   })
 })
+
+/**
+ * Sprint 016 M0 T02-followup (KI-006) — workspace chat abort (race-safe generation 패턴).
+ *
+ * codex BLOCKING #1 흡수 — boolean Set 1회 suppress 의 race condition 해소:
+ *   - abortStreaming(ws) → generation +1
+ *   - chat 시작 시 startGen 캡처, 종료 직전 currentGen 비교
+ *   - startGen < currentGen → assistant INSERT 차단 + errorCode='aborted'
+ *   - abort 이후 새 chat 정상 (오탐 차단)
+ */
+describe('ChatService — workspace abort (Sprint 016 M0 T02-followup, KI-006, generation 패턴)', () => {
+  let fx: Fx
+  let altWsId: string
+
+  beforeEach(() => {
+    fx = setup()
+    altWsId = fx.fb.createWorkspace({ name: 'Alt', icon: '🧪' }).id
+    ChatService.__resetAbortsForTest()
+  })
+
+  afterEach(() => {
+    fx.fb.close()
+    ChatService.__resetAbortsForTest()
+  })
+
+  it('abort 이후 새 chat → 정상 처리 (오탐 차단, race-safe)', async () => {
+    // abort 호출 시점에 in-flight chat 없음
+    ChatService.abortStreaming(fx.workspaceId)
+    expect(ChatService.getAbortGeneration(fx.workspaceId)).toBe(1)
+    // 새 chat 시작 — startGen = currentGen = 1 → suppress 안 함
+    const provider = makeMockProvider({ chatReply: 'reply' })
+    const service = new ChatService({ provider, historyStore: fx.history })
+    const result = await service.chat({ workspaceId: fx.workspaceId, userMessage: 'q1' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.assistantMessage).toBe('reply')
+    const list = service.listHistory(fx.workspaceId)
+    // user + assistant 정합
+    expect(list).toHaveLength(2)
+  })
+
+  it('동시 in-flight 2건 + abort → 둘 다 assistant INSERT 차단 (race-safe, codex BLOCKING #1)', async () => {
+    const provider = makeMockProvider({ chatReply: 'reply' })
+    const service = new ChatService({ provider, historyStore: fx.history })
+    // 2건 chat 시작 (await 안 함)
+    const p1 = service.chat({ workspaceId: fx.workspaceId, userMessage: 'q1' })
+    const p2 = service.chat({ workspaceId: fx.workspaceId, userMessage: 'q2' })
+    // 둘 다 시작된 직후 abort 호출
+    ChatService.abortStreaming(fx.workspaceId)
+    const [r1, r2] = await Promise.all([p1, p2])
+    expect(r1.ok).toBe(false)
+    expect(r2.ok).toBe(false)
+    if (r1.ok || r2.ok) return
+    expect(r1.errorCode).toBe('aborted')
+    expect(r2.errorCode).toBe('aborted')
+    // user 2건 영속, assistant 0건
+    const list = service.listHistory(fx.workspaceId)
+    expect(list).toHaveLength(2)
+    expect(list.map((c) => c.role)).toEqual(['user', 'user'])
+  })
+
+  it('abort 다른 ws 영향 0 (ws 격리)', async () => {
+    const provider = makeMockProvider({ chatReply: 'reply' })
+    const service = new ChatService({ provider, historyStore: fx.history })
+    ChatService.abortStreaming(altWsId)
+    // default ws chat 정상 처리
+    const result = await service.chat({ workspaceId: fx.workspaceId, userMessage: 'q1' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.assistantMessage).toBe('reply')
+    expect(ChatService.getAbortGeneration(altWsId)).toBe(1)
+    expect(ChatService.getAbortGeneration(fx.workspaceId)).toBe(0)
+  })
+
+  it('abortStreaming static — cross-instance 공유 (chat:request new ChatService 회귀)', async () => {
+    const provider = makeMockProvider({ chatReply: 'reply' })
+    const inst1 = new ChatService({ provider, historyStore: fx.history })
+    // inst1 chat 시작
+    const p1 = inst1.chat({ workspaceId: fx.workspaceId, userMessage: 'q1' })
+    // 다른 인스턴스에서 abort 호출 (services.ts 매 호출 new 회귀)
+    ChatService.abortStreaming(fx.workspaceId)
+    const result = await p1
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.errorCode).toBe('aborted')
+  })
+
+  it('abort + BYOK 차단 — BYOK 우선 (user 미생성, generation 캡처 미진입)', async () => {
+    const provider = makeMockProvider({ type: 'codex' })
+    const service = new ChatService({ provider, historyStore: fx.history })
+    ChatService.abortStreaming(fx.workspaceId)
+    const result = await service.chat({ workspaceId: fx.workspaceId, userMessage: 'q1' })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.errorCode).toBe('byok_required')
+    // user 미생성 (BYOK 가 가장 먼저 차단)
+    expect(service.listHistory(fx.workspaceId)).toHaveLength(0)
+    // generation 은 그대로 유지 (chat path 미진입)
+    expect(ChatService.getAbortGeneration(fx.workspaceId)).toBe(1)
+  })
+
+  it('abort + provider.chat throw → provider_error 우선 (abort generation 비교 미진입)', async () => {
+    const provider = makeMockProvider({ chatThrows: new Error('rate-limit') })
+    const service = new ChatService({ provider, historyStore: fx.history })
+    // 시작 시 generation 0 캡처. provider throw 후 catch 분기에서 error chat 영속 + return.
+    // abort 호출은 throw 후 시점이라 abort 비교 path 미진입.
+    const p = service.chat({ workspaceId: fx.workspaceId, userMessage: 'q1' })
+    const result = await p
+    ChatService.abortStreaming(fx.workspaceId) // 후속 호출 (영향 없음)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.errorCode).toBe('provider_error')
+    // user + error 메시지 둘 다 영속
+    const list = service.listHistory(fx.workspaceId)
+    expect(list).toHaveLength(2)
+    expect(list.map((c) => c.role)).toEqual(['user', 'error'])
+  })
+})

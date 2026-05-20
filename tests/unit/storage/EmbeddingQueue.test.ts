@@ -168,3 +168,91 @@ describe('EmbeddingQueue', () => {
     ).toThrow()
   })
 })
+
+/**
+ * Sprint 016 M0 T02-followup (KI-006) — workspace 전환 시 pending 잡 일괄 제거.
+ *
+ * clearWorkspace(ws):
+ *   - pending status + workspace_id 매칭 row DELETE
+ *   - in_progress / succeeded / failed 는 보존
+ *   - 다른 ws 영향 0
+ *   - 반환값 = 제거된 row 수
+ */
+describe('EmbeddingQueue — clearWorkspace (Sprint 016 M0 T02-followup, KI-006)', () => {
+  let fx: Fx
+  let altWsId: string
+
+  beforeEach(() => {
+    fx = setup()
+    altWsId = fx.fb.createWorkspace({ name: 'Alt', icon: '🧪' }).id
+  })
+
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  it('clearWorkspace(ws) → pending 매칭 row 모두 DELETE + 반환 카운트', () => {
+    // default ws pending 3개
+    fx.q.enqueue({ target_type: 'page', target_id: 'p1', workspace_id: fx.wsId })
+    fx.q.enqueue({ target_type: 'page', target_id: 'p2', workspace_id: fx.wsId })
+    fx.q.enqueue({ target_type: 'note', target_id: 'n1', workspace_id: fx.wsId })
+    // alt ws pending 2개 (격리 확인용)
+    fx.q.enqueue({ target_type: 'page', target_id: 'p3', workspace_id: altWsId })
+    fx.q.enqueue({ target_type: 'page', target_id: 'p4', workspace_id: altWsId })
+
+    expect(fx.q.stats().pending).toBe(5)
+    const removed = fx.q.clearWorkspace(fx.wsId)
+    expect(removed).toBe(3)
+    // alt ws 영향 0
+    expect(fx.q.stats().pending).toBe(2)
+  })
+
+  it('clearWorkspace(ws) → in_progress / succeeded / failed 보존 (pending 만 제거)', () => {
+    const j1 = fx.q.enqueue({ target_type: 'page', target_id: 'p1', workspace_id: fx.wsId })
+    const j2 = fx.q.enqueue({ target_type: 'page', target_id: 'p2', workspace_id: fx.wsId })
+    const j3 = fx.q.enqueue({ target_type: 'page', target_id: 'p3', workspace_id: fx.wsId })
+    const j4 = fx.q.enqueue({ target_type: 'page', target_id: 'p4', workspace_id: fx.wsId })
+
+    // j1 in_progress (claim)
+    fx.q.claimNext()
+    // j2 markSucceeded — claim 후 success
+    fx.q.claimNext()
+    fx.q.markSucceeded(j2.id)
+    // j3 markFailed — claim 후 failed
+    fx.q.claimNext()
+    fx.q.markFailed(j3.id, 'rate-limit')
+    // j4 는 pending 유지
+
+    const before = fx.q.stats()
+    expect(before).toEqual({ pending: 1, in_progress: 1, succeeded: 1, failed: 1 })
+
+    const removed = fx.q.clearWorkspace(fx.wsId)
+    expect(removed).toBe(1) // pending 만
+
+    const after = fx.q.stats()
+    expect(after).toEqual({ pending: 0, in_progress: 1, succeeded: 1, failed: 1 })
+
+    // 보존된 j1/j2/j3 행 직접 확인
+    expect(fx.q.findById(j1.id)?.status).toBe('in_progress')
+    expect(fx.q.findById(j2.id)?.status).toBe('succeeded')
+    expect(fx.q.findById(j3.id)?.status).toBe('failed')
+    // j4 삭제
+    expect(fx.q.findById(j4.id)).toBeNull()
+  })
+
+  it('clearWorkspace(ws) → 빈 큐 → 0 반환 (no-op)', () => {
+    const removed = fx.q.clearWorkspace(fx.wsId)
+    expect(removed).toBe(0)
+  })
+
+  it('clearWorkspace(other ws) → 무관 ws 호출 시 0 반환 + 기존 pending 보존', () => {
+    fx.q.enqueue({ target_type: 'page', target_id: 'p1', workspace_id: fx.wsId })
+    fx.q.enqueue({ target_type: 'page', target_id: 'p2', workspace_id: fx.wsId })
+
+    // 존재하지 않는 ws id 호출
+    const removed = fx.q.clearWorkspace('non-existent-ws-id')
+    expect(removed).toBe(0)
+    // 기존 pending 보존
+    expect(fx.q.stats().pending).toBe(2)
+  })
+})

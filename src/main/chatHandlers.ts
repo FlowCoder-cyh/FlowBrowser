@@ -21,6 +21,7 @@ export type ChatRequestErrorCode =
   | 'chat_unsupported'
   | 'provider_error'
   | 'invalid_input'
+  | 'aborted'
 
 /** ChatRow 의 IPC serializable 표현 — RetrievedItem 은 plain object 라 그대로 전달. */
 export interface SerializedChatRow {

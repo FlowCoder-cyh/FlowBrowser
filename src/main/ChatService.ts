@@ -65,13 +65,38 @@ export type ChatResult =
   | {
       ok: false
       error: string
-      errorCode: 'byok_required' | 'chat_unsupported' | 'provider_error' | 'invalid_input'
+      errorCode:
+        | 'byok_required'
+        | 'chat_unsupported'
+        | 'provider_error'
+        | 'invalid_input'
+        | 'aborted'
       userChatId?: string
       /** provider_error 시 영속된 'error' role 메시지 id. UI 가 timeline 표시에 활용. */
       assistantChatId?: string
     }
 
 const DEFAULT_ALLOWED_PROVIDERS: ReadonlyArray<ProviderType> = ['openai']
+
+/**
+ * Sprint 016 M0 T02-followup (KI-006) — workspace 단위 chat abort generation (모듈 레벨, cross-instance 공유).
+ *
+ * `chat:request` IPC 핸들러는 매 호출마다 `new ChatService(...)` 인스턴스화 (services.ts L571) —
+ * 인스턴스 멤버로 추적 시 abort 호출 시점에 다른 인스턴스에 도달 못 함. 모듈 레벨 Map 으로
+ * cross-instance 공유.
+ *
+ * codex BLOCKING #1 흡수 (boolean Set 1회 suppress 의 race condition 해소):
+ *   - abortStreaming(ws) → generation +1
+ *   - chat 시작 시 startGen 캡처
+ *   - chat 종료 직전 currentGen 확인 → `startGen < currentGen` 이면 assistant INSERT 차단
+ *
+ * 효과:
+ *   - abort 호출 이전에 시작된 모든 in-flight chat 이 차단 (동시 2건 race-safe)
+ *   - abort 호출 이후 새로 시작된 chat 은 정상 처리 (오탐 차단)
+ *
+ * provider.chat 자체는 cancel 안 함 (provider AbortSignal 통전은 G-013 3단계 후속 PR — ChatRequest.signal optional 추가).
+ */
+const chatAbortGenerations = new Map<string, number>()
 
 export class ChatService {
   private readonly provider: ProviderAdapter
@@ -84,6 +109,34 @@ export class ChatService {
     this.provider = opts.provider
     this.historyStore = opts.historyStore
     this.allowedProviders = opts.allowedProviders ?? DEFAULT_ALLOWED_PROVIDERS
+  }
+
+  /**
+   * Sprint 016 M0 T02-followup (KI-006) — workspace chat abort (race-safe generation 패턴).
+   *
+   * 호출 시점 generation +1 → 그 이전에 시작된 모든 in-flight chat 의 assistant INSERT 차단 +
+   * errorCode 'aborted' 반환. 호출 이후 새로 시작된 chat 은 정상 처리 (workspaceHandlers 가
+   * `setActive` 직전 호출 → 직후 새 ws 또는 같은 ws 신규 chat 정상).
+   *
+   * user 메시지는 이미 영속된 상태 유지 (UX 일관성). EmbeddingClient in_progress 보호 (PRD §11.3.3)
+   * 는 G-013 3단계 후속 PR — provider.chat 의 AbortSignal 통전과 함께 worker 측 generation 확인.
+   *
+   * static 메서드 형식 — `chat:request` IPC 가 매번 new ChatService 라 instance 메서드는 의미 없음.
+   * Map 모듈 레벨로 cross-instance 공유 (services.ts L571 회귀 분석).
+   */
+  static abortStreaming(workspaceId: string): void {
+    const prev = chatAbortGenerations.get(workspaceId) ?? 0
+    chatAbortGenerations.set(workspaceId, prev + 1)
+  }
+
+  /** 테스트 / 디버그용 — workspace 현재 abort generation. */
+  static getAbortGeneration(workspaceId: string): number {
+    return chatAbortGenerations.get(workspaceId) ?? 0
+  }
+
+  /** 테스트용 — 모든 abort generation reset (test isolation). */
+  static __resetAbortsForTest(): void {
+    chatAbortGenerations.clear()
   }
 
   private nextTimestamp(): number {
@@ -108,6 +161,10 @@ export class ChatService {
         errorCode: 'invalid_input'
       }
     }
+
+    // Sprint 016 M0 T02-followup (KI-006) — chat abort generation 캡처 (race-safe).
+    // BYOK / chat_unsupported 차단 이후 + user 메시지 영속 전 시점에 캡처 — 후속 abort 호출과 비교.
+    const startAbortGen = chatAbortGenerations.get(input.workspaceId) ?? 0
 
     // KI-003 BYOK 검증
     const providerType = this.provider.info.providerType
@@ -176,6 +233,19 @@ export class ChatService {
         errorCode: 'provider_error',
         userChatId: userChat.id,
         assistantChatId: errorChat.id
+      }
+    }
+
+    // Sprint 016 M0 T02-followup (KI-006) — abort generation 비교 (race-safe).
+    // provider.chat 자체는 이미 완료된 상태 — 응답 텍스트는 discard. user 메시지는 영속 유지.
+    // startAbortGen < currentAbortGen 이면 본 chat 시작 이후 abort 호출 발생 → suppress.
+    const currentAbortGen = chatAbortGenerations.get(input.workspaceId) ?? 0
+    if (startAbortGen < currentAbortGen) {
+      return {
+        ok: false,
+        error: '워크스페이스 전환으로 인해 채팅 응답이 취소되었습니다.',
+        errorCode: 'aborted',
+        userChatId: userChat.id
       }
     }
 
