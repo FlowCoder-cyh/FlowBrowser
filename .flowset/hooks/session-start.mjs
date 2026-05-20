@@ -98,7 +98,8 @@ if (kiLines) {
 // 5. 표준 환기
 console.log('## 표준 환기');
 console.log('- 모든 PR / 핸드오프 / Milestone 종료 시 evaluator + codex 병렬 호출 (학습 #8, feedback_dual_review)');
-console.log('- codex MCP 호출 시 model 파라미터 생략 (사용자 환경 ~/.codex/config.toml gpt-5.5 자동 적용) — 학습 #5 G-006');
+console.log('- codex 호출 = `/codex:review` (review-only 강제) 우선 — `/codex:rescue` 는 rescue/fix 작업용 (write 가능)');
+console.log('- raw MCP 직접 호출 시 sandbox: "read-only" + approval-policy: "never" + model 생략 (config.toml gpt-5.5 자동) — 학습 #5/#13 G-006');
 console.log('- 브랜치 분기: main 에서만 / 커밋 형식 WI-NNN-[type] 한글 작업명 (G-009 NNN 한 분절)');
 console.log('');
 console.log('=== [FlowSet] SessionStart 종료 ===');
