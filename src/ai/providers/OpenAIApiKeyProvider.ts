@@ -185,6 +185,12 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
     if (request.maxOutputTokens !== undefined) {
       body.max_tokens = request.maxOutputTokens
     }
+    // Sprint 016 M0 T04 (KI-004) — response_format JSON 강제 (API-level).
+    // OpenAI Chat Completions 의 `response_format: { type: 'json_object' }` 직결.
+    // 호출자가 'json_object' 지정 시 모델이 JSON 객체만 반환 — schema parse 안정성 향상.
+    if (request.responseFormat === 'json_object') {
+      body.response_format = { type: 'json_object' }
+    }
 
     let res: Response
     try {

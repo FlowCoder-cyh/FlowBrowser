@@ -163,6 +163,19 @@ describe('AutoTagger.tagPage — schema 정상 응답', () => {
     expect(provider.chatCalls[0].messages).toHaveLength(2)
     expect(provider.chatCalls[0].messages[0].role).toBe('system')
     expect(provider.chatCalls[0].messages[1].role).toBe('user')
+    // Sprint 016 M0 T04 (KI-004) — responseFormat JSON 강제 wire-up 회귀
+    expect(provider.chatCalls[0].responseFormat).toBe('json_object')
+  })
+
+  it('KI-004 — provider.chat 요청에 responseFormat=json_object 항상 전달', async () => {
+    const provider = makeChatStub(JSON.stringify({ tags: [{ kind: 'topic', name: 'x' }] }))
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    await tagger.tagPage({
+      pageId: fx.pageId,
+      workspaceId: fx.wsId,
+      content: 'body'
+    })
+    expect(provider.chatCalls[0].responseFormat).toBe('json_object')
   })
 
   it('6 kind 모두 매핑', async () => {
@@ -330,6 +343,25 @@ describe('AutoTagger.tagPage — freeform fallback', () => {
       expect(result.tags).toHaveLength(1)
       expect(result.tags[0].kind).toBe('freeform')
       expect(result.tags[0].name).toContain('JSON')
+    }
+  })
+
+  it('KI-004 — responseFormat=json_object 지정해도 parse 실패 시 freeform fallback 유지', async () => {
+    // provider 미지원 (Codex Login Responses API) 또는 모델이 자유 텍스트 반환 케이스.
+    // AutoTagger 는 항상 json_object 지정하지만 parse 실패 시 freeform fallback path 유지.
+    const provider = makeChatStub('JSON 보장 실패 응답')
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    const result = await tagger.tagPage({
+      pageId: fx.pageId,
+      workspaceId: fx.wsId,
+      content: 'x'
+    })
+    expect(provider.chatCalls[0].responseFormat).toBe('json_object')
+    expect(result.status).toBe('tagged')
+    if (result.status === 'tagged') {
+      expect(result.schemaParsed).toBe(false)
+      expect(result.tags).toHaveLength(1)
+      expect(result.tags[0].kind).toBe('freeform')
     }
   })
 
