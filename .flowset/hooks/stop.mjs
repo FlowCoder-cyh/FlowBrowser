@@ -11,7 +11,7 @@
 //
 // 출력: stderr 권고 (block 안 함)
 
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,6 +83,87 @@ try {
   }
 } catch {
   // 무시
+}
+
+// 4b. Sprint 016 M0 (학습 #13 후속) — G-017: 잔존 원격 브랜치 점검.
+// MERGED/CLOSED PR 의 브랜치가 origin 에 잔존하면 경고. GitHub `delete_branch_on_merge` 정책은
+// MERGED 한정 — CLOSED 는 자동 삭제 안 되므로 수동 cleanup 강제.
+try {
+  // 원격 브랜치 목록 (main 제외)
+  const remoteBranches = execSync(
+    'git for-each-ref --format="%(refname:short)" refs/remotes/origin',
+    { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+  )
+    .split(/\r?\n/)
+    .map((b) => b.trim().replace(/^origin\//, ''))
+    .filter((b) => b && b !== 'main' && b !== 'HEAD' && !b.startsWith('HEAD'));
+
+  if (remoteBranches.length > 0) {
+    // gh 가 설치되어 있는지 검사 (없으면 skip)
+    try {
+      execSync('gh --version', { stdio: ['ignore', 'ignore', 'ignore'] });
+    } catch {
+      // gh 미설치 시 단순 카운트만 알림
+      infos.push(
+        `[G-017] 원격 미머지/미정리 브랜치 ${remoteBranches.length}개 (gh CLI 미설치 — 상세 점검 skip).`
+      );
+      throw new Error('gh-missing');
+    }
+
+    const staleClosed = [];
+    const staleMerged = [];
+    let ghLookupFailures = 0;
+    for (const branch of remoteBranches) {
+      try {
+        // codex review #1 흡수: execFileSync 로 shell injection 회피 (branch 가 git ref 값이라 완전한 상수 아님)
+        const json = execFileSync(
+          'gh',
+          [
+            'pr',
+            'list',
+            '--state',
+            'all',
+            '--head',
+            branch,
+            '--json',
+            'number,state,mergedAt',
+            '--limit',
+            '1',
+          ],
+          {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+          }
+        );
+        const prs = JSON.parse(json);
+        if (prs.length === 0) continue; // PR 없는 active 브랜치는 skip
+        const pr = prs[0];
+        if (pr.state === 'MERGED') staleMerged.push(`#${pr.number} ${branch}`);
+        else if (pr.state === 'CLOSED' && !pr.mergedAt) staleClosed.push(`#${pr.number} ${branch}`);
+      } catch {
+        // codex review #2 흡수: 개별 실패를 graceful skip 으로 보이게 카운트
+        ghLookupFailures += 1;
+      }
+    }
+    if (staleClosed.length > 0) {
+      warnings.push(
+        `[G-017] CLOSED PR 의 잔존 원격 브랜치 ${staleClosed.length}개 — 정책상 자동 삭제 안 됨, 수동 \`git push origin --delete <branch>\` 필요: ${staleClosed.join(' / ')}`
+      );
+    }
+    if (staleMerged.length > 0) {
+      warnings.push(
+        `[G-017] MERGED PR 의 잔존 원격 브랜치 ${staleMerged.length}개 — \`gh pr merge --delete-branch\` 옵션 누락 가능성, 수동 정리 권고: ${staleMerged.join(' / ')}`
+      );
+    }
+    if (ghLookupFailures > 0) {
+      infos.push(
+        `[G-017] gh PR lookup 개별 실패 ${ghLookupFailures}건 (인증/API/네트워크 가능성) — graceful skip, 원격 브랜치 분류 미완.`
+      );
+    }
+  }
+} catch {
+  // 무시 (gh-missing 또는 git for-each-ref 실패)
 }
 
 // 5. dual review 환기

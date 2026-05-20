@@ -138,6 +138,21 @@
 - **How to apply**: Sprint 016 M3 T14 WorkspacePartitionManager 신규 + T15/T16 cascade. 사용자 동의 UI 박힘 전까지 dry-run 만.
 - **출처**: Sprint 016 contract §5 신규 가드레일 선언
 
+### G-017 [active] PR 닫음/머지 후 원격 브랜치 즉시 정리
+
+- **규칙**: 모든 PR 의 head 브랜치는 PR 종결 (MERGED 또는 CLOSED) 시점에 원격에서 즉시 삭제. 정책 path:
+  - **MERGED**: `gh pr merge --delete-branch` 옵션 강제. GitHub repo `delete_branch_on_merge: true` 설정 활성 (현재 적용).
+  - **CLOSED (머지 안 함)**: GitHub 정책상 자동 삭제 안 됨 → 닫는 즉시 `git push origin --delete <branch>` 수동 실행 강제.
+  - **검출 path**: `.flowset/hooks/stop.mjs` 가 세션 종료 시 잔존 원격 브랜치 점검 + 경고 (gh CLI 사용, MERGED/CLOSED 분류).
+- **금지**: PR 닫음/머지 후 원격에 head 브랜치 잔존 24h 이상.
+- **Why**: Sprint 016 M0 PR #189 직후 점검 시 PR #178 (CLOSED, 학습 #5 정정 시도 흡수) + PR #141 (MERGED, Sprint 015 M4-4 `feature/` prefix 시점 `--delete-branch` 누락) 2종 잔존 발견. 원격 브랜치 누적 시 (1) main 외 브랜치 잡음 (2) `git fetch --prune` 무효 (3) 사용자/팀원 혼동. mini-milestone β 4-layer 자동 강제 path 가 닫힘 PR 의 head 브랜치 정리는 cover 안 함.
+- **How to apply**:
+  - PR 머지: `gh pr merge --auto --squash --delete-branch` 표준 (본 세션 본인 PR #176~#189 모두 적용)
+  - PR 닫음: `gh pr close <num>` 직후 `git push origin --delete <branch>` 즉시 실행
+  - 세션 종료 시 Stop hook 의 G-017 경고 항목 확인 후 잔존 브랜치 cleanup
+  - GitHub repo Settings → "Automatically delete head branches" 활성 유지 (`delete_branch_on_merge: true`)
+- **출처**: 본 세션 학습 #14 (2026-05-20 PR #190 시점) — 사용자 본질 지적 "원격에 보면 브렌치가 여러개있는데 왜 머지후에 브렌치정리가 안된건지 검토해" + 옵션 B/C 채택
+
 ### G-016 [active] Dual review = read-only 강제
 
 - **규칙**: dual review (사전 PR / 핸드오프 / Milestone 평가) 시 codex 호출은 다음 3가지 중 하나만 사용. 모두 read-only 강제 path.
@@ -163,3 +178,4 @@
 - 2026-05-16: G-009 강화 — 학습 30 추가 (Sprint milestone + Task 조합 시 T 번호 분절 금지, Sprint 015 T01 amend 사례 반영)
 - 2026-05-20: G-012 / G-013 / G-014 / G-015 정식 등록 (Sprint 015 / 016 contracts §5 선언 분리분 본체 흡수, mini-milestone α evaluator Partial NB-1 정합)
 - 2026-05-20 (PR #188 후속): G-016 신규 등록 — Dual review = read-only 강제 표준. 본 세션 §10 핸드오프 PR #188 시점에 `/codex:rescue` slash 가 dual review 표준으로 박혀 codex agent 가 백그라운드 write + commit + push 진행 사건 (force-with-lease 로 복구). slash command 분류 명문화 + 자동 강제 path (hooks + PR template + memory) 모두 정정.
+- 2026-05-20 (PR #189 후속): G-017 신규 등록 — PR 닫음/머지 후 원격 브랜치 즉시 정리 강제. 사용자 본질 지적 "원격에 보면 브렌치가 여러개있는데 왜 머지후에 브렌치정리가 안된건지 검토해" + 옵션 B/C 채택 — Stop hook G-017 점검 path 추가 + 가드레일 정식 등록.
