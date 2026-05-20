@@ -457,3 +457,54 @@ describe('CodexLoginProvider — embed (M2-7)', () => {
     })
   })
 })
+
+// Sprint 016 M2 T13 — fetchImpl 통일. OpenAIApiKeyProvider 가 CodexLoginProvider 와 동일 패턴 (constructor 옵션 + default globalThis.fetch).
+describe('OpenAIApiKeyProvider — fetchImpl 주입 (T13)', () => {
+  it('constructor fetchImpl 미주입 시 globalThis.fetch 사용 (호환)', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse(chatResponseBody('hi')))
+    const p = new OpenAIApiKeyProvider(() => 'sk-test')
+    await p.chat!({ messages: [{ role: 'user', content: 'x' }] })
+    expect(fetchSpy).toHaveBeenCalledOnce()
+    fetchSpy.mockRestore()
+  })
+
+  it('constructor fetchImpl 주입 시 그것만 사용 (globalThis.fetch 미호출)', async () => {
+    const injected = vi.fn().mockResolvedValueOnce(jsonResponse(chatResponseBody('hi')))
+    const globalSpy = vi.spyOn(globalThis, 'fetch')
+    const p = new OpenAIApiKeyProvider(() => 'sk-test', {
+      fetchImpl: injected as unknown as typeof fetch
+    })
+    await p.chat!({ messages: [{ role: 'user', content: 'x' }] })
+    expect(injected).toHaveBeenCalledOnce()
+    expect(globalSpy).not.toHaveBeenCalled()
+    globalSpy.mockRestore()
+  })
+
+  it('translate / validate / embed 모두 주입된 fetchImpl 사용 (4 endpoint 일관성)', async () => {
+    const injected = vi
+      .fn()
+      // validate
+      .mockResolvedValueOnce(new Response('[]', { status: 200 }))
+      // translate
+      .mockResolvedValueOnce(jsonResponse(chatResponseBody('번역')))
+      // chat
+      .mockResolvedValueOnce(jsonResponse(chatResponseBody('대답')))
+      // embed
+      .mockResolvedValueOnce(jsonResponse(embedResponseBody([[0.1, 0.2]])))
+    const p = new OpenAIApiKeyProvider(() => 'sk-test', {
+      fetchImpl: injected as unknown as typeof fetch
+    })
+    await p.validate()
+    await p.translate({
+      sourceText: 'hi',
+      sourceLanguage: 'en',
+      targetLanguage: 'ko',
+      requestType: 'selection'
+    })
+    await p.chat!({ messages: [{ role: 'user', content: 'hi' }] })
+    await p.embed!({ texts: ['hi'], dimensions: 2 })
+    expect(injected).toHaveBeenCalledTimes(4)
+  })
+})
