@@ -467,10 +467,14 @@ async function migrateTranslationCache(
       id: e.id ?? `aic_${createdAt.toString(36)}_${counts.cache_entries_kept.toString(36)}`,
       kind: 'translation',
       key: composite,
+      // Sprint 016 M2 T10b (codex NEEDS_CHANGES #8 hotfix) — runtime TranslationCacheValue 와 read-compatible.
+      //   runtime store value: { translatedText, sourceText, providerType } (services.ts:TranslationCacheValue)
+      //   migration value: 그대로 + 후방호환 위해 id/domain/createdAt 보존.
       value: {
         id: e.id ?? composite,
         sourceText: e.sourceText ?? '',
         translatedText: e.translatedText ?? '',
+        providerType: e.providerType,
         domain: e.domain ?? null,
         createdAt
       },

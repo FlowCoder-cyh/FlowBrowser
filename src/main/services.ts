@@ -6,6 +6,7 @@
 import { app, BrowserWindow, ipcMain, type WebContents } from 'electron'
 import { join } from 'node:path'
 import { promises as fs } from 'node:fs'
+import { createHash } from 'node:crypto'
 
 import {
   ConsentGate,
@@ -27,7 +28,7 @@ import {
 import {
   CredentialsStore,
   UsageLog,
-  TranslationCache,
+  AIResponseCache,
   GlossaryStore,
   UserSettingStore,
   TabStateStore,
@@ -41,7 +42,7 @@ import {
   EmbeddingQueue,
   defaultCredentialsPath,
   defaultUsageLogPath,
-  defaultTranslationCachePath,
+  defaultAIResponseCachePath,
   defaultGlossaryPath,
   defaultUserSettingPath,
   defaultTabStatePath,
@@ -151,7 +152,8 @@ let domainPolicyStore!: DomainPolicyStore
 let transmissionLogger!: TransmissionLogger
 let credentialsStore!: CredentialsStore
 let usageLog!: UsageLog
-let translationCache!: TranslationCache
+// Sprint 016 M2 T10b — TranslationCache 통째 폐기. AIResponseCache(kind='translation') 단독 backend.
+let aiResponseCache!: AIResponseCache
 let glossaryStore!: GlossaryStore
 let userSettingStore!: UserSettingStore
 let tabStateStore!: TabStateStore
@@ -301,8 +303,8 @@ export async function initServices(): Promise<void> {
 
   usageLog = new UsageLog(defaultUsageLogPath(userDataDir))
 
-  translationCache = new TranslationCache(defaultTranslationCachePath(userDataDir))
-  await translationCache.load()
+  aiResponseCache = new AIResponseCache(defaultAIResponseCachePath(userDataDir))
+  await aiResponseCache.load()
 
   glossaryStore = new GlossaryStore(defaultGlossaryPath(userDataDir))
   await glossaryStore.load()
@@ -690,9 +692,9 @@ function registerUserSettingIpc(): void {
   )
 }
 
-// Sprint 016 M2 T11 — cache:* IPC 3종 (stats / clear-all / invalidate-glossary) + cacheApi 통째 폐기.
-//   renderer 호출자 0 확인 후 제거. glossary mutation 시 캐시 무효화는 services.ts 내부 호출 유지.
-//   TranslationCache 클래스 자체는 T10 (executeTranslateRequest → ChatService.chat) 후 폐기 예정.
+// Sprint 016 M2 T11 — cache:* IPC 3종 + cacheApi 폐기.
+// Sprint 016 M2 T10b — TranslationCache 클래스 자체 폐기. AIResponseCache(kind='translation') 단독.
+//   glossary mutation 시 cache 무효화는 services.ts 내부 호출 유지 (selection 번역 cache 정합).
 
 function registerGlossaryIpc(): void {
   ipcMain.handle('glossary:list', (): GlossaryTerm[] => glossaryStore.list())
@@ -714,7 +716,7 @@ function registerGlossaryIpc(): void {
       const prevVersion = glossaryStore.getVersion()
       const result = await glossaryStore.add(args)
       if (result.ok) {
-        await translationCache.invalidateByGlossaryVersion(prevVersion)
+        await invalidateTranslationCacheByGlossaryVersion(prevVersion)
       }
       return { ok: result.ok, error: result.error, term: result.term }
     }
@@ -734,7 +736,7 @@ function registerGlossaryIpc(): void {
       const prevVersion = glossaryStore.getVersion()
       const result = await glossaryStore.update(args.id, args.patch)
       if (result.ok) {
-        await translationCache.invalidateByGlossaryVersion(prevVersion)
+        await invalidateTranslationCacheByGlossaryVersion(prevVersion)
       }
       return result
     }
@@ -744,7 +746,7 @@ function registerGlossaryIpc(): void {
     const prevVersion = glossaryStore.getVersion()
     const removed = await glossaryStore.remove(id)
     if (removed) {
-      await translationCache.invalidateByGlossaryVersion(prevVersion)
+      await invalidateTranslationCacheByGlossaryVersion(prevVersion)
     }
     return removed
   })
@@ -752,7 +754,7 @@ function registerGlossaryIpc(): void {
   ipcMain.handle('glossary:clear', async (): Promise<void> => {
     const prevVersion = glossaryStore.getVersion()
     await glossaryStore.clearAll()
-    await translationCache.invalidateByGlossaryVersion(prevVersion)
+    await invalidateTranslationCacheByGlossaryVersion(prevVersion)
   })
 
   ipcMain.handle('glossary:export', (): GlossaryExport => glossaryStore.exportTerms())
@@ -766,7 +768,7 @@ function registerGlossaryIpc(): void {
       const prevVersion = glossaryStore.getVersion()
       const result = await glossaryStore.importTerms(raw)
       if (result.ok) {
-        await translationCache.invalidateByGlossaryVersion(prevVersion)
+        await invalidateTranslationCacheByGlossaryVersion(prevVersion)
       }
       return result
     }
@@ -1019,9 +1021,11 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
   const glossaryContext = formatGlossaryContext(glossaryTerms)
 
   // Cache lookup (Privacy Filter 통과 후, Provider 호출 전).
-  // Sprint 005 M1: 캐시 키에 requestType 포함 → explanation/summary도 정상 캐싱.
-  // Sprint 005 M2: glossaryVersion이 키의 일부 → 용어집 mutation 시 자동 invalidation.
-  const cached = await translationCache.lookup({
+  // Sprint 016 M2 T10b — TranslationCache → AIResponseCache(kind='translation') 직접 호출.
+  //   composite key 알고리즘은 sha256(sourceText)|src|tgt|provider|requestType|glossaryVersion 그대로 보존.
+  //   value shape: { translatedText, sourceText, providerType } (codex BLOCKING 사전 경계 #2 정합).
+  //   metadata: { glossaryVersion, sourceLanguage, targetLanguage, requestType, sourceHash } (invalidation predicate 입력).
+  const cacheKey = buildTranslationCacheKey({
     sourceText: args.input.sourceText,
     sourceLanguage: args.input.sourceLanguage,
     targetLanguage: args.input.targetLanguage,
@@ -1029,13 +1033,17 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
     requestType: args.input.requestType,
     glossaryVersion
   })
+  const cached = await aiResponseCache.lookup<TranslationCacheValue>({
+    kind: 'translation',
+    key: cacheKey
+  })
   if (cached) {
     return {
       ok: true,
       decision: evaluation.decision,
       fromCache: true,
       output: {
-        translatedText: cached.translatedText,
+        translatedText: cached.value.translatedText,
         modelUsed: `${args.providerType}/cache`,
         inputTokens: 0,
         outputTokens: 0,
@@ -1082,16 +1090,28 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
     }
     const chatResp = await provider.chat(buildTranslationChatRequest(inputWithGlossary))
     const output = chatResponseToTranslationOutput(chatResp)
-    await translationCache.store({
-      sourceText: args.input.sourceText,
-      sourceLanguage: args.input.sourceLanguage,
-      targetLanguage: args.input.targetLanguage,
-      providerType: args.providerType,
-      requestType: args.input.requestType,
-      glossaryVersion,
-      translatedText: output.translatedText,
-      domain,
-      isSubtitle: args.input.requestType === 'subtitle'
+    // Sprint 016 M2 T10b — AIResponseCache(kind='translation') 단독 backend.
+    //   subtitle TTL 365d 보존 (codex 사전 경계 #3) — `ttlMs` 명시 전달.
+    //   composite key 5-tuple + sourceHash 알고리즘은 T11 마이그레이션 output 과 1:1 정합.
+    const isSubtitle = args.input.requestType === 'subtitle'
+    const ttlMs = isSubtitle ? 365 * 24 * 60 * 60 * 1000 : 90 * 24 * 60 * 60 * 1000
+    await aiResponseCache.store<TranslationCacheValue>({
+      kind: 'translation',
+      key: cacheKey,
+      value: {
+        translatedText: output.translatedText,
+        sourceText: args.input.sourceText,
+        providerType: args.providerType
+      },
+      ttlMs,
+      metadata: {
+        glossaryVersion,
+        sourceLanguage: args.input.sourceLanguage,
+        targetLanguage: args.input.targetLanguage,
+        requestType: args.input.requestType,
+        sourceHash: cacheKey.split('|')[0],
+        domain
+      }
     })
     await usageLog.append({
       providerId: provider.info.providerType,
@@ -1133,6 +1153,60 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
       reason: err instanceof Error ? err.message : String(err)
     }
   }
+}
+
+/**
+ * Sprint 016 M2 T10b — selection 번역 cache value shape (runtime store).
+ *   AIResponseCache(kind='translation') 의 value 페이로드.
+ *
+ *   read-compatible 책임:
+ *     - lookup 시 본 모듈은 `translatedText` 만 직접 읽음 (services.ts:fromCache 분기).
+ *     - T11 마이그레이션 (`migrateTranslationCache`) output 도 본 shape 의 3 필드 (translatedText/sourceText/providerType) 를
+ *       포함 (codex NEEDS_CHANGES #8 hotfix 정합) + 마이그레이션 한정 후방호환 필드 (id/domain/createdAt) 추가 보유.
+ *     - 향후 본 shape 의 신규 필드 추가 시 마이그레이션 모듈 동기 갱신 필수 (G-013 단계별 PR — 신규 필드 PR + backfill PR 분할).
+ */
+export interface TranslationCacheValue {
+  translatedText: string
+  sourceText: string
+  providerType: string
+}
+
+/**
+ * Sprint 016 M2 T10b — composite cache key builder.
+ *   Sprint 005~015 의 `TranslationCache.buildKey` 와 1:1 알고리즘 보존.
+ *   `sha256(sourceText)|sourceLanguage|targetLanguage|providerType|requestType|glossaryVersion` (default fallback).
+ */
+export function buildTranslationCacheKey(args: {
+  sourceText: string
+  sourceLanguage: string
+  targetLanguage: string
+  providerType: string
+  requestType: import('../ai/types').RequestType
+  glossaryVersion?: string
+}): string {
+  const sourceHash = createHash('sha256').update(args.sourceText).digest('hex')
+  return [
+    sourceHash,
+    args.sourceLanguage,
+    args.targetLanguage,
+    args.providerType,
+    args.requestType,
+    args.glossaryVersion ?? 'default'
+  ].join('|')
+}
+
+/**
+ * Sprint 016 M2 T10b — glossary mutation 시 selection 번역 cache 무효화 helper.
+ *   metadata.glossaryVersion === prevVersion 인 entry 만 제거. AIResponseCache.invalidate 직결.
+ *   Sprint 015~016 의 `TranslationCache.invalidateByGlossaryVersion` 와 의미 동치.
+ */
+export async function invalidateTranslationCacheByGlossaryVersion(
+  prevVersion: string
+): Promise<number> {
+  return aiResponseCache.invalidate('translation', (entry) => {
+    const meta = entry.metadata as { glossaryVersion?: string } | undefined
+    return meta?.glossaryVersion === prevVersion
+  })
 }
 
 /**

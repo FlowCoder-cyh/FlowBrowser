@@ -196,7 +196,13 @@ describe('migrateV03ToV04 — 8 회귀 케이스', () => {
     const composite = ['hash_k1', 'en', 'ko', 'openai', 'selection', 'default'].join('|')
     const hit = await cache.lookup({ kind: 'translation', key: composite })
     expect(hit).not.toBeNull()
-    expect((hit?.value as { translatedText?: string })?.translatedText).toBe('가')
+    expect(
+      (hit?.value as { translatedText?: string; providerType?: string })?.translatedText
+    ).toBe('가')
+    // Sprint 016 M2 T10b (codex NEEDS_CHANGES #8 hotfix) — runtime TranslationCacheValue 와 read-compatible.
+    expect(
+      (hit?.value as { providerType?: string })?.providerType
+    ).toBe('openai')
   })
 
   // 3b. Sprint 016 M2 T11 hotfix — legacy wrapper shape `{ entries: { key: entry } }` 호환성 보존.
