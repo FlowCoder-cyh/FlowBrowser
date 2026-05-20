@@ -174,6 +174,100 @@ describe('workspaceHandlers', () => {
     expect(calls).toEqual([])
   })
 
+  // Sprint 016 M0 T02 (KI-006) — 워크스페이스 전환 abort callback 3종
+  it('KI-006 — switch invokes abort 3 callbacks with prev workspace id (setActive 직전)', async () => {
+    const wsA = await h.svc.create({ name: 'A', icon: '📚' })
+    const wsB = await h.svc.create({ name: 'B', icon: '💻' })
+    await h.svc.setActive(wsA.id)
+    const abortIndexingCalls: string[] = []
+    const clearQueueCalls: string[] = []
+    const abortChatCalls: string[] = []
+    const res = await handleWorkspaceSwitch(
+      { id: wsB.id },
+      {
+        getService: () => h.svc,
+        abortIndexing: (wid) => abortIndexingCalls.push(wid),
+        clearEmbeddingQueue: (wid) => clearQueueCalls.push(wid),
+        abortChatStreaming: (wid) => abortChatCalls.push(wid)
+      }
+    )
+    expect(res.ok).toBe(true)
+    expect(abortIndexingCalls).toEqual([wsA.id])
+    expect(clearQueueCalls).toEqual([wsA.id])
+    expect(abortChatCalls).toEqual([wsA.id])
+  })
+
+  it('KI-006 — abort callbacks skip when prev workspace === target (no-op self-switch)', async () => {
+    const wsA = await h.svc.create({ name: 'A', icon: '📚' })
+    await h.svc.setActive(wsA.id)
+    const calls: string[] = []
+    const res = await handleWorkspaceSwitch(
+      { id: wsA.id },
+      {
+        getService: () => h.svc,
+        abortIndexing: (wid) => calls.push(`abort:${wid}`),
+        clearEmbeddingQueue: (wid) => calls.push(`clear:${wid}`),
+        abortChatStreaming: (wid) => calls.push(`chat:${wid}`)
+      }
+    )
+    expect(res.ok).toBe(true)
+    expect(calls).toEqual([])
+  })
+
+  it('KI-006 — abort callback throw 는 swallow (다른 callback + setActive 진행)', async () => {
+    const wsA = await h.svc.create({ name: 'A', icon: '📚' })
+    const wsB = await h.svc.create({ name: 'B', icon: '💻' })
+    await h.svc.setActive(wsA.id)
+    const clearCalls: string[] = []
+    const chatCalls: string[] = []
+    const res = await handleWorkspaceSwitch(
+      { id: wsB.id },
+      {
+        getService: () => h.svc,
+        abortIndexing: () => {
+          throw new Error('boom 1')
+        },
+        clearEmbeddingQueue: (wid) => clearCalls.push(wid),
+        abortChatStreaming: (wid) => chatCalls.push(wid)
+      }
+    )
+    expect(res.ok).toBe(true)
+    expect(res.active?.id).toBe(wsB.id)
+    // 첫 callback throw 후에도 나머지 callback 호출 진행
+    expect(clearCalls).toEqual([wsA.id])
+    expect(chatCalls).toEqual([wsA.id])
+  })
+
+  it('KI-006 — abort callback 미주입 시 no-op (테스트 호환성)', async () => {
+    const wsA = await h.svc.create({ name: 'A', icon: '📚' })
+    const wsB = await h.svc.create({ name: 'B', icon: '💻' })
+    await h.svc.setActive(wsA.id)
+    const res = await handleWorkspaceSwitch(
+      { id: wsB.id },
+      { getService: () => h.svc } // 3 callback 미주입
+    )
+    expect(res.ok).toBe(true)
+    expect(res.active?.id).toBe(wsB.id)
+  })
+
+  it('KI-006 — invalid args (empty id) 시 abort callback 호출 안 함', async () => {
+    const wsA = await h.svc.create({ name: 'A', icon: '📚' })
+    await h.svc.setActive(wsA.id)
+    const calls: string[] = []
+    const res = await handleWorkspaceSwitch(
+      { id: '' },
+      {
+        getService: () => h.svc,
+        abortIndexing: (wid) => calls.push(wid),
+        clearEmbeddingQueue: (wid) => calls.push(wid),
+        abortChatStreaming: (wid) => calls.push(wid)
+      }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('invalid_input')
+    expect(calls).toEqual([])
+  })
+
   it('update patches name + returns ok', async () => {
     const ws = await h.svc.create({ name: 'A', icon: '📚' })
     const res = await handleWorkspaceUpdate(
