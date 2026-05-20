@@ -2,8 +2,11 @@
  * OpenAI API Key Provider.
  * MVP 기본 Provider (PRD v0.3 §15.2).
  *
- * fetch 직접 호출. 의존성 최소화.
  * 모델: gpt-4o-mini (저렴), gpt-4o (고품질) 선택 가능.
+ *
+ * Sprint 016 M2 T13 — fetchImpl 통일.
+ *   CodexLoginProvider 와 동일 패턴 (constructor 옵션 + private field, default globalThis.fetch).
+ *   테스트 주입성 + Provider 간 일관성. 기존 호출자 `new OpenAIApiKeyProvider(secretProvider)` 100% 호환.
  */
 
 import { ProviderError, type ProviderAdapter } from '../ProviderAdapter'
@@ -80,12 +83,19 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
     supportsEmbed: true
   }
 
-  constructor(private readonly secretProvider: () => string) {}
+  private readonly fetchImpl: typeof fetch
+
+  constructor(
+    private readonly secretProvider: () => string,
+    options: { fetchImpl?: typeof fetch } = {}
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch
+  }
 
   async validate(): Promise<{ ok: boolean; reason?: string }> {
     try {
       const apiKey = this.secretProvider()
-      const res = await fetch(`${OPENAI_BASE_URL}/models`, {
+      const res = await this.fetchImpl(`${OPENAI_BASE_URL}/models`, {
         headers: { Authorization: `Bearer ${apiKey}` }
       })
       if (res.status === 401 || res.status === 403) {
@@ -110,7 +120,7 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
 
     let res: Response
     try {
-      res = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      res = await this.fetchImpl(`${OPENAI_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -194,7 +204,7 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
 
     let res: Response
     try {
-      res = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      res = await this.fetchImpl(`${OPENAI_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -258,7 +268,7 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
 
     let res: Response
     try {
-      res = await fetch(`${OPENAI_BASE_URL}/embeddings`, {
+      res = await this.fetchImpl(`${OPENAI_BASE_URL}/embeddings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
