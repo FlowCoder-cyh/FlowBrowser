@@ -127,6 +127,13 @@ import {
   type TokenBundle,
   type UserCodeResult
 } from '../ai'
+// Sprint 016 M2 T10a — selection 번역 흐름이 provider.chat() 호출로 통합 (provider.translate() 폐기 준비).
+//   buildSystemPrompt / buildUserPrompt 는 OpenAIApiKeyProvider 내부에서 export 된 helper.
+//   PRD §10.1 chat 파이프라인 + §15.2 Provider 패턴 정합.
+import {
+  buildSystemPrompt,
+  buildUserPrompt
+} from '../ai/providers/OpenAIApiKeyProvider'
 // Sprint 015 M2-8 — retired page-translation extraction imports 제거.
 //   M2-5/M2-6 페이지 번역 폐기 후 호출자 0. perception/* 모듈 자체는 M3 IndexingService 가 활용 예정.
 
@@ -1061,7 +1068,20 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
           }
         }
       : args.input
-    const output = await provider.translate(inputWithGlossary)
+    // Sprint 016 M2 T10a — provider.translate() 호출 폐기. selection 번역 흐름을 provider.chat() 으로 통합.
+    //   기존 buildSystemPrompt + buildUserPrompt helper 재사용 (OpenAIApiKeyProvider.translate() 의
+    //   buildMessages 와 동일 결과 — translate 시점의 system/user prompt 분리 그대로 보존).
+    //   CodexLoginProvider 는 chat() 내부에서 splitMessagesForResponsesApi 가 system → instructions 분리.
+    //   ChatResponse → TranslationOutput 어댑트 (text → translatedText, 나머지 1:1).
+    if (!provider.chat) {
+      return {
+        ok: false,
+        decision: 'no_provider',
+        reason: `Provider ${args.providerType} chat() 미지원. ProviderInfo.supportsChat 가 false.`
+      }
+    }
+    const chatResp = await provider.chat(buildTranslationChatRequest(inputWithGlossary))
+    const output = chatResponseToTranslationOutput(chatResp)
     await translationCache.store({
       sourceText: args.input.sourceText,
       sourceLanguage: args.input.sourceLanguage,
@@ -1112,6 +1132,40 @@ export async function executeTranslateRequest(args: TranslateArgs): Promise<Tran
       decision: 'provider_error',
       reason: err instanceof Error ? err.message : String(err)
     }
+  }
+}
+
+/**
+ * Sprint 016 M2 T10a — selection 번역 chat 호출 입력 builder.
+ *   buildSystemPrompt + buildUserPrompt 재사용 (OpenAIApiKeyProvider 의 translate 시점 prompt 패턴 그대로).
+ *   temperature 0.3 (번역 일관성), modelHint 는 호출자 명시 전달.
+ *   단위 테스트가 직접 호출 가능 (codex NEEDS_CHANGES #1 흡수 — executeTranslateRequest 회귀 안전망).
+ */
+export function buildTranslationChatRequest(input: TranslationInput): import('../ai/types').ChatRequest {
+  return {
+    messages: [
+      { role: 'system', content: buildSystemPrompt(input) },
+      { role: 'user', content: buildUserPrompt(input) }
+    ],
+    modelHint: input.modelHint,
+    temperature: 0.3
+  }
+}
+
+/**
+ * Sprint 016 M2 T10a — ChatResponse → TranslationOutput 어댑트.
+ *   text → translatedText, 나머지 5 필드 1:1 매핑. translate path 결과와 동치.
+ */
+export function chatResponseToTranslationOutput(
+  resp: import('../ai/types').ChatResponse
+): TranslationOutput {
+  return {
+    translatedText: resp.text,
+    modelUsed: resp.modelUsed,
+    inputTokens: resp.inputTokens,
+    outputTokens: resp.outputTokens,
+    estimatedCostUsd: resp.estimatedCostUsd,
+    durationMs: resp.durationMs
   }
 }
 
