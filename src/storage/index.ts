@@ -132,13 +132,9 @@ export { UserSettingStore, defaultUserSettingPath } from './UserSettingStore'
 export type { UserSettingState, TranslationMode } from './UserSettingStore'
 
 // Sprint 015 M2-8 — retired page-node signature helper export 제거 (함수 자체 폐기).
-export { PageResultStore, defaultPageResultPath, normalizePageUrl } from './PageResultStore'
-export type {
-  PageResultEntry,
-  PageResultInstruction,
-  PageResultLookupKey,
-  PageResultStoreOptions
-} from './PageResultStore'
+// Sprint 016 M2 T12 — PageResultStore 어댑터 자체 제거 (KI-002 closed).
+//   v0.4 인덱싱은 IndexedPageStoreSqlite (Page + Visit 단일 TX) 가 직접 책임.
+//   URL 정규화는 IndexedPageStore.normalizeIndexedUrl 단일 source.
 
 export { TabStateStore, defaultTabStatePath, TAB_STATE_POLICY_VERSION } from './TabStateStore'
 export type { PersistedTabSession, PersistedTabState } from './TabStateStore'

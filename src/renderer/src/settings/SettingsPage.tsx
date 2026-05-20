@@ -4,7 +4,6 @@ import DomainPolicyPanel from './DomainPolicyPanel'
 import GlossaryPanel from './GlossaryPanel'
 import DisplayModePanel from './DisplayModePanel'
 import GeneralPanel from './GeneralPanel'
-import PageCachePanel from './PageCachePanel'
 import CodexLoginPanel from './CodexLoginPanel'
 import ShortcutPanel from './ShortcutPanel'
 
@@ -159,7 +158,6 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
       <DisplayModePanel />
       <DomainPolicyPanel />
       <GlossaryPanel />
-      <PageCachePanel />
       <UsagePanel />
     </div>
   )

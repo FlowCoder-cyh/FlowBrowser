@@ -197,6 +197,46 @@ describe('migrateV03ToV04 — 8 회귀 케이스', () => {
     expect(visits[0].visited_at).toBe(1000)
   })
 
+  // 4b. Sprint 016 M2 T12 (codex BLOCKING #1 hotfix) — v0.3 PageResultStore 실제 영속 shape 는 raw array.
+  // wrapper `{ entries }` 가 아닌 raw array 케이스도 정상 마이그레이션 (사용자 데이터 손실 차단).
+  it('case 4b: PageResults raw array shape (v0.3 실제 영속) → Page+Visit', async () => {
+    await writeJson(join(fx.userDataDir, 'page-results.json'), [
+      { id: 'p1', url: 'https://x.test/a', createdAt: 3000 },
+      { id: 'p2', url: 'https://x.test/b', createdAt: 4000 }
+    ])
+    const result = await migrateV03ToV04({
+      userDataDir: fx.userDataDir,
+      fb: fx.fb,
+      noteStore: fx.noteStore,
+      pageStore: fx.pageStore
+    })
+    expect(result.counts.pages).toBe(2)
+    expect(result.counts.visits).toBe(2)
+    const pageA = fx.pageStore.lookupPage(fx.defaultWsId, 'https://x.test/a')!
+    expect(pageA.workspace_id).toBe(fx.defaultWsId)
+    const visits = fx.pageStore.listVisits(pageA.id)
+    expect(visits[0].visited_at).toBe(3000)
+  })
+
+  // 4c. Sprint 016 M2 T12 hotfix — dry-run mode 도 raw array shape 정합.
+  it('case 4c: PageResults raw array shape dry-run 시 counts.pages 정합', async () => {
+    await writeJson(join(fx.userDataDir, 'page-results.json'), [
+      { id: 'p1', url: 'https://x.test/a', createdAt: 5000 },
+      { id: 'p2', url: 'https://x.test/b', createdAt: 6000 },
+      { id: 'p3', url: 'https://x.test/c', createdAt: 7000 }
+    ])
+    const result = await migrateV03ToV04({
+      userDataDir: fx.userDataDir,
+      fb: fx.fb,
+      noteStore: fx.noteStore,
+      pageStore: fx.pageStore,
+      dryRunOnly: true
+    })
+    expect(result.status).toBe('dry_run_only')
+    expect(result.counts.pages).toBe(3)
+    expect(result.counts.visits).toBe(3)
+  })
+
   // 5. UserSetting 폐기 키 제거 + 신규 키 디폴트
   it("case 5: UserSetting translationMode/cancelOnTabSwitch 제거 + 신규 키 추가", async () => {
     await writeJson(join(fx.userDataDir, 'user-setting.json'), {

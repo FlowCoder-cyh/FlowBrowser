@@ -30,7 +30,6 @@ import {
   TranslationCache,
   GlossaryStore,
   UserSettingStore,
-  PageResultStore,
   TabStateStore,
   ShortcutStore,
   ShortcutConflictError,
@@ -45,7 +44,6 @@ import {
   defaultTranslationCachePath,
   defaultGlossaryPath,
   defaultUserSettingPath,
-  defaultPageResultPath,
   defaultTabStatePath,
   defaultShortcutPath,
   formatGlossaryContext,
@@ -149,7 +147,6 @@ let usageLog!: UsageLog
 let translationCache!: TranslationCache
 let glossaryStore!: GlossaryStore
 let userSettingStore!: UserSettingStore
-let pageResultStore!: PageResultStore
 let tabStateStore!: TabStateStore
 let shortcutStore!: ShortcutStore
 // Sprint 015 M5-3b — v0.4 SQLite 인프라 wiring (검색 활용).
@@ -306,9 +303,6 @@ export async function initServices(): Promise<void> {
   userSettingStore = new UserSettingStore(defaultUserSettingPath(userDataDir))
   await userSettingStore.load()
 
-  pageResultStore = new PageResultStore(defaultPageResultPath(userDataDir))
-  await pageResultStore.load()
-
   tabStateStore = new TabStateStore(defaultTabStatePath(userDataDir))
 
   shortcutStore = new ShortcutStore(defaultShortcutPath(userDataDir))
@@ -404,7 +398,6 @@ export async function initServices(): Promise<void> {
   registerCacheIpc()
   registerGlossaryIpc()
   registerUserSettingIpc()
-  registerPageResultIpc()
   registerCodexIpc()
   registerShortcutIpc()
   registerSearchIpc()
@@ -656,15 +649,8 @@ function registerNoteIpc(): void {
   )
 }
 
-function registerPageResultIpc(): void {
-  // Sprint 015 M2-8 — retired page-result lookup/store IPC handlers 제거.
-  //   M2-5/M2-6 페이지 번역 폐기 후 renderer 호출 0. stats/clear 는 PageCachePanel 유지.
-  ipcMain.handle('pageResult:stats', () => pageResultStore.stats())
-  ipcMain.handle('pageResult:clear', async (): Promise<void> => pageResultStore.clearAll())
-}
-
-// Sprint 015 M2-8 — retired page-result helper exports 제거.
-//   M2-5/M2-6 폐기 후 호출자 0. M5 어댑터 제거 시 pageResultStore 인스턴스 자체 폐기.
+// Sprint 016 M2 T12 — PageResultStore 어댑터 + pageResult:* IPC + PageCachePanel UI 통째 폐기 (KI-002 closed).
+//   v0.4 인덱싱 통계는 MemoryStatsPanel (memory:stats IPC) 가 흡수.
 
 /**
  * Sprint 009 M3 — TabStateStore 접근 헬퍼.
