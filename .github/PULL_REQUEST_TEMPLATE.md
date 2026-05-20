@@ -25,12 +25,17 @@
 - [ ] Privacy / 보안
 - [ ] 데이터 모델
 
-## Dual Review (학습 #8 — 매 PR 강제, 누락 절대 금지)
+## Dual Review (학습 #8 + 학습 #13 — 매 PR 강제, 누락 절대 금지, read-only 강제)
 
 CI `flowset-policy-check` 가 본 섹션 두 체크박스 누락 시 머지 차단한다. 사전 호출 후 체크.
 
+**codex 호출 표준 (학습 #13, 2026-05-20)**:
+- **dual review = `/codex:review`** (review-only 강제, slash command 본문에 "Do not fix issues, apply patches" 명시) 우선
+- `/codex:rescue` 는 **rescue/fix/investigation** 전용 (workspace-write 권한) — dual review 에 사용 절대 금지
+- raw MCP `mcp__codex__codex` 사용 시 **반드시 `sandbox: "read-only"` + `approval-policy: "never"` + model 생략** (config.toml `gpt-5.5` 자동)
+
 - [ ] evaluator (`.claude/agents/evaluator.md` 서브에이전트) — Pass 카운트 / NEEDS_CHANGES / BLOCKING 결과 기록
-- [ ] codex (raw MCP `mcp__codex__codex` model 생략 또는 `/codex:rescue` slash) — PASS / NEEDS_CHANGES / BLOCKING / NB 결과 기록
+- [ ] codex (`/codex:review` 또는 raw MCP `sandbox=read-only`) — PASS / NEEDS_CHANGES / BLOCKING / NB 결과 기록 (`/codex:rescue` 사용 시 CI 차단, G-016)
 
 **평가 요약** (간단히):
 - evaluator: Pass __ / Partial __ / Fail __

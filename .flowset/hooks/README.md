@@ -26,9 +26,22 @@ Windows PowerShell 5.1 은 BOM 없는 UTF-8 `.ps1` 파일을 cp949 로 해석한
 - **stderr 출력** — Claude Code 컨텍스트에 권고/차단 사유 전달
 - **UTF-8 + cross-platform** — Node.js native 인코딩
 
+## Dual Review 표준 (학습 #13 — 2026-05-20 박음)
+
+본 hooks 의 환기 메시지 + PR template + 모든 PR 사전 dual review 호출 표준:
+
+| 작업 | 명령 | 권한 |
+|---|---|---|
+| **dual review (사전 read-only 평가)** | **`/codex:review`** | review-only 강제 (Codex CLI 자체가 fix/patch 차단) |
+| adversarial 검토 | `/codex:adversarial-review` | review-only |
+| investigation / fix / rescue | `/codex:rescue` | workspace-write 허용 |
+| raw MCP 직접 (필요 시) | `mcp__codex__codex` + `sandbox: "read-only"` + `approval-policy: "never"` + model 생략 | 옵션으로 강제 |
+
+본 PR (`.flowset/hooks/` mini-milestone β 후속) 이전에는 `/codex:rescue` 가 dual review 표준으로 박혀 — Sprint 016 M0 PR #188 시점에 codex agent 가 write 권한으로 직접 commit + push 진행 사고 (자세한 내용은 핸드오프 §11 학습 #13 참조). 본 PR 머지로 자동 강제 path 정합.
+
 ## CI 보완
 
-`.github/workflows/flowset-policy-check.yml` — PR body `## Dual Review` 섹션 존재 + dual review 체크박스 (`- [x] evaluator` + `- [x] codex`) + 영향 영역 1개+ + 제목 형식 + G-005 secret 평문 grep 강제.
+`.github/workflows/flowset-policy-check.yml` — PR body `## Dual Review` 섹션 존재 + dual review 체크박스 (`- [x] evaluator` + `- [x] codex (/codex:review)`) + 영향 영역 1개+ + 제목 형식 + G-005 secret 평문 grep 강제.
 
 **머지 차단 조건** (codex review #7 흡수): hook 우회 시에도 본 CI job 이 PR 머지를 차단 — 단 **GitHub branch protection 에서 `FlowSet Policy Check / policy-check` 를 required status check 로 승격한 경우에만**. 본 PR 머지 직후 repo Settings → Branches → Branch protection rule (main) → "Require status checks" 에 추가 권고 (settings repo automation 부재).
 

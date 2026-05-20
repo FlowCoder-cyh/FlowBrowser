@@ -86,7 +86,7 @@ try {
 }
 
 // 5. dual review 환기
-infos.push('[학습 #8] 본 세션 모든 PR / 핸드오프 / Milestone 종료 시 evaluator + codex 병렬 호출 완료 여부 자가 점검.');
+infos.push('[학습 #8/#13] 본 세션 모든 PR / 핸드오프 / Milestone 종료 시 evaluator + `/codex:review` (review-only) 병렬 호출 완료 여부 자가 점검. `/codex:rescue` 사용 시 write 권한 부여 — dual review 표준 위반.');
 
 process.stderr.write('=== [FlowSet Stop 점검] ===\n');
 if (warnings.length > 0) {

@@ -138,6 +138,22 @@
 - **How to apply**: Sprint 016 M3 T14 WorkspacePartitionManager 신규 + T15/T16 cascade. 사용자 동의 UI 박힘 전까지 dry-run 만.
 - **출처**: Sprint 016 contract §5 신규 가드레일 선언
 
+### G-016 [active] Dual review = read-only 강제
+
+- **규칙**: dual review (사전 PR / 핸드오프 / Milestone 평가) 시 codex 호출은 다음 3가지 중 하나만 사용. 모두 read-only 강제 path.
+  - **`/codex:review`** slash (1순위, slash 본문 "review-only" 명시, fix/patch 차단)
+  - `/codex:adversarial-review` slash (적대적 검토 — review-only)
+  - raw MCP `mcp__codex__codex` + `sandbox: "read-only"` + `approval-policy: "never"` + model 생략 (config.toml `gpt-5.5` 자동)
+- **금지**: dual review 에 `/codex:rescue` slash 사용 — write 권한 부여 (workspace-write) 로 인해 codex agent 가 직접 파일 수정 + commit + push 가능. dual review 표준 위반.
+- `/codex:rescue` 는 investigation / fix request / rescue 작업 (write 의도 있는 경우) 에만 사용.
+- **Why**: Sprint 016 M0 PR #188 (2026-05-20) 시점 사건 — 본인이 `/codex:rescue` 로 dual review 호출 시 codex agent 가 백그라운드에서 직접 핸드오프 파일 수정 + commit `6ddf09e` + push 까지 진행. force-with-lease 로 복구했으나 dual review 의 본질 (read-only 평가만, write 는 Claude 가 hotfix 흡수) 위반. 학습 #13 박음.
+- **How to apply**:
+  - 매 PR / 핸드오프 / Milestone 종료 시 evaluator + `/codex:review` 병렬 호출 강제
+  - codex 호출 결과 = 평가 보고서만, codex 자체는 파일 수정 / commit / push 절대 안 함
+  - Claude 가 dual review 결과 취합 → hotfix 흡수 → commit / push / PR 단독 진행
+  - PR body Dual Review 섹션의 codex 행은 `/codex:review` (review-only slash) 또는 raw MCP read-only 명시
+- **출처**: 학습 #13 (2026-05-20 PR #188 사건) + `/codex:review` slash 본문 ("Core constraint: This command is review-only. Do not fix issues, apply patches.") 인용
+
 ---
 
 ## 변경 이력
@@ -146,3 +162,4 @@
 - 2026-05-11: G-011 추가 (Phase 0 종합 보고 §8 권고 반영, Spike 1·2 회색지대 패턴 명문화)
 - 2026-05-16: G-009 강화 — 학습 30 추가 (Sprint milestone + Task 조합 시 T 번호 분절 금지, Sprint 015 T01 amend 사례 반영)
 - 2026-05-20: G-012 / G-013 / G-014 / G-015 정식 등록 (Sprint 015 / 016 contracts §5 선언 분리분 본체 흡수, mini-milestone α evaluator Partial NB-1 정합)
+- 2026-05-20 (PR #188 후속): G-016 신규 등록 — Dual review = read-only 강제 표준. 본 세션 §10 핸드오프 PR #188 시점에 `/codex:rescue` slash 가 dual review 표준으로 박혀 codex agent 가 백그라운드 write + commit + push 진행 사건 (force-with-lease 로 복구). slash command 분류 명문화 + 자동 강제 path (hooks + PR template + memory) 모두 정정.

@@ -41,21 +41,29 @@ jobs:
           # 1. Dual Review 섹션 + 체크박스 (evaluator + codex)
           # 학습 #8 feedback_dual_review — 매 PR 사전 evaluator + codex 병렬 호출 강제
           # codex review #3 흡수: '## Dual Review' 섹션 존재 여부 추가 체크
+          # 학습 #13 / G-016 흡수 (PR #189): codex 행에 /codex:review 또는 raw MCP read-only 명시 강제 + /codex:rescue 사용 금지
           if ! echo "$PR_BODY" | grep -qE '^## +Dual Review'; then
             echo "::error::PR body 에 '## Dual Review' 섹션 누락 — PR template 양식 사용 필요."
             FAILED=1
           fi
           EVAL_OK=0
-          CODEX_OK=0
           if echo "$PR_BODY" | grep -qE '^\- \[x\] +evaluator'; then EVAL_OK=1; fi
-          if echo "$PR_BODY" | grep -qE '^\- \[x\] +codex'; then CODEX_OK=1; fi
+
+          # codex 체크박스 + slash 분류 검증 (G-016)
+          CODEX_LINE=$(printf '%s\n' "$PR_BODY" | grep -E '^- \[x\] +codex' || true)
 
           if [ $EVAL_OK -eq 0 ]; then
             echo "::error::PR body 에 '- [x] evaluator' 체크 누락 — 학습 #8 dual review 표준 위반."
             FAILED=1
           fi
-          if [ $CODEX_OK -eq 0 ]; then
+          if [ -z "$CODEX_LINE" ]; then
             echo "::error::PR body 에 '- [x] codex' 체크 누락 — 학습 #8 dual review 표준 위반."
+            FAILED=1
+          elif printf '%s\n' "$CODEX_LINE" | grep -q '/codex:rescue'; then
+            echo "::error::dual review codex 행에 /codex:rescue 사용 금지 — /codex:review (review-only) 또는 raw MCP sandbox=read-only 필요 (G-016 / 학습 #13)."
+            FAILED=1
+          elif ! printf '%s\n' "$CODEX_LINE" | grep -Eq '(/codex:review|/codex:adversarial-review|sandbox: ?"read-only"|sandbox=read-only)'; then
+            echo "::error::codex 행에 호출 path 명시 필요 — /codex:review 또는 /codex:adversarial-review 또는 raw MCP sandbox=read-only (G-016 / 학습 #13)."
             FAILED=1
           fi
 
