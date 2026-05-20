@@ -295,10 +295,15 @@ async function dryRunSimulate(
   counts.glossary_to_notes = terms.length
   counts.glossary_terms_with_domain = terms.filter((t) => Boolean(t.domain)).length
 
-  const pageResults = await readJsonOptional<{ entries?: V03PageResultEntry[] }>(
-    join(userDataDir, 'page-results.json')
-  )
-  counts.pages = pageResults?.entries?.length ?? 0
+  // Sprint 016 M2 T12 (codex BLOCKING #1 hotfix) — v0.3 PageResultStore 는 raw array `PageResultEntry[]` 로 영속.
+  //   본 마이그레이션은 raw array + wrapper `{ entries }` 양쪽 shape 모두 허용 (실 사용자 데이터 손실 차단).
+  const pageResultsRaw = await readJsonOptional<
+    V03PageResultEntry[] | { entries?: V03PageResultEntry[] }
+  >(join(userDataDir, 'page-results.json'))
+  const pageEntries = Array.isArray(pageResultsRaw)
+    ? pageResultsRaw
+    : (pageResultsRaw?.entries ?? [])
+  counts.pages = pageEntries.length
   counts.visits = counts.pages
 
   await appendLog(logPath, [
@@ -351,12 +356,16 @@ async function migratePageResults(
   logPath: string
 ): Promise<void> {
   const path = join(userDataDir, 'page-results.json')
-  const data = await readJsonOptional<{ entries?: V03PageResultEntry[] }>(path)
-  if (!data?.entries?.length) {
+  // Sprint 016 M2 T12 (codex BLOCKING #1 hotfix) — v0.3 PageResultStore raw array shape + wrapper shape 양쪽 허용.
+  const dataRaw = await readJsonOptional<
+    V03PageResultEntry[] | { entries?: V03PageResultEntry[] }
+  >(path)
+  const entries = Array.isArray(dataRaw) ? dataRaw : (dataRaw?.entries ?? [])
+  if (!entries.length) {
     await appendLog(logPath, ['[migrate] page-results.json: 0 entries'])
     return
   }
-  for (const e of data.entries) {
+  for (const e of entries) {
     if (!e.url) continue
     const visitedAt = e.createdAt ?? Date.now()
     const { page, visit } = await pageStore.recordVisit({

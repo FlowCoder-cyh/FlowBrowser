@@ -12,11 +12,10 @@
  *   - sqlite-vec virtual table (vec_pages) → embedding 통합
  *   - Note / AiChatHistory / Tag store 분리 모듈
  *   - SQLite 영속 (schema/v04.sql) — 본 base 의 JSON 영속을 흡수
- *   - migrations/v03_to_v04: PageResultStore JSON → IndexedPageStore 자동 이전
+ *   - migrations/v03_to_v04: page-results.json → IndexedPageStore 자동 이전
  *
- * M2-2 어댑터 호환:
- *   - feature flag `flowbrowser.v04.enabled` false (디폴트) 시 PageResultStore 가 본 모듈 미사용
- *   - flag true 시 PageResultStore.store() 가 본 모듈에 Page + Visit side-write (instructions 는 v0.3 JSON 그대로)
+ * Sprint 016 M2 T12 — PageResultStore 어댑터 폐기 (KI-002 closed).
+ *   호출자는 IndexedPageStore.recordVisit() / IndexedPageStoreSqlite 직접 사용.
  *
  * LRU 정책 (M2-2 base):
  *   - maxBytes 임계 초과 시 lastVisitedAt 기준 LRU trim. Page + Visit 동반 제거 (cascade)
@@ -118,7 +117,7 @@ function isFiniteNumber(v: unknown): v is number {
 
 /**
  * URL 정규화 — origin + pathname. 파싱 실패 시 trim 반환.
- * PageResultStore.normalizePageUrl 와 동일 알고리즘 (M5 어댑터 제거 시 한쪽으로 통합).
+ * Sprint 016 M2 T12 시점 PageResultStore.normalizePageUrl 폐기 → 본 함수가 단일 source.
  */
 export function normalizeIndexedUrl(raw: string): string {
   if (!raw) return ''

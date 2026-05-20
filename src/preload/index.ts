@@ -169,14 +169,8 @@ const cacheApi = {
     ipcRenderer.invoke('cache:invalidate-glossary', version)
 }
 
-// Sprint 015 M2-8 — retired page-result lookup/store payload types 제거.
-// Sprint 015 M2-6 — pageResult:restore-current API 제거 (render IPC 폐기 동반).
-
-const pageResultApi = {
-  // Sprint 015 M2-8 — retired lookup/store methods 제거. renderer 호출자 0. PageCachePanel 은 stats/clear 만 사용.
-  stats: (): Promise<{ count: number }> => ipcRenderer.invoke('pageResult:stats'),
-  clear: (): Promise<void> => ipcRenderer.invoke('pageResult:clear')
-}
+// Sprint 016 M2 T12 — PageResultStore 어댑터 + pageResultApi + PageCachePanel UI 통째 폐기 (KI-002 closed).
+//   v0.4 인덱싱 통계는 memoryApi (memory:stats) 가 흡수.
 
 interface GlossaryTermPayload {
   id: string
@@ -611,7 +605,6 @@ contextBridge.exposeInMainWorld('credentialApi', credentialApi)
 contextBridge.exposeInMainWorld('privacyApi', privacyApi)
 contextBridge.exposeInMainWorld('usageApi', usageApi)
 contextBridge.exposeInMainWorld('cacheApi', cacheApi)
-contextBridge.exposeInMainWorld('pageResultApi', pageResultApi)
 contextBridge.exposeInMainWorld('glossaryApi', glossaryApi)
 contextBridge.exposeInMainWorld('userSettingApi', userSettingApi)
 contextBridge.exposeInMainWorld('translateApi', translateApi)
@@ -625,7 +618,6 @@ export type CredentialApi = typeof credentialApi
 export type PrivacyApi = typeof privacyApi
 export type UsageApi = typeof usageApi
 export type CacheApi = typeof cacheApi
-export type PageResultApi = typeof pageResultApi
 export type GlossaryApi = typeof glossaryApi
 export type UserSettingApi = typeof userSettingApi
 export type TranslateApi = typeof translateApi

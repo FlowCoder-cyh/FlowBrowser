@@ -67,17 +67,19 @@
 - **처리 예정 Sprint**: 016 M0 T01 (PoC 진행) → 결과 후 closed 또는 fallback 도입
 - **상태**: `in-progress`
 
-### KI-002 [open] PageCachePanel PARTIAL — v0.3 어댑터 의존 잔존
+### KI-002 [closed] PageCachePanel PARTIAL — v0.3 어댑터 의존 잔존
 
 - **Severity**: LOW
 - **Phase**: 1
-- **Sprint**: 015 (M3-7 PARTIAL 적용 + codex/evaluator 핫픽스 시점 등록)
+- **Sprint**: 015 (M3-7 PARTIAL 적용 + codex/evaluator 핫픽스 시점 등록) → 016 M2 T12 closed
 - **Component**: `src/renderer/src/settings/PageCachePanel.tsx` + `src/storage/PageResultStore.ts` 어댑터
-- **영향**: 본 패널은 M3-7 에서 copy 만 "페이지 본문 캐시" 로 갱신되었으나 컴포넌트 자체는 v0.3 `pageResultApi` 의존. M5-8 어댑터 일괄 제거 시점에 본 패널도 동반 폐기 (MemoryStatsPanel 흡수 contract). 현재 UX 영향 없음 (정상 동작).
+- **영향**: 본 패널은 M3-7 에서 copy 만 "페이지 본문 캐시" 로 갱신되었으나 컴포넌트 자체는 v0.3 `pageResultApi` 의존. Sprint 016 M2 T12 시점 어댑터 통째 폐기 + MemoryStatsPanel (M6 T29) 가 통계 흡수.
 - **발견 출처**: PR #138 본문 + 2026-05-18 M3 종합 evaluator §3 KI 후보 2 권고
 - **권고 해소 방향**: M5-8 ChatService 도입 시점에 `pageResultApi` + `PageResultStore` 어댑터 + 본 패널 동시 제거 + 신규 `MemoryStatsPanel` (M6) 으로 흡수
 - **처리 예정 Sprint**: 015 M5-8 (정합 contract) 또는 Phase 3 종료 후 MVP 직전 정리
-- **상태**: `open`
+- **상태**: `closed` (PR T12 머지 시점 — Sprint 016 M2)
+- **해소 PR**: Sprint 016 M2 T12 — `src/storage/PageResultStore.ts` + `src/renderer/src/settings/PageCachePanel.tsx` + `tests/unit/storage/PageResultStore.adapter.test.ts` 통째 삭제 / `pageResult:*` IPC 2 폐기 / preload `pageResultApi` 제거 / SettingsPage import 제거 / styles.css `.page-cache-panel.*` 제거 / IndexedPageStore 주석 갱신 (normalizeIndexedUrl 단일 source)
+- **사전 dual review hotfix 흡수** (학습 #18 정합): codex BLOCKING #1 — `migrations/v03_to_v04.ts` 가 `{ entries?: V03PageResultEntry[] }` wrapper 가정인데 실제 PageResultStore.persistOnce 는 raw array `PageResultEntry[]` 영속. 실 사용자 page-results.json 손실 위험. **본 PR hotfix**: `dryRunSimulate` + `migratePageResults` 양쪽 shape 허용 + test case 4b/4c 추가 (단위 1152 → 1154).
 
 ### KI-003 [open] AutoTagger G-003 BYOK provider 검증 wiring 필요
 

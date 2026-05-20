@@ -840,39 +840,7 @@ body {
 }
 
 /* Sprint 015 M2-4 — .panel-summary-chars/.warn 제거 (페이지 요약 UI 폐기) */
-
-.page-cache-panel .pc-stats {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 12px 0;
-}
-
-.page-cache-panel .pc-count {
-  font-size: 28px;
-  font-weight: 600;
-  color: #88ccff;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-}
-
-.page-cache-panel .pc-count-label {
-  color: #999;
-  font-size: 13px;
-}
-
-.page-cache-panel .pc-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.page-cache-panel .pc-message {
-  margin-top: 8px;
-  padding: 6px 10px;
-  background: #1a3a2a;
-  color: #aaffcc;
-  border-radius: 4px;
-  font-size: 12px;
-}
+/* Sprint 016 M2 T12 — .page-cache-panel.* 제거 (PageCachePanel UI 폐기, MemoryStatsPanel 흡수) */
 
 .settings-message {
   padding: 8px 12px;
