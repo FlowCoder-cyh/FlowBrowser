@@ -85,30 +85,58 @@ try {
   // 무시
 }
 
-// 4b. Sprint 016 M0 (학습 #13 후속) — G-017: 잔존 원격 브랜치 점검.
+// 4b. Sprint 016 M0 (학습 #13 후속, 학습 #16 보강) — G-017: 잔존 원격 브랜치 점검.
 // MERGED/CLOSED PR 의 브랜치가 origin 에 잔존하면 경고. GitHub `delete_branch_on_merge` 정책은
 // MERGED 한정 — CLOSED 는 자동 삭제 안 되므로 수동 cleanup 강제.
+// 학습 #16 (PR #192) 보강: local `git for-each-ref` 는 stale ref 기반 false positive 가능
+// (예: `--delete-branch` 적용 머지 후에도 local prune 안 하면 잔존). `gh api .../branches` 직접
+// 호출로 실시간 GitHub state 검증.
 try {
-  // 원격 브랜치 목록 (main 제외)
-  const remoteBranches = execSync(
-    'git for-each-ref --format="%(refname:short)" refs/remotes/origin',
-    { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-  )
-    .split(/\r?\n/)
-    .map((b) => b.trim().replace(/^origin\//, ''))
-    .filter((b) => b && b !== 'main' && b !== 'HEAD' && !b.startsWith('HEAD'));
+  // gh CLI 필수 (실시간 GitHub state 조회용)
+  try {
+    execSync('gh --version', { stdio: ['ignore', 'ignore', 'ignore'] });
+  } catch {
+    infos.push('[G-017] gh CLI 미설치 — 실시간 원격 브랜치 점검 skip.');
+    throw new Error('gh-missing');
+  }
+
+  // codex review #3 hotfix: 동적 owner/repo 추출 (hardcoded path 제거) + --paginate (default 30 한계 회피)
+  let ownerRepo;
+  try {
+    const remoteUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    // SSH: git@github.com:owner/repo.git / HTTPS: https://github.com/owner/repo.git
+    const match = remoteUrl.match(/github\.com[:/]([^/]+\/[^/.]+)(?:\.git)?$/);
+    if (!match) throw new Error(`origin URL parse 실패: ${remoteUrl}`);
+    ownerRepo = match[1];
+  } catch (err) {
+    infos.push(
+      `[G-017] origin URL 추출 실패 (${err instanceof Error ? err.message : String(err)}) — graceful skip.`
+    );
+    throw new Error('origin-parse-failed');
+  }
+
+  // GitHub 실시간 브랜치 목록 (main 제외, --paginate 로 30+ 브랜치도 cover)
+  let remoteBranches;
+  try {
+    const json = execFileSync(
+      'gh',
+      ['api', '--paginate', `repos/${ownerRepo}/branches`, '--jq', '.[].name'],
+      { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    remoteBranches = json
+      .split(/\r?\n/)
+      .map((b) => b.trim())
+      .filter((b) => b && b !== 'main' && b !== 'master');
+  } catch {
+    infos.push('[G-017] gh api 브랜치 조회 실패 (인증/API/네트워크) — graceful skip.');
+    throw new Error('api-failed');
+  }
 
   if (remoteBranches.length > 0) {
-    // gh 가 설치되어 있는지 검사 (없으면 skip)
-    try {
-      execSync('gh --version', { stdio: ['ignore', 'ignore', 'ignore'] });
-    } catch {
-      // gh 미설치 시 단순 카운트만 알림
-      infos.push(
-        `[G-017] 원격 미머지/미정리 브랜치 ${remoteBranches.length}개 (gh CLI 미설치 — 상세 점검 skip).`
-      );
-      throw new Error('gh-missing');
-    }
 
     const staleClosed = [];
     const staleMerged = [];
@@ -167,7 +195,7 @@ try {
 }
 
 // 5. dual review 환기
-infos.push('[학습 #8/#13] 본 세션 모든 PR / 핸드오프 / Milestone 종료 시 evaluator + `/codex:review` (review-only) 병렬 호출 완료 여부 자가 점검. `/codex:rescue` 사용 시 write 권한 부여 — dual review 표준 위반.');
+infos.push('[학습 #8/#13/#16] 본 세션 모든 PR / 핸드오프 / Milestone 종료 시 evaluator + codex 병렬 (1순위 `/codex:adversarial-review` focus text 지원) 호출 완료 여부 자가 점검. `/codex:rescue` 는 rescue/fix 의도 시 정합 도구 — dual review 본문 사용 시 CI 차단.');
 
 process.stderr.write('=== [FlowSet Stop 점검] ===\n');
 if (warnings.length > 0) {

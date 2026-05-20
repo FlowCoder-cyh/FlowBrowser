@@ -78,7 +78,7 @@ if (/git\s+commit/.test(command) && !/--amend/.test(command)) {
 
 // 4. gh pr create / gh pr merge dual review 환기
 if (/gh\s+pr\s+(create|merge)/.test(command)) {
-  warnings.push('[학습 #8] dual review 표준: evaluator + codex (= `/codex:review` review-only 강제) 병렬 호출 후 PR body 체크박스 [x] 표시 필요. `/codex:rescue` 는 rescue/fix 작업용 (write 권한). CI flowset-policy-check 가 검증.');
+  warnings.push('[학습 #8/#16] dual review 표준: evaluator + codex 병렬. codex 1순위 = `/codex:adversarial-review` (focus text 지원) / 2순위 = `/codex:review` / 3순위 = raw MCP sandbox=read-only. `/codex:rescue` 는 rescue/fix 의도 시 정합 도구 (dual review 본문 사용 시 CI 차단). PR body 체크박스 [x] + 도구 명시.');
 }
 
 if (warnings.length > 0) {

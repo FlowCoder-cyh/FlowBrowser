@@ -138,6 +138,20 @@
 - **How to apply**: Sprint 016 M3 T14 WorkspacePartitionManager 신규 + T15/T16 cascade. 사용자 동의 UI 박힘 전까지 dry-run 만.
 - **출처**: Sprint 016 contract §5 신규 가드레일 선언
 
+### G-018 [active] PR 산출물 매트릭스 정확성 (학습 #15 본체)
+
+- **규칙**: PR body 의 산출물 표 (변경 파일 + 변경량 + 비고) 가 실측 `git diff --stat` 와 정합해야 함. 누락된 파일이 있으면 dual review 가 cover 외라 강제 검증 불가 (학습 #15 본체).
+- **금지**:
+  - PR body 산출물 표에 누락된 파일 (변경됐는데 본문 미명시)
+  - 변경량 추상 표기 (`+N` 또는 "약 N 줄") — 실측 `git diff --stat` 수치 박음 강제
+  - 메타 변경 PR (가드레일 / 학습 / 자동 강제 path 변경 등) 에서 `.flowset/state.md` 동기화 누락
+- **Why**: Sprint 016 M0 PR #189/#190 사건 (2026-05-20) — 본인이 산출물 목록에 `.flowset/state.md` 미포함 → evaluator/codex 가 cover 외 강제 검증 불가 → L12/L13 §10 시점 잔존 → PR #191 사후 정정. 학습 #15 §13.3 #3 에서 본인이 G-018 후보 직접 명시.
+- **How to apply**:
+  - PR body 작성 직전 `git diff --stat <base>..HEAD` 출력을 산출물 표 base 로 사용 (변경량 정확)
+  - 메타 변경 PR (가드레일 / 학습 #N / 자동 강제 path) 시 반드시 `.flowset/state.md` L12-L13 + 최근 핸드오프 한 줄 갱신 산출물 포함
+  - 본 사항 검출 path 후보: PR template 의 산출물 표 양식 보강 + flowset-policy-check.yml 의 산출물 표 존재 grep + Stop hook 의 산출물 vs diff 대조 (본 PR 범위는 PR template + flowset-policy-check.yml 까지, Stop hook 자동 대조는 mini-milestone δ 후보로 위임)
+- **출처**: 학습 #15 (2026-05-20 PR #191) §13.3 #3 본인 직접 명시 후보 → 본 PR (mini-milestone γ) 정식 등록
+
 ### G-017 [active] PR 닫음/머지 후 원격 브랜치 즉시 정리
 
 - **규칙**: 모든 PR 의 head 브랜치는 PR 종결 (MERGED 또는 CLOSED) 시점에 원격에서 즉시 삭제. 정책 path:
@@ -153,21 +167,34 @@
   - GitHub repo Settings → "Automatically delete head branches" 활성 유지 (`delete_branch_on_merge: true`)
 - **출처**: 본 세션 학습 #14 (2026-05-20 PR #190 시점) — 사용자 본질 지적 "원격에 보면 브렌치가 여러개있는데 왜 머지후에 브렌치정리가 안된건지 검토해" + 옵션 B/C 채택
 
-### G-016 [active] Dual review = read-only 강제
+### G-016 [active] Dual review = read-only 강제 (도구 분류 정합, 학습 #16 보강)
 
-- **규칙**: dual review (사전 PR / 핸드오프 / Milestone 평가) 시 codex 호출은 다음 3가지 중 하나만 사용. 모두 read-only 강제 path.
-  - **`/codex:review`** slash (1순위, slash 본문 "review-only" 명시, fix/patch 차단)
-  - `/codex:adversarial-review` slash (적대적 검토 — review-only)
-  - raw MCP `mcp__codex__codex` + `sandbox: "read-only"` + `approval-policy: "never"` + model 생략 (config.toml `gpt-5.5` 자동)
-- **금지**: dual review 에 `/codex:rescue` slash 사용 — write 권한 부여 (workspace-write) 로 인해 codex agent 가 직접 파일 수정 + commit + push 가능. dual review 표준 위반.
-- `/codex:rescue` 는 investigation / fix request / rescue 작업 (write 의도 있는 경우) 에만 사용.
-- **Why**: Sprint 016 M0 PR #188 (2026-05-20) 시점 사건 — 본인이 `/codex:rescue` 로 dual review 호출 시 codex agent 가 백그라운드에서 직접 핸드오프 파일 수정 + commit `6ddf09e` + push 까지 진행. force-with-lease 로 복구했으나 dual review 의 본질 (read-only 평가만, write 는 Claude 가 hotfix 흡수) 위반. 학습 #13 박음.
+- **규칙**: codex 도구는 각자 용도. dual review (read-only 평가) 시 review-only 도구만 사용. rescue/fix/investigation 의도 시 `/codex:rescue` 정합 도구.
+
+**도구 분류 (실측 본문 인용 + 학습 #16 보강)**:
+
+| 도구 | 권한 | 적합 시나리오 | 본문 인용 |
+|---|---|---|---|
+| **`/codex:adversarial-review`** | review-only | **dual review 1순위 (free-form focus text 지원, git state review)** | "Unlike `/codex:review`, it can still take extra focus text after the flags" (`adversarial-review.md` L45) |
+| `/codex:review` | review-only | git state native review (focus text 미지원, 단순 코드 review) | "This command is native-review only. It does not support ... extra focus text" (`review.md` L39) |
+| raw MCP `mcp__codex__codex` + `sandbox: "read-only"` + `approval-policy: "never"` + model 생략 | review-only | **git state 무관 자유 협의/평가** (working tree 없거나 free-form prompt) | (Claude Code MCP tool, sandbox 옵션으로 강제) |
+| raw MCP + `sandbox: "workspace-write"` | write | 명시적 write 의도 시 (특수 케이스) | — |
+| **`/codex:rescue`** | workspace-write | **rescue / fix / investigation 의도 시 정합 도구** (write 권한 필요) | (codex-rescue subagent forwarder, fix request) |
+
+- **dual review 본문에 사용 금지** (도구 자체 금지가 아닌 **dual review 케이스 한정**): `/codex:rescue` 를 dual review 체크박스 행에 명시 시 CI `flowset-policy-check` 차단. write 권한이라 codex agent 가 직접 commit/push 가능 → review-only 본질 위반.
+
+- **`/codex:rescue` 정합 사용**: rescue/fix/investigation 명시 의도 있을 때 정상 path (별도 작업으로). dual review 와 다른 호출 시점.
+
+- **Why**: Sprint 016 M0 PR #188 (2026-05-20) 사건 — 본인이 `/codex:rescue` 로 dual review 호출 시 codex agent 가 백그라운드 write + commit `6ddf09e` + push 진행. 학습 #13 박음. 본 세션 추가 학습 #16 (2026-05-20 본 turn) — 본인이 G-016 박을 때 `/codex:review` 1순위로 박았으나 실측 본문에 따르면 **`/codex:adversarial-review` 가 free-form focus text 지원 → dual review 1순위 정합**. 본인이 PR #189/#190/#191 dual review 모두 raw MCP 사용 (slash 무시) — 도구 분류 부정확.
+
 - **How to apply**:
-  - 매 PR / 핸드오프 / Milestone 종료 시 evaluator + `/codex:review` 병렬 호출 강제
+  - 매 PR / 핸드오프 / Milestone 종료 시 evaluator + **`/codex:adversarial-review`** (1순위) 병렬 호출 강제
+  - git state 무관 자유 협의 시 raw MCP `sandbox=read-only` (3순위)
   - codex 호출 결과 = 평가 보고서만, codex 자체는 파일 수정 / commit / push 절대 안 함
   - Claude 가 dual review 결과 취합 → hotfix 흡수 → commit / push / PR 단독 진행
-  - PR body Dual Review 섹션의 codex 행은 `/codex:review` (review-only slash) 또는 raw MCP read-only 명시
-- **출처**: 학습 #13 (2026-05-20 PR #188 사건) + `/codex:review` slash 본문 ("Core constraint: This command is review-only. Do not fix issues, apply patches.") 인용
+  - PR body Dual Review 섹션의 codex 행은 `/codex:adversarial-review` 또는 `/codex:review` 또는 raw MCP `sandbox=read-only` 명시
+  - **`/codex:rescue` 는 별도 호출 (rescue/fix 의도 시) — dual review 본문에 박지 않음**
+- **출처**: 학습 #13 (PR #188 사건) + 학습 #16 (본 turn 도구 분류 정확화) + `/codex:adversarial-review.md` L45 본문 인용
 
 ---
 
@@ -179,3 +206,4 @@
 - 2026-05-20: G-012 / G-013 / G-014 / G-015 정식 등록 (Sprint 015 / 016 contracts §5 선언 분리분 본체 흡수, mini-milestone α evaluator Partial NB-1 정합)
 - 2026-05-20 (PR #188 후속): G-016 신규 등록 — Dual review = read-only 강제 표준. 본 세션 §10 핸드오프 PR #188 시점에 `/codex:rescue` slash 가 dual review 표준으로 박혀 codex agent 가 백그라운드 write + commit + push 진행 사건 (force-with-lease 로 복구). slash command 분류 명문화 + 자동 강제 path (hooks + PR template + memory) 모두 정정.
 - 2026-05-20 (PR #189 후속): G-017 신규 등록 — PR 닫음/머지 후 원격 브랜치 즉시 정리 강제. 사용자 본질 지적 "원격에 보면 브렌치가 여러개있는데 왜 머지후에 브렌치정리가 안된건지 검토해" + 옵션 B/C 채택 — Stop hook G-017 점검 path 추가 + 가드레일 정식 등록.
+- 2026-05-20 (mini-milestone γ, PR #192): **G-016 본문 보강 (학습 #16, 도구 분류 정합)** — `/codex:adversarial-review` 1순위 정합 + `/codex:rescue` 정합 사용 시나리오 별도 명시 + 도구 자체 금지 어조 제거. **G-018 신규 등록** — PR 산출물 매트릭스 정확성 강제 (학습 #15 §13.3 #3 본인 직접 명시 후보 정식화). 사용자 본질 지적 "슬래쉬스킬과 다른게 뭔데? 슬래시가 더 정확한거아니냐" + "rescue 는 금지할게아니라 쓰기가 필요할떈 써야될거아냐 용도를 구분해놓고 뭔 금지야".

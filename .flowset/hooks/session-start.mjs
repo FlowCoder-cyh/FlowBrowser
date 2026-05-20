@@ -98,8 +98,9 @@ if (kiLines) {
 // 5. 표준 환기
 console.log('## 표준 환기');
 console.log('- 모든 PR / 핸드오프 / Milestone 종료 시 evaluator + codex 병렬 호출 (학습 #8, feedback_dual_review)');
-console.log('- codex 호출 = `/codex:review` (review-only 강제) 우선 — `/codex:rescue` 는 rescue/fix 작업용 (write 가능)');
-console.log('- raw MCP 직접 호출 시 sandbox: "read-only" + approval-policy: "never" + model 생략 (config.toml gpt-5.5 자동) — 학습 #5/#13 G-006');
+console.log('- dual review codex 호출 1순위 = `/codex:adversarial-review` (review-only + free-form focus text 지원, 학습 #16) / 2순위 = `/codex:review` (focus text 미지원) / 3순위 = raw MCP sandbox=read-only (git state 무관)');
+console.log('- `/codex:rescue` 는 rescue/fix/investigation 의도 시 정합 도구 (workspace-write) — dual review 본문에 사용 시 CI 차단 (도구 자체 금지 아님)');
+console.log('- raw MCP 호출 시 sandbox: "read-only" + approval-policy: "never" + model 생략 (config.toml gpt-5.5 자동) — 학습 #5/#13 G-006');
 console.log('- 브랜치 분기: main 에서만 / 커밋 형식 WI-NNN-[type] 한글 작업명 (G-009 NNN 한 분절)');
 console.log('');
 console.log('=== [FlowSet] SessionStart 종료 ===');
