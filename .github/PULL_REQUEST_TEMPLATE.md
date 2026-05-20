@@ -16,6 +16,16 @@
 - 변경 1
 - 변경 2
 
+## 산출물 매트릭스 (G-018 — `git diff --numstat HEAD` 실측, 추상 표기 금지)
+
+| 파일 | + | - | 비고 |
+|---|---|---|---|
+| `path/to/file1` | 10 | 5 | 변경 의도 1줄 |
+| `path/to/file2` | 20 | 0 | 신규 |
+
+**총**: +N / -N / M 파일 (실측 수치, `+N` 같은 placeholder 금지)
+**별도 보고** (PR diff 범위 외 변경, e.g. 사용자 메모리): 명시 강제
+
 ## 영향 영역
 
 - [ ] 코드
@@ -29,13 +39,14 @@
 
 CI `flowset-policy-check` 가 본 섹션 두 체크박스 누락 시 머지 차단한다. 사전 호출 후 체크.
 
-**codex 호출 표준 (학습 #13, 2026-05-20)**:
-- **dual review = `/codex:review`** (review-only 강제, slash command 본문에 "Do not fix issues, apply patches" 명시) 우선
-- `/codex:rescue` 는 **rescue/fix/investigation** 전용 (workspace-write 권한) — dual review 에 사용 절대 금지
-- raw MCP `mcp__codex__codex` 사용 시 **반드시 `sandbox: "read-only"` + `approval-policy: "never"` + model 생략** (config.toml `gpt-5.5` 자동)
+**codex 호출 표준 (학습 #13 + #16, 2026-05-20 — 도구 분류 정합)**:
+- **dual review 1순위 = `/codex:adversarial-review`** (review-only + **free-form focus text 지원**, dual review 케이스 정합)
+- 2순위 = `/codex:review` (review-only, focus text 미지원 — 단순 git state native review)
+- 3순위 = raw MCP `mcp__codex__codex` + **`sandbox: "read-only"` + `approval-policy: "never"` + model 생략** (config.toml `gpt-5.5` 자동) — git state 무관 자유 협의/평가
+- **`/codex:rescue` 는 rescue/fix/investigation 의도 시 정합 도구** (workspace-write). dual review 본문에 사용 시 CI 차단 (dual review 케이스 한정, 도구 자체 금지 아님)
 
 - [ ] evaluator (`.claude/agents/evaluator.md` 서브에이전트) — Pass 카운트 / NEEDS_CHANGES / BLOCKING 결과 기록
-- [ ] codex (`/codex:review` 또는 raw MCP `sandbox=read-only`) — PASS / NEEDS_CHANGES / BLOCKING / NB 결과 기록 (`/codex:rescue` 사용 시 CI 차단, G-016)
+- [ ] codex (`/codex:adversarial-review` 1순위 또는 `/codex:review` 또는 raw MCP `sandbox=read-only`) — PASS / NEEDS_CHANGES / BLOCKING / NB 결과 기록 (`/codex:rescue` 는 dual review 본문에 사용 시 CI 차단 — rescue 작업 시 별도 호출, G-016)
 
 **평가 요약** (간단히):
 - evaluator: Pass __ / Partial __ / Fail __

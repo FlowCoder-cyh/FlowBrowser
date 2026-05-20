@@ -26,22 +26,28 @@ Windows PowerShell 5.1 은 BOM 없는 UTF-8 `.ps1` 파일을 cp949 로 해석한
 - **stderr 출력** — Claude Code 컨텍스트에 권고/차단 사유 전달
 - **UTF-8 + cross-platform** — Node.js native 인코딩
 
-## Dual Review 표준 (학습 #13 — 2026-05-20 박음)
+## Dual Review 표준 (학습 #13 + #16 — 2026-05-20 박음, 도구 분류 정합)
 
 본 hooks 의 환기 메시지 + PR template + 모든 PR 사전 dual review 호출 표준:
 
-| 작업 | 명령 | 권한 |
-|---|---|---|
-| **dual review (사전 read-only 평가)** | **`/codex:review`** | review-only 강제 (Codex CLI 자체가 fix/patch 차단) |
-| adversarial 검토 | `/codex:adversarial-review` | review-only |
-| investigation / fix / rescue | `/codex:rescue` | workspace-write 허용 |
-| raw MCP 직접 (필요 시) | `mcp__codex__codex` + `sandbox: "read-only"` + `approval-policy: "never"` + model 생략 | 옵션으로 강제 |
+| 도구 | 권한 | 적합 시나리오 | 본문 인용 |
+|---|---|---|---|
+| **`/codex:adversarial-review`** | review-only | **dual review 1순위 — free-form focus text 지원, git state review** | "Unlike `/codex:review`, it can still take extra focus text after the flags" (adversarial-review.md L45) |
+| `/codex:review` | review-only | 2순위 — git state native review (focus text 미지원, 단순 코드 review) | "This command is native-review only" (review.md L39) |
+| raw MCP `mcp__codex__codex` + `sandbox=read-only` + `approval-policy=never` + model 생략 | review-only | 3순위 — git state 무관 자유 협의/평가 | Claude Code MCP tool, sandbox 옵션으로 강제 |
+| **`/codex:rescue`** | workspace-write | **rescue / fix / investigation 의도 시 정합 도구** | codex-rescue subagent forwarder |
+| raw MCP + `sandbox=workspace-write` | write | 명시적 write 의도 시 특수 케이스 | — |
 
-본 PR (`.flowset/hooks/` mini-milestone β 후속) 이전에는 `/codex:rescue` 가 dual review 표준으로 박혀 — Sprint 016 M0 PR #188 시점에 codex agent 가 write 권한으로 직접 commit + push 진행 사고 (자세한 내용은 핸드오프 §11 학습 #13 참조). 본 PR 머지로 자동 강제 path 정합.
+**중요**: `/codex:rescue` 는 도구 자체가 금지된 것이 아니라 **dual review 케이스 (read-only 평가) 에 부적합**. rescue/fix/investigation 명시 의도 있을 때는 정합 도구. dual review 체크박스 행에 명시 시 CI `flowset-policy-check` 차단.
+
+본 PR (#192 mini-milestone γ) 이전:
+- PR #181 (β): `/codex:rescue` 가 dual review 표준으로 박혀 — PR #188 시점 codex agent 직접 commit + push 사고 (자세한 내용은 핸드오프 §11 학습 #13 참조)
+- PR #189 (γ-1): `/codex:review` 1순위로 박았으나 본인 실측 부족 — PR #189/#190/#191 dual review 모두 raw MCP 사용 (slash 무시)
+- 본 PR (γ): `/codex:adversarial-review` 1순위 정합 + 도구 분류 표 정확화 + rescue 정합 사용 시나리오 별도 명시 (학습 #16)
 
 ## CI 보완
 
-`.github/workflows/flowset-policy-check.yml` — PR body `## Dual Review` 섹션 존재 + dual review 체크박스 (`- [x] evaluator` + `- [x] codex (/codex:review)`) + 영향 영역 1개+ + 제목 형식 + G-005 secret 평문 grep 강제.
+`.github/workflows/flowset-policy-check.yml` — PR body `## Dual Review` 섹션 존재 + dual review 체크박스 (`- [x] evaluator` + `- [x] codex (/codex:adversarial-review | /codex:review | sandbox=read-only)`) + 영향 영역 1개+ + 제목 형식 + G-005 secret 평문 grep 강제. **`/codex:rescue`** 가 dual review 행에 명시되면 CI 차단 (dual review 케이스 한정, 도구 자체 금지 아님).
 
 **머지 차단 조건** (codex review #7 흡수): hook 우회 시에도 본 CI job 이 PR 머지를 차단 — 단 **GitHub branch protection 에서 `FlowSet Policy Check / policy-check` 를 required status check 로 승격한 경우에만**. 본 PR 머지 직후 repo Settings → Branches → Branch protection rule (main) → "Require status checks" 에 추가 권고 (settings repo automation 부재).
 

@@ -60,10 +60,10 @@ jobs:
             echo "::error::PR body 에 '- [x] codex' 체크 누락 — 학습 #8 dual review 표준 위반."
             FAILED=1
           elif printf '%s\n' "$CODEX_LINE" | grep -q '/codex:rescue'; then
-            echo "::error::dual review codex 행에 /codex:rescue 사용 금지 — /codex:review (review-only) 또는 raw MCP sandbox=read-only 필요 (G-016 / 학습 #13)."
+            echo "::error::dual review codex 행에 /codex:rescue 사용 시 차단 (도구 자체 금지 아님, dual review 케이스 한정) — /codex:adversarial-review (1순위) 또는 /codex:review 또는 raw MCP sandbox=read-only 사용 (G-016 / 학습 #13/#16). rescue/fix 작업은 별도 호출."
             FAILED=1
-          elif ! printf '%s\n' "$CODEX_LINE" | grep -Eq '(/codex:review|/codex:adversarial-review|sandbox: ?"read-only"|sandbox=read-only)'; then
-            echo "::error::codex 행에 호출 path 명시 필요 — /codex:review 또는 /codex:adversarial-review 또는 raw MCP sandbox=read-only (G-016 / 학습 #13)."
+          elif ! printf '%s\n' "$CODEX_LINE" | grep -Eq '(/codex:adversarial-review|/codex:review|sandbox: ?"read-only"|sandbox=read-only)'; then
+            echo "::error::codex 행에 호출 path 명시 필요 — /codex:adversarial-review (1순위) 또는 /codex:review 또는 raw MCP sandbox=read-only (G-016 / 학습 #13/#16)."
             FAILED=1
           fi
 
@@ -80,10 +80,22 @@ jobs:
             FAILED=1
           fi
 
+          # 5. G-018 산출물 매트릭스 정확성 (학습 #15 / 학습 #16 § codex review #2 hotfix)
+          # PR body 에 '## 산출물 매트릭스' 섹션 존재 + 실측 수치 표기 강제 (추상 표기 금지)
+          if ! echo "$PR_BODY" | grep -qE '^## +산출물 매트릭스'; then
+            echo "::error::PR body 에 '## 산출물 매트릭스' 섹션 누락 — G-018 위반 (학습 #15)."
+            FAILED=1
+          fi
+          # 추상 표기 검출 — `+N`, `약 N`, `N건` placeholder 금지 (정확한 정합 게이트)
+          if echo "$PR_BODY" | grep -qE '(\+N건|\+N줄|약 [0-9]+ 줄|N건|N개|N줄)'; then
+            echo "::error::PR body 에 추상 표기 (+N건/약 N줄/N개) 검출 — G-018 위반, 실측 수치 박음."
+            FAILED=1
+          fi
+
           if [ "$FAILED" = "1" ]; then
             exit 1
           fi
-          echo "✓ PR body 게이트 통과 (dual review + 영향 영역 + 제목 형식)"
+          echo "✓ PR body 게이트 통과 (dual review + 영향 영역 + 제목 형식 + G-018 산출물 매트릭스)"
 
       - name: 변경 파일 ownership / handoff·state 갱신 검증
         run: |
