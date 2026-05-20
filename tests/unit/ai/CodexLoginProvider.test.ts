@@ -108,13 +108,27 @@ const baseInput: TranslationInput = {
   requestType: 'selection'
 }
 
+// Sprint 016 M2 T09 — translate() 메서드 폐기로 chat() 시그니처 마이그레이션.
+//   selection 번역 흐름의 messages 형식 (system + user) 을 CodexLoginProvider.chat() 호출 입력으로 변환.
+function chatRequestFromInput(input: TranslationInput) {
+  return {
+    messages: [
+      {
+        role: 'system' as const,
+        content: `Translate from ${input.sourceLanguage} to ${input.targetLanguage}.`
+      },
+      { role: 'user' as const, content: input.sourceText }
+    ]
+  }
+}
+
 describe('CodexLoginProvider (M3-6 responses API)', () => {
   it('정상 호출 — endpoint + 헤더 + body 정합', async () => {
     const { access } = makeTokenAccess(bundleWithAccount('acct_abc'))
     const fetchImpl = vi.fn().mockResolvedValueOnce(responsesJson('안녕'))
     const provider = new CodexLoginProvider({ tokenAccess: access, fetchImpl })
-    const out = await provider.translate(baseInput)
-    expect(out.translatedText).toBe('안녕')
+    const out = await provider.chat(chatRequestFromInput(baseInput))
+    expect(out.text).toBe('안녕')
     expect(out.estimatedCostUsd).toBe(0)
     expect(out.inputTokens).toBe(10)
 
@@ -145,8 +159,8 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     const { access } = makeTokenAccess(bundleWithAccount())
     const fetchImpl = vi.fn().mockResolvedValueOnce(responsesJsonNewFormat('Hi-text'))
     const provider = new CodexLoginProvider({ tokenAccess: access, fetchImpl })
-    const out = await provider.translate(baseInput)
-    expect(out.translatedText).toBe('Hi-text')
+    const out = await provider.chat(chatRequestFromInput(baseInput))
+    expect(out.text).toBe('Hi-text')
   })
 
   it('JWT에 account_id 없으면 ProviderError', async () => {
@@ -161,7 +175,7 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     })
     const fetchImpl = vi.fn()
     const provider = new CodexLoginProvider({ tokenAccess: access, fetchImpl })
-    await expect(provider.translate(baseInput)).rejects.toMatchObject({ code: 'auth_invalid' })
+    await expect(provider.chat(chatRequestFromInput(baseInput))).rejects.toMatchObject({ code: 'auth_invalid' })
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
@@ -175,7 +189,7 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     vi.spyOn(flow, 'refreshTokens').mockResolvedValueOnce(bundleWithAccount('acct_new'))
     const fetchImpl = vi.fn().mockResolvedValueOnce(responsesJson('OK'))
     const provider = new CodexLoginProvider({ tokenAccess: access, flow, fetchImpl })
-    await provider.translate(baseInput)
+    await provider.chat(chatRequestFromInput(baseInput))
     expect(updates.length).toBe(1)
     const [, opts] = fetchImpl.mock.calls[0]
     expect(opts.headers['ChatGPT-Account-Id']).toBe('acct_new')
@@ -190,8 +204,8 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
       .mockResolvedValueOnce(emptyResp(401))
       .mockResolvedValueOnce(responsesJson('OK'))
     const provider = new CodexLoginProvider({ tokenAccess: access, flow, fetchImpl })
-    const out = await provider.translate(baseInput)
-    expect(out.translatedText).toBe('OK')
+    const out = await provider.chat(chatRequestFromInput(baseInput))
+    expect(out.text).toBe('OK')
     expect(updates.length).toBe(1)
     expect(fetchImpl.mock.calls.length).toBe(2)
   })
@@ -203,7 +217,7 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     const fetchImpl = vi.fn().mockResolvedValue(emptyResp(401))
     const provider = new CodexLoginProvider({ tokenAccess: access, flow, fetchImpl })
     try {
-      await provider.translate(baseInput)
+      await provider.chat(chatRequestFromInput(baseInput))
       throw new Error('should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(ProviderError)
@@ -216,7 +230,7 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     const fetchImpl = vi.fn().mockResolvedValueOnce(emptyResp(429))
     const provider = new CodexLoginProvider({ tokenAccess: access, fetchImpl })
     try {
-      await provider.translate(baseInput)
+      await provider.chat(chatRequestFromInput(baseInput))
       throw new Error('should have thrown')
     } catch (err) {
       expect((err as ProviderError).code).toBe('rate_limit')
@@ -228,7 +242,7 @@ describe('CodexLoginProvider (M3-6 responses API)', () => {
     const { access } = makeTokenAccess(bundleWithAccount())
     const fetchImpl = vi.fn().mockResolvedValueOnce(emptyResp(500))
     const provider = new CodexLoginProvider({ tokenAccess: access, fetchImpl })
-    await expect(provider.translate(baseInput)).rejects.toMatchObject({ code: 'server_error' })
+    await expect(provider.chat(chatRequestFromInput(baseInput))).rejects.toMatchObject({ code: 'server_error' })
   })
 
   it('info — providerType + Experimental + 모델 카탈로그', () => {

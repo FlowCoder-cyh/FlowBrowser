@@ -16,14 +16,8 @@ import type {
   EmbedRequest,
   EmbedResponse,
   ProviderInfo,
-  TranslationInput,
-  TranslationOutput
+  TranslationInput
 } from '../types'
-
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-}
 
 interface ChatCompletionResponse {
   choices: Array<{ message: { content: string } }>
@@ -113,71 +107,11 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
     }
   }
 
-  async translate(input: TranslationInput): Promise<TranslationOutput> {
-    const startedAt = Date.now()
-    const model = this.resolveModel(input.modelHint)
-    const messages = this.buildMessages(input)
-
-    let res: Response
-    try {
-      res = await this.fetchImpl(`${OPENAI_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.secretProvider()}`
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.3,
-          stream: false
-        })
-      })
-    } catch (err) {
-      throw new ProviderError(
-        `OpenAI 네트워크 오류: ${err instanceof Error ? err.message : String(err)}`,
-        'network',
-        true
-      )
-    }
-
-    if (res.status === 401 || res.status === 403) {
-      throw new ProviderError('OpenAI API Key 인증 실패', 'auth_invalid', false)
-    }
-    if (res.status === 429) {
-      throw new ProviderError('OpenAI rate limit', 'rate_limit', true)
-    }
-    if (res.status >= 500) {
-      throw new ProviderError(`OpenAI 서버 오류: ${res.status}`, 'server_error', true)
-    }
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '')
-      throw new ProviderError(`OpenAI 요청 실패: ${res.status} ${errBody}`, 'bad_request', false)
-    }
-
-    const data = (await res.json()) as ChatCompletionResponse
-    const translated = data.choices[0]?.message?.content?.trim() ?? ''
-    if (!translated) {
-      throw new ProviderError('OpenAI 응답에 번역 결과가 없습니다.', 'server_error', true)
-    }
-
-    const inputTokens = data.usage?.prompt_tokens ?? 0
-    const outputTokens = data.usage?.completion_tokens ?? 0
-    const cost = this.estimateCost(model, inputTokens, outputTokens)
-
-    return {
-      translatedText: translated,
-      modelUsed: data.model ?? model,
-      inputTokens,
-      outputTokens,
-      estimatedCostUsd: cost,
-      durationMs: Date.now() - startedAt
-    }
-  }
+  // Sprint 016 M2 T09 — translate() 메서드 제거. selection 번역은 services.ts 가 chat() 호출.
 
   /**
    * Sprint 015 M2-7 — Chat 호출 (multi-turn). PRD §10.1 채팅 파이프라인.
-   * translate() 와 동일 endpoint (chat/completions) 사용. messages 직접 전달.
+   * chat/completions endpoint 단일. messages 직접 전달.
    * temperature 디폴트 0.3 (번역 일관성 우선). maxOutputTokens 미주입 시 model 디폴트.
    */
   async chat(request: ChatRequest): Promise<ChatResponse> {
@@ -326,27 +260,8 @@ export class OpenAIApiKeyProvider implements ProviderAdapter {
     return DEFAULT_EMBED_MODEL
   }
 
-  private buildMessages(input: TranslationInput): ChatMessage[] {
-    const systemPrompt = this.systemPromptFor(input)
-    const userPrompt = this.userPromptFor(input)
-    return [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ]
-  }
-
-  // Sprint 004 M2 / M3 — system prompt 분기는 buildSystemPrompt에서 노출 (단위 테스트 대상).
-  private systemPromptFor(input: TranslationInput): string {
-    return buildSystemPrompt(input)
-  }
-
-  private userPromptFor(input: TranslationInput): string {
-    return buildUserPrompt(input)
-  }
-
-  private estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-    return estimateCost(model, inputTokens, outputTokens)
-  }
+  // Sprint 016 M2 T09 — buildMessages / systemPromptFor / userPromptFor / estimateCost 메서드 제거.
+  //   selection 번역은 services.ts buildTranslationChatRequest 가 buildSystemPrompt + buildUserPrompt 직접 호출.
 }
 
 /**

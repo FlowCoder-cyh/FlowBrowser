@@ -24,9 +24,7 @@ import type {
   ChatRequest,
   ChatResponse,
   ProviderInfo,
-  ProviderType,
-  TranslationInput,
-  TranslationOutput
+  ProviderType
 } from '../../../src/ai/types'
 
 function makeMockProvider(opts: {
@@ -46,9 +44,6 @@ function makeMockProvider(opts: {
     } as ProviderInfo,
     async validate() {
       return { ok: true }
-    },
-    async translate(_input: TranslationInput): Promise<TranslationOutput> {
-      throw new Error('not implemented')
     }
   }
   provider.chat = async (_req: ChatRequest): Promise<ChatResponse> => {

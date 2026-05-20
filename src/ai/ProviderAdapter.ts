@@ -1,15 +1,13 @@
 /**
  * Provider Adapter 인터페이스.
- * PRD §11.2 (v0.3) + §10.1 / §12.4 (v0.4 chat/embed 확장).
+ * PRD §10.1 chat / §12.4 ProviderAdapter v0.4.
  *
  * 모든 AI Provider 구현체는 본 인터페이스를 따른다.
  * Codex Login / OpenAI API Key / Anthropic / Gemini / DeepL / ElevenLabs / Local 등.
  *
- * Sprint 015 M2-7 — v0.4 ProviderAdapter 확장.
- *   - chat() / embed() / chatStream() optional 메서드 추가
- *   - translate() 는 @deprecated 마킹 — M2~M5 호환 어댑터로 유지, M5 종료 시 제거 (PRD §19.5.4)
- *   - chat() 가 도입되면 단발 selection 번역은 chat({messages: [system+user]}) 로 대체 (M5 ChatService)
- *   - embed() 는 M3 EmbeddingClient (백그라운드 큐 + 워크스페이스 partition) 에서 활용
+ * Sprint 015 M2-7 — v0.4 chat() / embed() / chatStream() 메서드 분리.
+ * Sprint 016 M2 T09 — translate() 단일 메서드 제거 (호출지점 0).
+ *   selection 번역은 services.ts `executeTranslateRequest` 가 provider.chat() 호출.
  */
 
 import type {
@@ -17,9 +15,7 @@ import type {
   ChatResponse,
   EmbedRequest,
   EmbedResponse,
-  ProviderInfo,
-  TranslationInput,
-  TranslationOutput
+  ProviderInfo
 } from './types'
 
 export interface ProviderAdapter {
@@ -29,16 +25,6 @@ export interface ProviderAdapter {
    * 인증 검증 (API Key 유효성 등).
    */
   validate(): Promise<{ ok: boolean; reason?: string }>
-
-  /**
-   * 텍스트 번역.
-   * 호출 전 Privacy Filter 통과 여부는 TranslationEngine에서 검증.
-   *
-   * @deprecated Sprint 015 M2-7 — v0.4 ProviderAdapter 는 `chat()` / `embed()` 로 분리.
-   *   본 메서드는 M2~M5 어댑터로 유지 (services.ts `executeTranslateRequest` 가 selection 번역에 사용).
-   *   M5 ChatService 도입 시 chat 으로 마이그레이션 → M5 종료 시 본 메서드 제거 (PRD §19.5.4).
-   */
-  translate(input: TranslationInput): Promise<TranslationOutput>
 
   /**
    * Sprint 015 M2-7 — Chat 호출 (multi-turn). PRD §10.1 채팅 파이프라인.

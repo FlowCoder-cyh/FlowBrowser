@@ -77,9 +77,6 @@ function makeChatStub(responseText: string): ProviderAdapter {
         durationMs: 250
       }
     },
-    async translate() {
-      throw new Error('not used')
-    },
     async validate() {
       return { ok: true }
     }
