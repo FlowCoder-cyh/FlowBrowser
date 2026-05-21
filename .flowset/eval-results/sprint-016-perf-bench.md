@@ -146,3 +146,30 @@ vitest 2.1.x bench mode 가 sqlite-vec + `beforeAll` 시드 조합에서 samples
 3. **KI-018/019 회귀 cover** — T07~T08 시점에 시나리오 2·3 회귀 셋 (각 5 case × 2 = 10 신규) + Sprint 015 시나리오 1·4 회귀 (5+3=8) + 12 추가 = 30 케이스. 본 헬퍼 import + expect 강제.
 4. **5만 페이지 스케일링 측정** — KI-016 1만 90.32MB → 5만 ~450MB 추정. PRD §15.3 차후 임계 검토 시점.
 5. **vitest 2.2+ 또는 tinybench 검토** — `.bench.ts` mode 복원 시 본 manual measurement → bench mode 마이그레이션 가능.
+
+## 6. Sprint 017 M0 T05 audit (carryover 재측정)
+
+본 §6 은 Sprint 017 M0 T05 (`docs/WI-S017M0-docs-ki-audit-t04-t05` 브랜치) 시점 carryover 재실측 audit append. KI-011~016 6종 모두 임계 PASS 재확인.
+
+### 6.1 재실측 결과 (2026-05-22 00:14, npx vitest run tests/integration/perf-baseline.test.ts)
+
+| KI | 임계 | Sprint 016 M0 T06 baseline | Sprint 017 M0 T05 재측정 | 정합 |
+|---|---|---|---|---|
+| KI-011 (1K) | < 20ms | — (10K 만 측정) | 0.046ms / min 0.044 / max 0.075 (n=100) | PASS |
+| KI-011 (10K) | < 20ms | 0.447ms | 0.453ms / min 0.431 / max 0.597 (n=50) | PASS (회귀 0, +0.006ms 노이즈) |
+| KI-012 | < 500ms / page | 0.027ms | 0.027ms / min 0.020 / max 0.120 (n=100) | PASS (동일) |
+| KI-013 | < 200ms top-10 (1000 pages) | 1.404ms | 1.447ms / min 1.292 / max 1.796 (n=50) | PASS (회귀 0, +0.043ms 노이즈) |
+| KI-014 | < 1초 (10 ws × 10 tabs) | 0.283ms → 0.581ms (T02 abort 후) | 0.339ms / min 0.231 / max 0.511 (n=50) | PASS (회귀 0, T02 wiring 정합) |
+| KI-015 | < $3/월 (1만 페이지 × 1000 tokens) | $0.20/월 | $0.20/월 | PASS (동일) |
+| KI-016 | < 200MB (10K pages + 임베딩) | 90.32MB | 90.32MB | PASS (동일) |
+
+### 6.2 정합 평가
+
+- KI-011~016 6종 모두 임계 PASS 재확인.
+- 측정값 변동 범위: ±0.05ms (KI-011/012/013/014) — 시스템 노이즈 범위 / KI-015/016 측정값 동일.
+- carryover regression 0 — Sprint 017 M0 진입 시점 perf bench baseline 정합 유지.
+- KI-011~016 closed 상태 정합 (Sprint 016 M5 T25 시점 전환 후 본 audit 시점 status 유지).
+
+### 6.3 G-019 가드레일 후보 정합
+
+본 §6 audit 은 Sprint 016 M5 T26 시안의 G-019 신규 가드레일 후보 ("perf bench infra 정량 임계 매트릭스 강제 — Sprint 종료 시 `npm run perf` 강제 + 매트릭스 갱신") 의 첫 적용 사례. Sprint 017 M5 종합 evaluator 시점 (G-019 정식화 검토) 에 본 audit pattern 표준화 권고.
