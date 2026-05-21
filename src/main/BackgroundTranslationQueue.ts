@@ -118,6 +118,11 @@ export interface TranslationJobStore {
    * in-memory 디폴트는 빈 배열 (재시작 = 새 process = 빈 상태).
    */
   recoverRunnableJobs(): TranslationJob[]
+  /**
+   * codex T18 NEEDS_CHANGES #3 — threshold sliding window 평가 (provider 별).
+   * SQLite Store 후속 PR 에서 index-backed query 로 효율화.
+   */
+  countCompletedInWindow(providerId: string, windowStart: number): number
 }
 
 export class InMemoryTranslationJobStore implements TranslationJobStore {
@@ -135,12 +140,33 @@ export class InMemoryTranslationJobStore implements TranslationJobStore {
     if (!existing) return null
     const updated: TranslationJob = { ...existing, ...patch, id: existing.id }
     this.jobs.set(jobId, updated)
-    return updated
+    // codex T18 NEEDS_CHANGES #2 hotfix — store 내부 참조 누출 차단.
+    // processor 가 반환값 mutate 시 store 영향 없음 (shallow copy).
+    return { ...updated }
   }
 
   findById(jobId: string): TranslationJob | null {
     const j = this.jobs.get(jobId)
     return j ? { ...j } : null
+  }
+
+  /**
+   * codex T18 NEEDS_CHANGES #3 hotfix — threshold 평가 SQLite swap 시 O(N) full scan 차단.
+   * InMemory 구현은 O(N) 그대로 (작은 큐 가정), SQLite Store 후속 PR 에서 index-backed query
+   * 로 swap 가능. interface 자리 박음.
+   */
+  countCompletedInWindow(providerId: string, windowStart: number): number {
+    let count = 0
+    for (const j of this.jobs.values()) {
+      if (
+        j.providerId === providerId &&
+        j.status === 'completed' &&
+        (j.completedAt ?? 0) >= windowStart
+      ) {
+        count++
+      }
+    }
+    return count
   }
 
   listQueued(): TranslationJob[] {
@@ -227,6 +253,12 @@ export class BackgroundTranslationQueue {
   private lastProgressEmitAt = new Map<string, number>()
   /** dispatch 예약 핸들 (cleanup 용). */
   private dispatchHandle: unknown = null
+  /**
+   * codex T18 NEEDS_CHANGES #4 — provider 별 threshold-active 상태 dedupe.
+   * 한 번 threshold 도달 시 active=true → window 밖으로 빠질 때까지 추가 emit 차단.
+   * 같은 provider 의 매 completed 마다 알림 중복 방지 (T19 NotificationService 결합 시 핵심).
+   */
+  private thresholdActive = new Map<string, boolean>()
 
   constructor(opts: BackgroundTranslationQueueOptions) {
     if (!opts.store) throw new Error('BackgroundTranslationQueue: store required')
@@ -277,15 +309,21 @@ export class BackgroundTranslationQueue {
   /**
    * 큐 dispatch 루프 시작. 이미 running 이면 no-op.
    * 재시작 시 store.recoverRunnableJobs() 호출 + in_progress 항목 'queued' 리셋 (PRD §14.8).
+   *
+   * codex T18 NEEDS_CHANGES #1 hotfix — activeJob 있는 상태 (stop() 후 start() 재호출 중에도
+   * 이전 active job 이 아직 처리 중) 에서는 recover skip. SQLite store 후속 swap 시 현재 실행
+   * 중인 in_progress job 을 잘못 'queued' 로 리셋하는 race 차단.
    */
   start(): void {
     if (this.running) return
     this.running = true
-    // 재시작 회수 — in_progress 항목 'queued' 리셋
-    const runnable = this.store.recoverRunnableJobs()
-    for (const j of runnable) {
-      if (j.status === 'in_progress') {
-        this.store.update(j.id, { status: 'queued', startedAt: null, progressPct: 0 })
+    // activeJob 진행 중 시 recover skip (race 차단)
+    if (this.activeJob === null) {
+      const runnable = this.store.recoverRunnableJobs()
+      for (const j of runnable) {
+        if (j.status === 'in_progress') {
+          this.store.update(j.id, { status: 'queued', startedAt: null, progressPct: 0 })
+        }
       }
     }
     this.scheduleNextDispatch()
@@ -485,25 +523,33 @@ export class BackgroundTranslationQueue {
   /**
    * threshold sliding window (5h) 내 completed 카운트 — provider 별. 초과 시 warn-only event.
    * 차단 X (PRD §14.8 + codex T18 협의 정합).
+   *
+   * codex T18 NEEDS_CHANGES #3 hotfix — store.countCompletedInWindow 위임 (O(N) full scan
+   * 회피 — SQLite Store 후속 PR 에서 index-backed query swap 가능).
+   *
+   * codex T18 NEEDS_CHANGES #4 hotfix — provider 별 dedupe.
+   * 한 번 threshold 도달 시 thresholdActive=true → window 밖으로 빠질 때까지 추가 emit 차단.
+   * 매 completed 마다 알림 중복 (T19 NotificationService 결합 시 핵심) 방지.
    */
   private maybeEmitThreshold(providerId: string): void {
     const now = this.now()
     const windowStart = now - this.policy.thresholdWindowMs
-    const completedInWindow = this.store
-      .listAll()
-      .filter(
-        (j) =>
-          j.providerId === providerId &&
-          j.status === 'completed' &&
-          (j.completedAt ?? 0) >= windowStart
-      ).length
+    const completedInWindow = this.store.countCompletedInWindow(providerId, windowStart)
+    const wasActive = this.thresholdActive.get(providerId) ?? false
     if (completedInWindow >= this.policy.thresholdPages) {
-      this.emitter.emit('thresholdExceeded', {
-        providerId,
-        completedInWindow,
-        thresholdPages: this.policy.thresholdPages,
-        windowMs: this.policy.thresholdWindowMs
-      })
+      if (!wasActive) {
+        // below → above crossing 시점에만 emit
+        this.thresholdActive.set(providerId, true)
+        this.emitter.emit('thresholdExceeded', {
+          providerId,
+          completedInWindow,
+          thresholdPages: this.policy.thresholdPages,
+          windowMs: this.policy.thresholdWindowMs
+        })
+      }
+    } else if (wasActive) {
+      // above → below 복귀 (window slide 후) — 다음 도달 시 다시 emit
+      this.thresholdActive.set(providerId, false)
     }
   }
 }

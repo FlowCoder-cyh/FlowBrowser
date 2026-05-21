@@ -353,7 +353,7 @@ describe('BackgroundTranslationQueue — threshold warn-only', () => {
     fx = setupFx()
   })
 
-  it('threshold 초과 시 thresholdExceeded event (차단 X — completed 정상 진행)', async () => {
+  it('threshold 초과 시 thresholdExceeded event 1회 (codex NC #4 dedupe — 매 completed 마다 emit X)', async () => {
     const thresholdSpy = vi.fn()
     const q = makeQueue(
       fx,
@@ -371,8 +371,8 @@ describe('BackgroundTranslationQueue — threshold warn-only', () => {
     await vi.waitFor(() => expect(fx.store.findById(j2.id)?.status).toBe('completed'))
     advance(fx, 0)
     await vi.waitFor(() => expect(fx.store.findById(j3.id)?.status).toBe('completed'))
-    // threshold 2 → 2번째 completed 부터 event
-    expect(thresholdSpy).toHaveBeenCalled()
+    // threshold 2 → j2 completed 시 1회만 emit (j3 도 above 유지하지만 dedupe → 추가 emit X)
+    expect(thresholdSpy).toHaveBeenCalledTimes(1)
     // 모든 job 정상 completed (차단 X)
     expect(fx.store.findById(j3.id)?.status).toBe('completed')
   })
@@ -487,7 +487,9 @@ describe('BackgroundTranslationQueue — recoverRunnableJobs', () => {
       findById: (id: string) => fx.store.findById(id),
       listQueued: () => fx.store.listQueued(),
       listAll: () => fx.store.listAll(),
-      recoverRunnableJobs: () => [inProgressJob]
+      recoverRunnableJobs: () => [inProgressJob],
+      countCompletedInWindow: (p: string, w: number) =>
+        fx.store.countCompletedInWindow(p, w)
     }
     fx.store.insert(inProgressJob) // 큐 update 가 찾을 수 있도록 동일 store 에 박음
     const q = new BackgroundTranslationQueue({
@@ -558,6 +560,130 @@ describe('BackgroundTranslationQueue — typed event handlers cover', () => {
       thresholdPages: 1
     })
     expect(typeof payloads[0].windowMs).toBe('number')
+  })
+})
+
+describe('BackgroundTranslationQueue — codex T18 NEEDS_CHANGES hotfix', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setupFx()
+  })
+
+  it('NC #1 — stop() 후 start() 재호출 중 activeJob 있으면 recoverRunnableJobs skip', () => {
+    // 시나리오: stop() 호출했으나 active job processor 가 아직 진행 중. 다시 start() 시
+    // SQLite store 가 in_progress job 을 recover 해 'queued' 로 리셋하면 동일 job 이중처리 위험.
+    const recoverCalled = vi.fn(() => [] as TranslationJob[])
+    const stubStore = {
+      insert: (j: TranslationJob) => fx.store.insert(j),
+      update: (id: string, p: Partial<TranslationJob>) => fx.store.update(id, p),
+      findById: (id: string) => fx.store.findById(id),
+      listQueued: () => fx.store.listQueued(),
+      listAll: () => fx.store.listAll(),
+      recoverRunnableJobs: recoverCalled,
+      countCompletedInWindow: (p: string, w: number) =>
+        fx.store.countCompletedInWindow(p, w)
+    }
+    const d = deferred<{ translatedText: string }>()
+    const q = new BackgroundTranslationQueue({
+      store: stubStore,
+      processor: async () => d.promise,
+      now: () => fx.fakeTime.now,
+      scheduleTimer: (fn, ms) => {
+        const id = fx.nextTimerId++
+        fx.timers.push({ id, fn, fireAt: fx.fakeTime.now + ms })
+        return id
+      },
+      clearScheduledTimer: (handle) => {
+        fx.timers = fx.timers.filter((t) => t.id !== handle)
+      }
+    })
+    q.enqueue({ workspaceId: 'ws', sourceText: 'a', providerId: 'p' })
+    q.start()
+    expect(recoverCalled).toHaveBeenCalledTimes(1)
+    advance(fx, 0)
+    // active job 진행 중
+    return vi.waitFor(() => expect(q.getActiveJob()).not.toBeNull()).then(() => {
+      // stop() 후 다시 start() — recover skip 검증
+      q.stop()
+      recoverCalled.mockClear()
+      q.start()
+      expect(recoverCalled).toHaveBeenCalledTimes(0)
+      // cleanup
+      d.resolve({ translatedText: 'x' })
+    })
+  })
+
+  it('NC #2 — update() 반환 객체 mutate 시 store 영향 없음 (참조 누출 차단)', () => {
+    const store = new InMemoryTranslationJobStore()
+    const job = makeJob('j1', 'queued', 100)
+    store.insert(job)
+    const updated = store.update('j1', { status: 'in_progress' })!
+    // 반환 객체 mutate
+    updated.translatedText = 'leak'
+    updated.progressPct = 999
+    // store 내부 상태 영향 없음
+    const fetched = store.findById('j1')!
+    expect(fetched.translatedText).toBeNull()
+    expect(fetched.progressPct).toBe(0)
+    expect(fetched.status).toBe('in_progress')
+  })
+
+  it('NC #3 — countCompletedInWindow 메서드 동작', () => {
+    const store = new InMemoryTranslationJobStore()
+    // window 안 completed 3 (provider-a)
+    for (let i = 0; i < 3; i++) {
+      const j = makeJob(`a-${i}`, 'completed', 100 + i)
+      j.providerId = 'provider-a'
+      j.completedAt = 200 + i
+      store.insert(j)
+    }
+    // window 안 completed 1 (provider-b)
+    const b1 = makeJob('b-1', 'completed', 100)
+    b1.providerId = 'provider-b'
+    b1.completedAt = 250
+    store.insert(b1)
+    // window 밖 completed 1 (provider-a, 이전 windowStart 보다 작음)
+    const old = makeJob('a-old', 'completed', 0)
+    old.providerId = 'provider-a'
+    old.completedAt = 50
+    store.insert(old)
+
+    expect(store.countCompletedInWindow('provider-a', 100)).toBe(3) // old 50 < 100 제외
+    expect(store.countCompletedInWindow('provider-b', 100)).toBe(1)
+    expect(store.countCompletedInWindow('provider-c', 100)).toBe(0)
+  })
+
+  it('NC #4 — threshold below → above crossing 시점에만 emit (window slide 후 재 emit)', async () => {
+    const thresholdSpy = vi.fn()
+    const q = makeQueue(
+      fx,
+      async () => ({ translatedText: 'ok' }),
+      { thresholdPages: 2, minStartIntervalMs: 0, thresholdWindowMs: 100 }
+    )
+    q.on('thresholdExceeded', thresholdSpy)
+    // 첫 2개 — below(0) → above(2) crossing → emit 1회
+    q.enqueue({ workspaceId: 'ws', sourceText: 'a', providerId: 'p' })
+    q.enqueue({ workspaceId: 'ws', sourceText: 'b', providerId: 'p' })
+    q.start()
+    advance(fx, 0)
+    await vi.waitFor(() => expect(fx.store.listAll().filter((j) => j.status === 'completed').length).toBe(1))
+    advance(fx, 0)
+    await vi.waitFor(() => expect(fx.store.listAll().filter((j) => j.status === 'completed').length).toBe(2))
+    expect(thresholdSpy).toHaveBeenCalledTimes(1)
+
+    // 200ms advance → 이전 completed 2건 모두 window 밖
+    advance(fx, 200)
+    // 세 번째 completed (window 안 1건만, count=1 < threshold=2) → wasActive=true 였으나
+    // 평가 시 wasActive=true && below → false 로 reset
+    q.enqueue({ workspaceId: 'ws', sourceText: 'c', providerId: 'p' })
+    advance(fx, 0)
+    await vi.waitFor(() => expect(fx.store.listAll().filter((j) => j.status === 'completed').length).toBe(3))
+    expect(thresholdSpy).toHaveBeenCalledTimes(1) // 아직 추가 emit X
+
+    // 네 번째 completed (window 안 c+d, count=2) → wasActive=false → above crossing 재 emit
+    q.enqueue({ workspaceId: 'ws', sourceText: 'd', providerId: 'p' })
+    advance(fx, 0)
+    await vi.waitFor(() => expect(thresholdSpy).toHaveBeenCalledTimes(2))
   })
 })
 
