@@ -102,7 +102,15 @@ export class UserLevelEstimator {
    * 동일 인스턴스의 동일 입력은 항상 동일 결과 (테스트 안정성 + level_preference override 0).
    */
   estimate(input: EstimateInput): UserLevelEstimate {
-    if (!input.workspaceId || input.workspaceId.trim().length === 0) {
+    // codex T22 사전 dual review NB-HF 흡수 — input 자체가 null/undefined 또는
+    // workspaceId 가 non-string 인 케이스 의도된 'workspaceId required' throw 로 통일.
+    // (이전: TypeError 가 나서 메시지 일관성 깨짐. 내부 typed API 라 NEEDS_CHANGES 는 아니나 작은 hotfix.)
+    if (
+      !input ||
+      typeof input !== 'object' ||
+      typeof input.workspaceId !== 'string' ||
+      input.workspaceId.trim().length === 0
+    ) {
       throw new Error('UserLevelEstimator.estimate: workspaceId required')
     }
     return {

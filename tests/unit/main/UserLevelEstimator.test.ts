@@ -114,6 +114,26 @@ describe('UserLevelEstimator — estimate 입력 검증', () => {
     const e = new UserLevelEstimator()
     expect(() => e.estimate({ workspaceId: '   ' })).toThrow(/workspaceId/)
   })
+
+  it('codex NB-HF 흡수 — input 자체 null → workspaceId required throw (TypeError 회피)', () => {
+    const e = new UserLevelEstimator()
+    expect(() => e.estimate(null as never)).toThrow(/workspaceId/)
+  })
+
+  it('codex NB-HF 흡수 — input 자체 undefined → workspaceId required throw', () => {
+    const e = new UserLevelEstimator()
+    expect(() => e.estimate(undefined as never)).toThrow(/workspaceId/)
+  })
+
+  it('codex NB-HF 흡수 — workspaceId non-string (숫자) → workspaceId required throw', () => {
+    const e = new UserLevelEstimator()
+    expect(() => e.estimate({ workspaceId: 123 as never })).toThrow(/workspaceId/)
+  })
+
+  it('codex NB-HF 흡수 — workspaceId non-string (null) → workspaceId required throw', () => {
+    const e = new UserLevelEstimator()
+    expect(() => e.estimate({ workspaceId: null as never })).toThrow(/workspaceId/)
+  })
 })
 
 describe('UserLevelEstimator — deterministic + mutation 0', () => {
