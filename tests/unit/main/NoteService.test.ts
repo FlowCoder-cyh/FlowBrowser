@@ -447,3 +447,43 @@ describe('NoteService — list / delete', () => {
     expect(fx.service.deleteNote('nonexistent-uuid')).toBe(false)
   })
 })
+
+// Sprint 017 T02 — 직접 호출자 방어선 normalize.
+describe('NoteService.createNote — pageId / visitId normalize (Sprint 017 T02)', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setup()
+  })
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  it("pageId='' → NoteRow.page_id=null (방어선)", async () => {
+    const r = await fx.service.createNote({
+      workspaceId: fx.workspaceId,
+      selectedText: 'x',
+      pageId: ''
+    })
+    expect(r.note.page_id).toBeNull()
+  })
+
+  it("visitId='   ' (whitespace) → NoteRow.visit_id=null", async () => {
+    const r = await fx.service.createNote({
+      workspaceId: fx.workspaceId,
+      selectedText: 'x',
+      visitId: '   '
+    })
+    expect(r.note.visit_id).toBeNull()
+  })
+
+  it('pageId null + visitId null → 그대로 null (regression baseline)', async () => {
+    const r = await fx.service.createNote({
+      workspaceId: fx.workspaceId,
+      selectedText: 'x',
+      pageId: null,
+      visitId: null
+    })
+    expect(r.note.page_id).toBeNull()
+    expect(r.note.visit_id).toBeNull()
+  })
+})

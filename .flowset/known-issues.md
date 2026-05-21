@@ -351,6 +351,30 @@
 - **처리 예정 Sprint**: Phase 3 후속 R&D
 - **상태**: `open`
 
+### KI-028 [open] chatHandlers / ChatService / ai_chat_history 의 pageId/visitId nullable FK normalize 후속
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 017 (M0 T02 codex dual review threadId `019e4ade` Separate KI Candidate — 본 PR scope 확장 회피 + 별도 KI 등록 정합)
+- **Component**: `src/main/chatHandlers.ts` L107 (`?? null` coalesce) + `src/main/ChatService.ts` L191 (동일) + `src/storage/schema/v04.sql` L86 (`ai_chat_history.page_id TEXT REFERENCES pages(id) ON DELETE SET NULL`)
+- **영향**: KI-027 (note pageId/visitId normalize) 와 동일 구조 — chat 도 nullable FK 컬럼 `page_id` 사용. renderer 가 `chat:create` IPC 호출 시 `pageId: ''` 전달 시 KI-027 와 동일 위험 (FK 위반 회피 + cross-URL 조회 위험). Sprint 016 M5 시점 chat IPC 사용 빈도 (사용자가 페이지 컨텍스트로 채팅) 가 노트 대비 높을 가능성 — 우선순위 결정 필요.
+- **재현 절차**: (1) renderer 가 `chatApi.create({ pageId: '' })` 호출 → ai_chat_history.page_id='' 저장. (2) `ChatService.listByPage(pageId='')` 시 record.page_id='' 매칭 → cross-page 노출 위험.
+- **권고 해소 방향**: (1) `idNormalize.ts` 의 `normalizeOptionalId` helper 재활용 — chatHandlers + ChatService 양 site 적용 (KI-027 와 동일 패턴). (2) 단위 회귀 — `tests/unit/main/chatHandlers.test.ts` + `tests/unit/main/ChatService.test.ts` 에 normalize 회귀 추가. (3) Sprint 017 M0 또는 M2 (KI batch) 후속 PR.
+- **처리 예정 Sprint**: 017 M0 후속 또는 M2
+- **상태**: `open`
+
+### KI-027 [closed] noteHandlers / NoteService / HighlightStore 의 pageId/visitId 빈 문자열 normalize 누락
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 017 (M0 T02 — Sprint 016 M5 T25 시점 신규 후보 박힘) → 017 M0 T02 본 PR 머지 시점 closed
+- **Component**: `src/main/noteHandlers.ts` (IPC 경계) + `src/main/NoteService.ts` (서비스 경계) + `src/storage/HighlightStore.ts` (`add` / `listByPage`)
+- **영향**: renderer / IPC caller / 직접 호출자가 `pageId: ''` / `visitId: ''` (또는 whitespace-only) 전달 시 `?? null` coalesce 만 적용되어 `''` 가 그대로 SQLite 컬럼에 저장 가능. `null` 과 `''` 의 의미 혼동 (둘 다 "미지정" 의도) + `HighlightStore.listByPage` 의 `filter.pageId != null` 분기가 `''` 를 "identity-present" 로 인정 → 잠재적 cross-URL 노출 (record.pageId='' 데이터와 매칭). 학습 데이터 기준 1431 단위 회귀 셋에서는 미발견 — 실 사용자 시나리오 (페이지 미발급 PDF / 빈 URL hash) 위험.
+- **재현 절차**: (1) renderer 가 `noteApi.create({ pageId: '', visitId: '' })` 호출 → 이전: SQLite `notes.page_id=''` 저장. (2) `HighlightStore.add({ pageId: '' })` → record.pageId='' 저장. (3) `listByPage({ workspaceId, pageId: '' })` → record.pageId='' 매칭 → cross-page 노출 가능.
+- **권고 해소 방향**: (1) **본 PR (Sprint 017 T02)** — `src/storage/idNormalize.ts` 신규 + `normalizeOptionalId(value): string | null` 호출 적용 (IPC 경계 → 서비스 경계 → storage 경계 3중 방어선). (2) 단위 회귀 — `tests/unit/storage/idNormalize.test.ts` (7 cover, 신규) + 기존 3 테스트 파일 (`noteHandlers` / `NoteService` / `HighlightStore`) 에 normalize 회귀 추가 (총 4 테스트 파일). (3) Sprint 016 M4 T20 codex hotfix 의 `!= null` 분기 후속 정합 (PR #215 cross-URL 노출 차단 보강).
+- **처리 예정 Sprint**: 017 M0 T02
+- **상태**: `closed` (Sprint 017 M0 T02 본 PR 머지 시점 — `idNormalize.ts` 신규 + 3 site 방어선 적용 + 회귀 +N)
+
 ### KI-026 [closed] Sprint 016 contract L62 "PRD §11.2.1 highlights" 표기 PRD 본문 불일치
 
 - **Severity**: LOW
@@ -368,23 +392,23 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 20 | **15** | **10** |
+| Phase 1 | 1 | 4 | 22 | **16** | **11** |
 | Phase 2 | — | — | 1 | — | 1 |
 | Phase 3 | — | — | — | — | — |
 
-**Phase 1 closed 15 내역** (Sprint 016 M5 T25 시점 산식 재집계 — evaluator + codex 사후 dual review 본 PR 내 hotfix 흡수):
+**Phase 1 closed 16 내역** (Sprint 017 M0 T02 시점 — KI-027 신규 +1 동시 closed 반영):
 - **HIGH closed 1**: KI-003 (Sprint 015 M5-5 BYOK wiring 완료, Sprint 016 M5 T25 status 자가 전환)
 - **MEDIUM closed 1**: KI-007 (T03c #173)
-- **LOW closed 13**: KI-002 (T12 #202) / KI-005 (T21 #210) / KI-008 (T17 #208) / KI-010 (T05 #176) / KI-011 (T06 perf bench PASS, T25) / KI-012 (T06 PASS, T25) / KI-013 (T06 PASS, T25) / KI-014 (T06 PASS, T25) / KI-015 (T06 PASS, T25) / KI-016 (T06 PASS, T25) / KI-017 (T03b #172) / KI-018 (T23 #217 산식 cover, T25) / KI-019 (T23 #217 산식 cover, T25) + KI-026 (T24 §11.11 신설, T25)
+- **LOW closed 14**: KI-002 (T12 #202) / KI-005 (T21 #210) / KI-008 (T17 #208) / KI-010 (T05 #176) / KI-011~016 (T06 perf bench, T25) / KI-017 (T03b #172) / KI-018 / KI-019 (T23 #217 산식 cover, T25) / KI-026 (T24 §11.11 신설, T25) / **KI-027 (Sprint 017 M0 T02 — `idNormalize.ts` 신규 + 3 site 방어선 적용)**
 
-**Phase 1 open 10 내역**:
+**Phase 1 open 11 내역**:
 - HIGH 0
 - MEDIUM 3 (1 in-progress): KI-001 (in-progress, macOS PoC 1차 + 2차 matrix carryover) / KI-004 (response_format API-level, Sprint 017 M3 또는 carryover) / KI-006 (abort 정책 carryover)
-- LOW 7: KI-009 (MemoryStatsPanel React 단위) / KI-020 (SPA did-navigate-in-page) / KI-022 (Import embedding_queue re-enqueue) / KI-023 (PDF viewer DOM range) / KI-024 (Shadow DOM cross-boundary) / KI-025 (contentHash 폐기 보수성, Phase 3 R&D)
+- LOW 8: KI-009 (MemoryStatsPanel React 단위) / KI-020 (SPA did-navigate-in-page) / KI-022 (Import embedding_queue re-enqueue) / KI-023 (PDF viewer DOM range) / KI-024 (Shadow DOM cross-boundary) / KI-025 (contentHash 폐기 보수성, Phase 3 R&D) / **KI-028 (chatHandlers/ChatService nullable FK normalize 후속, Sprint 017 M0 T02 codex separate KI candidate)**
 
 **Phase 2 잔여 1**: KI-021 (partition cleanup reconcile, Sprint 017 M2 T11 박음)
 
-**총 잔여 11** (Phase 1 10 + Phase 2 1). 신규 후보 3건 (drainUntil helper / pageId='' validation / freeform fallback wording) 은 Sprint 017 M0 T01/T02/T13 박힘 — 본 통계 표 외 carryover.
+**총 잔여 12** (Phase 1 11 + Phase 2 1). Sprint 016 M5 T25 시점 신규 후보 3건 중 **KI-027 (pageId='' validation) 본 T02 PR 머지 시점 closed**. 잔여 후보 2건 (drainUntil refactor T01b / freeform fallback T13) 은 Sprint 017 M0 carryover. **KI-028 신규 +1** (codex dual review separate KI candidate — chat IPC 경계 동일 normalize 후속).
 
 ---
 

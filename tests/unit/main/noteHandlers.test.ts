@@ -131,6 +131,53 @@ describe('handleNoteCreate — 성공 path', () => {
     )
     expect(r.note!.aiTags).toEqual(['glossary'])
   })
+
+  // Sprint 017 T02 — IPC 경계 pageId / visitId normalize.
+  it("pageId='' → SerializedNoteRow.pageId=null (IPC 경계 normalize)", async () => {
+    const r = await handleNoteCreate(
+      { selectedText: 'x', pageId: '' },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getNoteService: () => fx.service
+      }
+    )
+    expect(r.ok).toBe(true)
+    expect(r.note!.pageId).toBeNull()
+  })
+
+  it("pageId='   ' (whitespace) → SerializedNoteRow.pageId=null", async () => {
+    const r = await handleNoteCreate(
+      { selectedText: 'x', pageId: '   ' },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getNoteService: () => fx.service
+      }
+    )
+    expect(r.note!.pageId).toBeNull()
+  })
+
+  it("visitId='' (whitespace 포함) → SerializedNoteRow.visitId=null", async () => {
+    const r = await handleNoteCreate(
+      { selectedText: 'x', visitId: ' \t ' },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getNoteService: () => fx.service
+      }
+    )
+    expect(r.note!.visitId).toBeNull()
+  })
+
+  it('pageId null + visitId null → 그대로 null (regression)', async () => {
+    const r = await handleNoteCreate(
+      { selectedText: 'x', pageId: null, visitId: null },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getNoteService: () => fx.service
+      }
+    )
+    expect(r.note!.pageId).toBeNull()
+    expect(r.note!.visitId).toBeNull()
+  })
 })
 
 describe('handleNoteList', () => {
