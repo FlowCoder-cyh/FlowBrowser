@@ -13,6 +13,7 @@ import {
   getActiveWorkspaceId,
   getWorkspacePartitionName,
   setWorkspaceSwitchHook,
+  setWorkspaceDeleteHook,
   tryIndexPage,
   getParagraphsExtractScript
 } from './services'
@@ -219,6 +220,40 @@ async function createMainWindow(): Promise<void> {
     // renderer 측에 워크스페이스 전환 신호 (TabBar / WorkspaceSidebar 가 활성 ws state 갱신).
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('workspace:switched', { workspaceId })
+    }
+  })
+
+  // Sprint 016 M3 T16 (G-015, codex BLOCKING #1) — 워크스페이스 삭제 직후 live 탭/view cleanup.
+  // workspaceHandlers.handleWorkspaceDelete 가 svc.delete() 성공 후 partition cleanup 직전에 호출.
+  //
+  // 순서:
+  //   1. 삭제된 ws id 에 속한 모든 탭 close + destroyTabView (살아있는 WebContents 가 partition.clearStorageData
+  //      직후 storage 재생성하는 위험 차단)
+  //   2. setActiveWorkspaceFilter(newActiveId) — 탭 필터 + activeId 갱신
+  //   3. 활성 탭이 없으면 새 빈 탭 자동 생성 (newActiveId 메타 + partition 박음)
+  //   4. workspace:switched broadcast — renderer 측 WorkspaceSidebar / TabBar 갱신
+  setWorkspaceDeleteHook((deletedWsId, newActiveId) => {
+    // 1. 삭제된 ws 의 모든 탭 destroy (필터 무시 — snapshotAll)
+    const deletedTabs = tabManager
+      .snapshotAll()
+      .tabs.filter((t) => t.workspace_id === deletedWsId)
+    for (const t of deletedTabs) {
+      tabManager.close(t.id)
+      destroyTabView(t.id)
+    }
+    // 2. active filter 갱신 (newActiveId) — TabManager 가 stash/restore 처리
+    tabManager.setActiveWorkspaceFilter(newActiveId)
+    // 3. 새 ws 에 탭이 없으면 새 빈 탭 자동 생성 (partition 박힘)
+    let active = tabManager.getActiveId()
+    if (!active) {
+      const fresh = tabManager.open('about:blank', { workspaceId: newActiveId })
+      createTabView(fresh.id, fresh.url, newActiveId)
+      active = fresh.id
+    }
+    setActiveTabView(active)
+    // 4. broadcast workspace:switched — renderer 갱신
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('workspace:switched', { workspaceId: newActiveId })
     }
   })
 

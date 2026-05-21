@@ -321,4 +321,235 @@ describe('workspaceHandlers', () => {
     expect(res.ok).toBe(false)
     expect(res.errorCode).toBe('infra_unavailable')
   })
+
+  // Sprint 016 M3 T16 (G-015) — 워크스페이스 삭제 partition cleanup cascade
+  it('T16 — delete invokes clearWorkspacePartition with deleted ws id (DB cascade 후)', async () => {
+    const ws = await h.svc.create({ name: 'A', icon: '📚' })
+    const cleanupCalls: string[] = []
+    const res = await handleWorkspaceDelete(
+      { id: ws.id },
+      {
+        getService: () => h.svc,
+        clearWorkspacePartition: async (wid) => {
+          cleanupCalls.push(wid)
+        }
+      }
+    )
+    expect(res.ok).toBe(true)
+    expect(cleanupCalls).toEqual([ws.id])
+  })
+
+  it('T16 — clearWorkspacePartition 호출 인자는 삭제 대상 ws id 만 (다른 ws 영향 0)', async () => {
+    const wsA = await h.svc.create({ name: 'A', icon: '📚' })
+    const wsB = await h.svc.create({ name: 'B', icon: '💻' })
+    const wsC = await h.svc.create({ name: 'C', icon: '🎯' })
+    const cleanupCalls: string[] = []
+    const res = await handleWorkspaceDelete(
+      { id: wsB.id },
+      {
+        getService: () => h.svc,
+        clearWorkspacePartition: async (wid) => {
+          cleanupCalls.push(wid)
+        }
+      }
+    )
+    expect(res.ok).toBe(true)
+    // wsB 만 cleanup. wsA / wsC / defaultId 영향 0.
+    expect(cleanupCalls).toEqual([wsB.id])
+    expect(cleanupCalls).not.toContain(wsA.id)
+    expect(cleanupCalls).not.toContain(wsC.id)
+    expect(cleanupCalls).not.toContain(h.defaultId)
+  })
+
+  it('T16 — clearWorkspacePartition throw 는 swallow (DB cascade 는 이미 성공, ok=true)', async () => {
+    const ws = await h.svc.create({ name: 'A', icon: '📚' })
+    const res = await handleWorkspaceDelete(
+      { id: ws.id },
+      {
+        getService: () => h.svc,
+        clearWorkspacePartition: async () => {
+          throw new Error('cleanup boom')
+        }
+      }
+    )
+    // DB cascade 는 이미 성공 → ok 유지 (partition 잔존은 다음 부팅 시점 cleanup 가능)
+    expect(res.ok).toBe(true)
+    expect(res.newActiveId).toBe(h.defaultId)
+  })
+
+  it('T16 — clearWorkspacePartition 미주입 시 no-op (테스트 호환성)', async () => {
+    const ws = await h.svc.create({ name: 'A', icon: '📚' })
+    const res = await handleWorkspaceDelete(
+      { id: ws.id },
+      { getService: () => h.svc } // clearWorkspacePartition 미주입
+    )
+    expect(res.ok).toBe(true)
+    expect(res.newActiveId).toBe(h.defaultId)
+  })
+
+  it('T16 — not_found 시 clearWorkspacePartition 호출 안 함 (DB cascade 실패 → cleanup 의미 없음)', async () => {
+    const cleanupCalls: string[] = []
+    const res = await handleWorkspaceDelete(
+      { id: 'nope' },
+      {
+        getService: () => h.svc,
+        clearWorkspacePartition: async (wid) => {
+          cleanupCalls.push(wid)
+        }
+      }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('not_found')
+    expect(cleanupCalls).toEqual([])
+  })
+
+  it('T16 — 마지막 1개 삭제 시 replacement 정합 + 삭제된 ws id 만 cleanup (replacement id 영향 0)', async () => {
+    // h.defaultId 가 유일한 워크스페이스 — 삭제 시 자동 "📥 기본" 재생성.
+    const cleanupCalls: string[] = []
+    const res = await handleWorkspaceDelete(
+      { id: h.defaultId },
+      {
+        getService: () => h.svc,
+        clearWorkspacePartition: async (wid) => {
+          cleanupCalls.push(wid)
+        }
+      }
+    )
+    expect(res.ok).toBe(true)
+    expect(res.replacement).toBeDefined()
+    // 삭제된 ws (h.defaultId) 만 cleanup. replacement (새로 생긴 "📥 기본") 의 partition 영향 0.
+    expect(cleanupCalls).toEqual([h.defaultId])
+    expect(cleanupCalls).not.toContain(res.replacement!.id)
+  })
+
+  // Sprint 016 M3 T16 — codex BLOCKING #1 hotfix: destroyWorkspaceTabs cleanup 회귀
+  it('T16 BLOCKING #1 — destroyWorkspaceTabs 가 clearWorkspacePartition 직전에 호출 (순서 정합)', async () => {
+    const ws = await h.svc.create({ name: 'A', icon: '📚' })
+    const callOrder: string[] = []
+    const res = await handleWorkspaceDelete(
+      { id: ws.id },
+      {
+        getService: () => h.svc,
+        destroyWorkspaceTabs: (wid, newActiveId) => {
+          callOrder.push(`destroy:${wid}->${newActiveId}`)
+        },
+        clearWorkspacePartition: async (wid) => {
+          callOrder.push(`clear:${wid}`)
+        }
+      }
+    )
+    expect(res.ok).toBe(true)
+    // 순서: destroy → clear (살아있는 WebContents 가 storage 재생성 위험 차단)
+    expect(callOrder).toEqual([`destroy:${ws.id}->${h.defaultId}`, `clear:${ws.id}`])
+  })
+
+  it('T16 BLOCKING #1 — destroyWorkspaceTabs 호출 인자는 (삭제 ws, newActiveId) 정합', async () => {
+    const wsA = await h.svc.create({ name: 'A', icon: '📚' })
+    // wsB 생성으로 잔여 ws 확보 (마지막 1개 replacement path 회피)
+    await h.svc.create({ name: 'B', icon: '💻' })
+    await h.svc.setActive(wsA.id)
+    const destroyCalls: Array<[string, string]> = []
+    const res = await handleWorkspaceDelete(
+      { id: wsA.id },
+      {
+        getService: () => h.svc,
+        destroyWorkspaceTabs: (wid, newActiveId) => {
+          destroyCalls.push([wid, newActiveId])
+        }
+      }
+    )
+    expect(res.ok).toBe(true)
+    // active wsA 삭제 → newActiveId 는 잔여 첫 워크스페이스 (defaultId 또는 wsB — order 의존).
+    // 정확한 newActiveId 값은 svc.delete() 의 newActiveId 와 동일해야 함.
+    expect(destroyCalls.length).toBe(1)
+    expect(destroyCalls[0][0]).toBe(wsA.id)
+    expect(destroyCalls[0][1]).toBe(res.newActiveId)
+  })
+
+  it('T16 BLOCKING #1 — destroyWorkspaceTabs throw 는 swallow (clearWorkspacePartition 계속 진행)', async () => {
+    const ws = await h.svc.create({ name: 'A', icon: '📚' })
+    const cleanupCalls: string[] = []
+    const res = await handleWorkspaceDelete(
+      { id: ws.id },
+      {
+        getService: () => h.svc,
+        destroyWorkspaceTabs: () => {
+          throw new Error('destroy boom')
+        },
+        clearWorkspacePartition: async (wid) => {
+          cleanupCalls.push(wid)
+        }
+      }
+    )
+    // destroy throw 후에도 clear 계속 진행 + ok 유지
+    expect(res.ok).toBe(true)
+    expect(cleanupCalls).toEqual([ws.id])
+  })
+
+  it('T16 BLOCKING #1 — destroyWorkspaceTabs 미주입 시 no-op (clearWorkspacePartition 만 진행)', async () => {
+    const ws = await h.svc.create({ name: 'A', icon: '📚' })
+    const cleanupCalls: string[] = []
+    const res = await handleWorkspaceDelete(
+      { id: ws.id },
+      {
+        getService: () => h.svc,
+        // destroyWorkspaceTabs 미주입
+        clearWorkspacePartition: async (wid) => {
+          cleanupCalls.push(wid)
+        }
+      }
+    )
+    expect(res.ok).toBe(true)
+    expect(cleanupCalls).toEqual([ws.id])
+  })
+
+  // codex NEEDS_CHANGES 누락 케이스 흡수
+  it('T16 NEEDS_CHANGES — invalid_input ("") 시 두 callback 모두 미호출', async () => {
+    const destroyCalls: string[] = []
+    const cleanupCalls: string[] = []
+    const res = await handleWorkspaceDelete(
+      { id: '' },
+      {
+        getService: () => h.svc,
+        destroyWorkspaceTabs: (wid) => destroyCalls.push(wid),
+        clearWorkspacePartition: async (wid) => {
+          cleanupCalls.push(wid)
+        }
+      }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('invalid_input')
+    expect(destroyCalls).toEqual([])
+    expect(cleanupCalls).toEqual([])
+  })
+
+  it('T16 NEEDS_CHANGES — svc.delete() unexpected throw 시 두 callback 모두 미호출', async () => {
+    const ws = await h.svc.create({ name: 'A', icon: '📚' })
+    const destroyCalls: string[] = []
+    const cleanupCalls: string[] = []
+    // svc.delete() 를 강제로 throw 하는 svc proxy
+    const failingSvc = new Proxy(h.svc, {
+      get(target, prop, recv) {
+        if (prop === 'delete') {
+          return async () => {
+            throw new Error('svc.delete unexpected')
+          }
+        }
+        return Reflect.get(target, prop, recv)
+      }
+    })
+    const res = await handleWorkspaceDelete(
+      { id: ws.id },
+      {
+        getService: () => failingSvc as typeof h.svc,
+        destroyWorkspaceTabs: (wid) => destroyCalls.push(wid),
+        clearWorkspacePartition: async (wid) => {
+          cleanupCalls.push(wid)
+        }
+      }
+    )
+    expect(res.ok).toBe(false)
+    expect(destroyCalls).toEqual([])
+    expect(cleanupCalls).toEqual([])
+  })
 })

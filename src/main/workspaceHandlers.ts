@@ -96,6 +96,38 @@ export interface WorkspaceHandlerDeps {
   abortIndexing?: (workspaceId: string) => void
   clearEmbeddingQueue?: (workspaceId: string) => void
   abortChatStreaming?: (workspaceId: string) => void
+  /**
+   * Sprint 016 M3 T16 (G-015, codex BLOCKING #1) — 삭제된 워크스페이스의 live 탭/view cleanup.
+   *
+   * `svc.delete()` 성공 직후 + `clearWorkspacePartition` 호출 **직전** 에 호출. 책임:
+   *   - 삭제된 ws id 에 속한 모든 탭 close + WebContentsView destroy
+   *   - TabManager.setActiveWorkspaceFilter(newActiveId) 갱신
+   *   - 활성 탭이 삭제 ws 였다면 newActiveId 의 첫 탭 또는 새 빈 탭으로 전환
+   *
+   * 순서가 중요: live WebContents 가 살아있는 상태에서 partition.clearStorageData() 를 호출하면
+   * 페이지가 storage/cookie 를 다시 만들 가능성 + 다음 부팅에서 persisted tab state 의 삭제 ws id 가
+   * `createTabView` 로 재생성될 위험. 본 callback 이 destroy + filter 갱신 후 partition cleanup.
+   *
+   * 정책:
+   *   - callback throw 는 swallow (DB cascade 는 이미 성공, partition cleanup 은 계속 진행)
+   *   - 미주입 시 (테스트) no-op
+   */
+  destroyWorkspaceTabs?: (workspaceId: string, newActiveId: string) => void
+  /**
+   * Sprint 016 M3 T16 (G-015) — 워크스페이스 삭제 cascade cleanup.
+   *
+   * `svc.delete()` 성공 직후 (DB cascade 완료 후) + `destroyWorkspaceTabs` 직후에 삭제된
+   * 워크스페이스의 partition session 을 clearStorageData + clearCache. 호출 인자는 **삭제된 ws id**
+   * 만 — 다른 워크스페이스 partition 은 영향 0 (manager.clearWorkspaceData 가 workspaceId 매개 호출).
+   *
+   * 정책:
+   *   - callback throw 는 swallow (DB cascade 는 이미 성공, 부분 정합 — partition 잔존은 다음 부팅
+   *     시점에 cleanup 시도 가능, 잠재 KI-021 reconcile path 부재)
+   *   - 호출 자체 await — partition cleanup 비동기 완료 후 응답 반환
+   *
+   * 미주입 시 (테스트) no-op.
+   */
+  clearWorkspacePartition?: (workspaceId: string) => Promise<void>
 }
 
 /**
@@ -245,6 +277,32 @@ export async function handleWorkspaceDelete(
   }
   try {
     const result = await svc.delete(args.id)
+    if (result.deleted) {
+      // Sprint 016 M3 T16 (G-015, codex BLOCKING #1) — DB cascade 후 cleanup 순서:
+      //   1. destroyWorkspaceTabs — 삭제된 ws 의 live WebContentsView destroy + TabManager 정리
+      //   2. clearWorkspacePartition — partition session storage/cache cleanup
+      // 순서 거꾸로 (partition cleanup 먼저) 하면 살아있는 WebContents 가 storage 재생성 위험.
+      if (deps.destroyWorkspaceTabs) {
+        try {
+          deps.destroyWorkspaceTabs(args.id, result.newActiveId)
+        } catch (destroyErr) {
+          console.warn(
+            '[workspace:delete] destroyWorkspaceTabs 실패 (DB cascade 는 성공, partition cleanup 진행):',
+            destroyErr instanceof Error ? destroyErr.message : String(destroyErr)
+          )
+        }
+      }
+      if (deps.clearWorkspacePartition) {
+        try {
+          await deps.clearWorkspacePartition(args.id)
+        } catch (cleanupErr) {
+          console.warn(
+            '[workspace:delete] clearWorkspacePartition 실패 (DB cascade 는 성공, partition 잔존):',
+            cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)
+          )
+        }
+      }
+    }
     return {
       ok: result.deleted,
       replacement: result.replacement ? serializeWorkspace(result.replacement) : undefined,
