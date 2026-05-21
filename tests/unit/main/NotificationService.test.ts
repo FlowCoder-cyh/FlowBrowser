@@ -55,16 +55,24 @@ function makeFactory(opts: {
   supported: boolean
   throws?: boolean
 }): NotificationFactory & {
-  shows: Array<{ opts: unknown; onClick?: () => void }>
+  shows: Array<{
+    opts: unknown
+    onClick?: () => void
+    onFailed?: (error: string) => void
+  }>
 } {
-  const shows: Array<{ opts: unknown; onClick?: () => void }> = []
+  const shows: Array<{
+    opts: unknown
+    onClick?: () => void
+    onFailed?: (error: string) => void
+  }> = []
   return {
     isSupported: () => opts.supported,
-    show(showOpts, onClick) {
+    show(showOpts, onClick, onFailed) {
       if (opts.throws) {
         throw new Error('show throw simulated')
       }
-      shows.push({ opts: showOpts, onClick })
+      shows.push({ opts: showOpts, onClick, onFailed })
     },
     shows
   }
@@ -267,5 +275,86 @@ describe('NotificationService — 입력 검증', () => {
 describe('NotificationService — __testing 상수', () => {
   it('DEFAULT_IPC_CHANNEL 노출', () => {
     expect(__testing.DEFAULT_IPC_CHANNEL).toBe('notification:fallback')
+  })
+})
+
+describe('NotificationService — codex NEEDS_CHANGES #1 hotfix (failed event async)', () => {
+  it('factory.show() 에 onFailed 콜백 전달', () => {
+    const factory = makeFactory({ supported: true })
+    const svc = new NotificationService({
+      factory,
+      windows: makeWindowsProvider([makeStubWindow()])
+    })
+    svc.notify({ title: 'T' })
+    expect(factory.shows[0].onFailed).toBeDefined()
+  })
+
+  it('onFailed 콜백 호출 시 fallback IPC 트리거 (async)', () => {
+    const factory = makeFactory({ supported: true })
+    const win = makeStubWindow()
+    const svc = new NotificationService({
+      factory,
+      windows: makeWindowsProvider([win])
+    })
+    const result = svc.notify({ title: 'T', body: 'B' })
+    // sync 반환은 'os' attempt
+    expect(result.delivered).toBe('os')
+    // 호출 시점에 IPC 호출 0
+    expect(win.sentEvents).toHaveLength(0)
+    // async failed event 시뮬레이션
+    factory.shows[0].onFailed!('permission denied')
+    // fallback IPC 트리거
+    expect(win.sentEvents).toHaveLength(1)
+    expect(win.sentEvents[0].channel).toBe('notification:fallback')
+  })
+
+  it('onFailed 콜백 호출 시 창 0 — silent (sync notify 이미 반환 후)', () => {
+    const factory = makeFactory({ supported: true })
+    const svc = new NotificationService({
+      factory,
+      windows: makeWindowsProvider([])
+    })
+    svc.notify({ title: 'T' })
+    // failed event 호출 시 throw 안 함
+    expect(() => factory.shows[0].onFailed!('OS error')).not.toThrow()
+  })
+})
+
+describe('NotificationService — codex NEEDS_CHANGES #3 hotfix (fallback display-only)', () => {
+  it('fallback IPC payload 에 onClick action 미포함 — display-only', () => {
+    const factory = makeFactory({ supported: false })
+    const win = makeStubWindow()
+    const svc = new NotificationService({
+      factory,
+      windows: makeWindowsProvider([win])
+    })
+    const onClick = vi.fn()
+    svc.notify({ title: 'T', body: 'B', onClick })
+    // fallback path 에서 onClick 호출 0 — display-only
+    expect(onClick).not.toHaveBeenCalled()
+    // payload 키 = title / body / urgency 만
+    expect(win.sentEvents[0].payload).toEqual({
+      title: 'T',
+      body: 'B',
+      urgency: 'normal'
+    })
+    // onClick 필드 부재 검증
+    const payloadKeys = Object.keys(win.sentEvents[0].payload as Record<string, unknown>).sort()
+    expect(payloadKeys).toEqual(['body', 'title', 'urgency'])
+  })
+
+  it('fallback path 진입 시 onClick 콜백은 호출 0 (factory.show throw 경유)', () => {
+    const factory = makeFactory({ supported: true, throws: true })
+    const win = makeStubWindow()
+    const svc = new NotificationService({
+      factory,
+      windows: makeWindowsProvider([win])
+    })
+    const onClick = vi.fn()
+    svc.notify({ title: 'T', onClick })
+    // factory.show throw → fallback 진입 → onClick 호출 0
+    expect(onClick).not.toHaveBeenCalled()
+    // fallback payload 에도 onClick 미포함
+    expect(win.sentEvents).toHaveLength(1)
   })
 })

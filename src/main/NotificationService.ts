@@ -56,6 +56,10 @@ export interface NotifyResult {
  * NotificationFactory — Electron Notification 클래스를 추상화.
  *
  * 호출자 (main/index.ts) 가 `makeRealNotificationFactory()` 로 진입. 단위 테스트는 stub.
+ *
+ * codex T19 사전 dual review NEEDS_CHANGES #1 정합 — Electron Notification 은 실패 시
+ * sync throw 대신 'failed' event 발생 가능 (macOS unsigned build / OS 정책 차단). show() 가
+ * `onFailed` 콜백을 받아 비동기 실패 시 NotificationService 가 fallback 진입.
  */
 export interface NotificationFactory {
   /** OS Notification 지원 여부. headless / 권한 거부 시 false. */
@@ -63,9 +67,18 @@ export interface NotificationFactory {
   /**
    * Notification 인스턴스 생성. show() 호출 / onClick 콜백 결합은 본 인터페이스 책임.
    *
-   * 실패 시 throw — NotificationService 가 catch + fallback 트리거.
+   * 실패 처리:
+   *   - sync throw → NotificationService 가 catch + fallback 트리거 (즉시)
+   *   - async 'failed' event → onFailed?.(error) 호출 → NotificationService 가 fallback 트리거
+   *
+   * **반환 의미**: factory.show() 의 sync 반환 = OS show *attempt* (성공 보장 아님).
+   *   asynchronous failure 는 onFailed 로 통보.
    */
-  show(opts: { title: string; body?: string; urgency?: NotificationUrgency }, onClick?: () => void): void
+  show(
+    opts: { title: string; body?: string; urgency?: NotificationUrgency },
+    onClick?: () => void,
+    onFailed?: (error: string) => void
+  ): void
 }
 
 export interface BrowserWindowProvider {
@@ -123,9 +136,18 @@ export class NotificationService {
               }
             }
           : undefined
+        // codex T19 NEEDS_CHANGES #1 hotfix — Electron 'failed' event 비동기 통보.
+        // sync show() throw 가 아니어도 OS 가 권한/정책 차단 시 'failed' event 발생 가능.
+        // factory 가 onFailed 호출 시 NotificationService 가 async fallback 진입.
+        const onFailed = (_error: string): void => {
+          // 사용자 보고 — async fallback (notify() 의 sync return 은 이미 'os' attempt).
+          // fallback 실패 (창 0) 시 silent — sync notify() 가 이미 반환 후.
+          this.fallbackToRenderer(input)
+        }
         this.factory.show(
           { title: input.title, body: input.body, urgency: input.urgency },
-          safeOnClick
+          safeOnClick,
+          onFailed
         )
         return { delivered: 'os' }
       } catch (e) {
@@ -149,11 +171,16 @@ export class NotificationService {
     if (wins.length === 0) {
       return { delivered: 'unsupported', reason: 'no active BrowserWindow for IPC fallback' }
     }
+    // codex T19 NEEDS_CHANGES #3 hotfix — fallback 은 display-only 명시.
+    // input.onClick 은 OS path 에서만 결합. fallback path 의 renderer toast 는 click 행동을
+    // 호출자가 별도 결정 (현재 PR 범위 외 — action id registry + renderer click IPC 회신
+    // 채널은 별도 PR 자리. Phase 2 백그라운드 번역 UX 완성 시점).
     for (const win of wins) {
       win.webContents.send(this.ipcChannel, {
         title: input.title,
         body: input.body ?? null,
         urgency: input.urgency ?? 'normal'
+        // onClick action 미전달 — fallback display-only 정합 (위 주석 참조)
       })
     }
     return { delivered: 'ipc-fallback' }
@@ -165,7 +192,16 @@ export class NotificationService {
  *
  * 본 함수는 main/index.ts 에서 import — runtime 시점에만 호출 (Electron 의존 격리).
  * 단위 테스트는 본 factory 미사용 (stub 으로 대체).
+ *
+ * codex T19 NEEDS_CHANGES #2 hotfix — Electron Notification 인스턴스가 지역 변수면
+ * GC 대상 → click/failed/close event 전 GC 시 callback 유실. 본 함수는 module-scope
+ * `Set<Notification>` 보관 + close/failed/click 후 해제 정합.
+ *
+ * 본 보관 set 은 module-scope — factory 인스턴스 재생성에도 동일 set 공유 (Electron 단일
+ * main process 가정). 테스트 환경 (real factory 미사용) 에서는 본 set 영향 없음.
  */
+const activeNotifications = new Set<unknown>()
+
 export function makeRealNotificationFactory(): NotificationFactory {
   // 함수 호출 시점에 lazy import — typecheck 시 electron 모듈 로드 회피 (테스트 환경 정합).
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -179,14 +215,39 @@ export function makeRealNotificationFactory(): NotificationFactory {
         return false
       }
     },
-    show(opts, onClick): void {
+    show(opts, onClick, onFailed): void {
       const n = new NotificationCtor({
         title: opts.title,
         body: opts.body ?? '',
         urgency: opts.urgency
       })
+      // codex NEEDS_CHANGES #2 — Notification 객체 생존 보장
+      activeNotifications.add(n)
+      const cleanup = (): void => {
+        activeNotifications.delete(n)
+      }
       if (onClick) {
-        n.on('click', onClick)
+        n.on('click', () => {
+          try {
+            onClick()
+          } finally {
+            cleanup()
+          }
+        })
+      } else {
+        n.on('click', cleanup)
+      }
+      n.on('close', cleanup)
+      if (onFailed) {
+        n.on('failed', (_event, error) => {
+          try {
+            onFailed(error)
+          } finally {
+            cleanup()
+          }
+        })
+      } else {
+        n.on('failed', cleanup)
       }
       n.show()
     }
