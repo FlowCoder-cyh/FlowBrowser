@@ -15,8 +15,18 @@ import {
   setWorkspaceSwitchHook,
   setWorkspaceDeleteHook,
   tryIndexPage,
-  getParagraphsExtractScript
+  getParagraphsExtractScript,
+  getHighlightStore,
+  getNoteServiceForHighlight,
+  broadcastMemoryInvalidatedExternal
 } from './services'
+// Sprint 017 M1 T06 — selection 캡처 (page context inject) + did-finish-load 복원 trigger.
+import { runHighlightRestore } from './highlightRestore'
+import {
+  buildSerializeScript,
+  type SerializeResult
+} from '../perception/highlightInjectionScript'
+import { handleHighlightCreate } from './highlightHandlers'
 import { buildTabWebPreferences } from './tabViewWebPreferences'
 import { inputMatchesAccelerator } from './ShortcutMatcher'
 import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
@@ -581,6 +591,13 @@ function createTabView(
   // 활성 탭이면 priority 10, 백그라운드면 1 (PRD §8.1).
   view.webContents.on('did-finish-load', () => {
     void runPageIndexing(tabId, view)
+    // Sprint 017 M1 T06 — Highlight 복원 trigger (CSS Highlight API 등록).
+    // workspaceId + url 매칭 anchor 들을 page 컨텍스트에 inject 후 시각 highlight 박음.
+    // graceful — webContents destroyed / 미지원 환경 / record 0 모두 silent no-op.
+    void runHighlightRestore(
+      { workspaceId: getActiveWorkspaceId(), webContents: view.webContents },
+      { getHighlightStore: () => getHighlightStore() }
+    )
   })
   view.webContents.on('page-title-updated', (_event, title) => {
     tabManager.updateTitle(tabId, title)
@@ -627,6 +644,14 @@ function createTabView(
           label: `이 부분 요약: "${preview}"`,
           click: () => {
             void handleContextMenuSummarize(selectionText, params.x, params.y)
+          }
+        },
+        // Sprint 017 M1 T06 — 노트 + Highlight 저장. selection 을 page 컨텍스트에서 직렬화 후
+        // HighlightStore.add + NoteService.createNote composite + 즉시 visual 복원.
+        {
+          label: `노트로 저장 + 하이라이트: "${preview}"`,
+          click: () => {
+            void handleContextMenuHighlight(view, selectionText)
           }
         },
         { type: 'separator' },
@@ -937,6 +962,65 @@ async function handleContextMenuSummarize(
   webViewY: number
 ): Promise<void> {
   await handleContextMenuAi(selectionText, webViewX, webViewY, 'summary')
+}
+
+/**
+ * Sprint 017 M1 T06 — 노트 + Highlight 저장 (context-menu path).
+ *
+ * 흐름:
+ *   1. page 컨텍스트에서 `buildSerializeScript()` 실행 → selection anchor 직렬화
+ *   2. result.ok=false 시 (no_selection / unsupported_selection) silent return
+ *   3. handleHighlightCreate composite 호출 — 신규 노트 생성 + HighlightStore.add
+ *   4. broadcastMemoryInvalidated — MemoryStatsPanel notesCount 즉시 refresh
+ *   5. runHighlightRestore 재호출 — 신규 highlight 즉시 visual 박힘 (페이지 reload 불필요)
+ *
+ * graceful — page context throw / store null / workspaceId null 모두 silent no-op (T06 scope).
+ * toast / 사용자 안내는 T08 위임.
+ */
+async function handleContextMenuHighlight(
+  view: WebContentsView,
+  selectionText: string
+): Promise<void> {
+  const wc = view.webContents
+  if (wc.isDestroyed()) return
+  const url = wc.getURL()
+  if (!url || !url.startsWith('http')) return
+
+  let serialized: SerializeResult
+  try {
+    serialized = (await wc.executeJavaScript(buildSerializeScript('body'), true)) as SerializeResult
+  } catch {
+    return
+  }
+  if (!serialized || !serialized.ok || !serialized.anchor) return
+
+  const workspaceId = getActiveWorkspaceId()
+  if (!workspaceId) return
+
+  const response = await handleHighlightCreate(
+    {
+      workspaceId,
+      selectedText: selectionText,
+      url,
+      contentHash: serialized.anchor.contentHash,
+      anchor: serialized.anchor
+    },
+    {
+      getActiveWorkspaceId: () => workspaceId,
+      getHighlightStore: () => getHighlightStore(),
+      getNoteService: () => getNoteServiceForHighlight()
+    }
+  )
+
+  if (response.ok && response.note) {
+    broadcastMemoryInvalidatedExternal(response.note.workspaceId)
+  }
+
+  // 즉시 visual 복원 — page reload 불필요.
+  await runHighlightRestore(
+    { workspaceId, webContents: wc },
+    { getHighlightStore: () => getHighlightStore() }
+  )
 }
 
 async function handleContextMenuAi(

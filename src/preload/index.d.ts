@@ -13,6 +13,7 @@ import type {
   SearchApi,
   ChatApi,
   NoteApi,
+  HighlightApi,
   ShortcutApi,
   WorkspaceApi,
   MemoryApi
@@ -34,6 +35,7 @@ declare global {
     searchApi: SearchApi
     chatApi: ChatApi
     noteApi: NoteApi
+    highlightApi: HighlightApi
     shortcutApi: ShortcutApi
     workspaceApi: WorkspaceApi
     memoryApi: MemoryApi
