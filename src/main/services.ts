@@ -86,6 +86,7 @@ import {
 } from './noteHandlers'
 import { WorkspaceService } from './WorkspaceService'
 import { WorkspacePartitionManager } from './WorkspacePartitionManager'
+import { WorkspaceExportImportService } from './WorkspaceExportImportService'
 import {
   handleWorkspaceList,
   handleWorkspaceGetCurrent,
@@ -93,14 +94,20 @@ import {
   handleWorkspaceUpdate,
   handleWorkspaceSwitch,
   handleWorkspaceDelete,
+  handleWorkspaceExportJson,
+  handleWorkspaceImportJson,
   type WorkspaceCreateArgs,
   type WorkspaceUpdateArgs,
   type WorkspaceSwitchArgs,
   type WorkspaceDeleteArgs,
+  type WorkspaceExportArgs,
+  type WorkspaceImportArgs,
   type WorkspaceMutationResponse,
   type WorkspaceSwitchResponse,
   type WorkspaceDeleteResponse,
   type WorkspaceListResponse,
+  type WorkspaceExportResponse,
+  type WorkspaceImportResponse,
   type SerializedWorkspace
 } from './workspaceHandlers'
 import { MemoryService } from './MemoryService'
@@ -176,6 +183,9 @@ let workspaceService: WorkspaceService | null = null
 // createTabView (main/index.ts) 가 `getWorkspacePartitionName(workspaceId)` 호출 → WebContentsView
 // `webPreferences.partition` 박음. 미설정 시 디폴트 session.
 let workspacePartitionManager: WorkspacePartitionManager | null = null
+// Sprint 016 M3 T17 (KI-008) — Workspace JSON Export/Import 서비스.
+// workspace:export-json / workspace:import-json IPC 가 사용.
+let workspaceExportImportService: WorkspaceExportImportService | null = null
 let memoryService: MemoryService | null = null
 // Sprint 016 M0 T05 (KI-010) — IndexingGate + IndexingService wiring.
 // did-finish-load hook 호출 (main/index.ts) 시점에 indexingService.indexPage(...) 진입.
@@ -407,6 +417,8 @@ export async function initServices(): Promise<void> {
     workspacePartitionManager = new WorkspacePartitionManager({
       factory: { fromPartition: (name: string) => session.fromPartition(name) }
     })
+    // Sprint 016 M3 T17 (KI-008) — Workspace JSON Export/Import 서비스.
+    workspaceExportImportService = new WorkspaceExportImportService({ fb: flowbrowserDb })
     const persistedActive = (userSettingStore.getState() as { activeWorkspaceId?: string | null })
       .activeWorkspaceId
     if (!persistedActive) {
@@ -448,6 +460,7 @@ export async function initServices(): Promise<void> {
     noteService = null
     workspaceService = null
     workspacePartitionManager = null
+    workspaceExportImportService = null
     memoryService = null
     indexingGate = null
     indexingService = null
@@ -555,6 +568,25 @@ function registerWorkspaceIpc(): void {
         clearWorkspacePartition: workspacePartitionManager
           ? (ws: string) => workspacePartitionManager!.clearWorkspaceData(ws)
           : undefined
+      })
+    }
+  )
+  // Sprint 016 M3 T17 (KI-008) — Workspace JSON Export/Import IPC.
+  ipcMain.handle(
+    'workspace:export-json',
+    (_event, args: WorkspaceExportArgs): WorkspaceExportResponse => {
+      return handleWorkspaceExportJson(args, {
+        getService: () => workspaceService,
+        getExportImportService: () => workspaceExportImportService
+      })
+    }
+  )
+  ipcMain.handle(
+    'workspace:import-json',
+    (_event, args: WorkspaceImportArgs): WorkspaceImportResponse => {
+      return handleWorkspaceImportJson(args, {
+        getService: () => workspaceService,
+        getExportImportService: () => workspaceExportImportService
       })
     }
   )
