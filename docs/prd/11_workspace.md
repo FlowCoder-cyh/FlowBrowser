@@ -239,3 +239,73 @@ Phase 1 시점: mock (회귀 셋 통과만, 실제 학습 로직 X).
 
 - 2026-05-16 (PR b7): stub → 본문 작성. 격리 메타포 + Phase 1/2 격리 수준 (메타 vs Electron Partition) + 전환 UX 4 step + 전환 비용 분석 (< 1초) + abort 정책 3종 + "📥 기본" 자동 생성 path 2종 + CRUD 5 동작 + 마지막 워크스페이스 보호 + 사용자 수준 4 분기 (Phase 1 직접 / Phase 2 자동) + 페르소나별 활용 패턴 + 정량 임계 3종.
 - 2026-05-16 (PR b7.1): codex·evaluator 핫픽스. Electron Session 변수명 (partition → wsSession) + addChildView 수명주기 명시 + clearStorageData 다층 storage 정리. abort 함수명 (M3/M4/M5 신규) 시제 명시. §11.5.6 Phase 1 JSON Import/Export 안전망 신규 (Notion·Markdown Export 는 Phase 3 유지).
+- 2026-05-21 (v0.4.1 발행, Sprint 016 M4 T20 + M5 T24): §11.11 Highlights 신설 (KI-026 옵션 B — codex 사전 협의 권고 정합 `§11.5` 가 Workspace CRUD 점유로 § 충돌 회피, `§11.11` 으로 박음). G-013 1단계 옵션 A (in-memory HighlightStore + W3C Range serialize/deserialize) 산출물 보존. Phase 2 옵션 B (SQLite swap + 마이그레이션) 는 Sprint 017 위임.
+
+## 11.11 Highlights (Sprint 016 M4 T20 + M5 T24 v0.4.1)
+
+> Sprint 016 contract `§T20 NoteHighlight DOM anchor` 산출물 SSOT. KI-026 정정 (옵션 B — `§11.11` 으로 박음).
+
+### 11.11.1 책임
+
+- 노트 선택 영역을 **페이지 재방문 시 고정 위치에 복원** 가능한 anchor 메타데이터 보존
+- [§04 §4.3.4 Note](./04_data_model.md#434-note) 확장 — Highlight 는 별도 record (1:N — 한 노트가 여러 highlight 가능)
+- DOM W3C Range API 기반 (외부 dependency 0 — Rangy 비채택, codex 사전 협의 정합)
+
+### 11.11.2 Anchor schema (pure W3C Range serialize)
+
+| 필드 | 타입 | 비고 |
+|---|---|---|
+| `rootSelector` | `string` | root element 식별 (예: `'body'`, `'main#content'`) — metadata 보존만, deserialize 는 root: Element 직접 받음 |
+| `startPath` | `number[]` | root.childNodes 기준 자식 인덱스 배열 (element-only `children` 아님) |
+| `endPath` | `number[]` | 동일 |
+| `startOffset` | `number` | start text node 내부 character offset (UTF-16 code unit) |
+| `endOffset` | `number` | 동일 |
+| `selectedText` | `string` | range.toString() — drift 시 정합 검증 |
+| `prefix` | `string` | 좌측 컨텍스트 — Array.from 기준 최대 32 chars (surrogate pair 안전) |
+| `suffix` | `string` | 우측 컨텍스트 — Array.from 기준 최대 32 chars |
+| `contentHash` | `string` | root.textContent normalized SHA-256 hex (drift confidence 판단) |
+| `contextHash` | `string` | prefix + selectedText + suffix SHA-256 hex (drift fuzzy 우선순위) |
+
+### 11.11.3 HighlightRecord (Phase 1 in-memory store)
+
+| 필드 | 타입 | 비고 |
+|---|---|---|
+| `id` | `string` | randomUUID (noteId 1:1 강제 X — 한 노트 여러 highlight) |
+| `noteId` | `string` | 연결된 노트 id (필수) |
+| `pageId` | `string \| null` | pages 테이블 FK 후보. PDF 등 pageId 미발급 시 null |
+| `url` | `string` | drift fallback 시 페이지 식별 |
+| `contentHash` | `string` | anchor 시점 root.textContent 해시 — listByPage 필터 |
+| `anchor` | `HighlightAnchor` | W3C Range serialize 결과 (§11.11.2) |
+| `workspaceId` | `string` | 워크스페이스 격리 강제 — listByPage 의 필수 필터 |
+| `createdAt` | `number` | epoch ms |
+
+### 11.11.4 deserialize 우선순위
+
+1. **childNodes path fast path** — contentHash 일치 시 startPath/endPath 따라가서 Range 박음. selectedText 정합 검증 후 반환.
+2. **prefix/suffix fuzzy** — root.textContent 안에서 `prefix + selectedText + suffix` 정확 매칭. ambiguous (복수 매칭) 시 null.
+3. **단일 match locateUnique** — prefix/suffix 둘 다 빈 경우 selectedText 단독 매칭 + 유일성 검증.
+4. **fallback 모두 실패** — `{ range: null, strategy: 'failed' }` 반환. 호출자 (renderer overlay) 는 toast 안내 권고.
+
+### 11.11.5 미지원 (Phase 3 R&D 잔존 — KI-023~025)
+
+- **iframe / Shadow DOM cross-boundary range** — root.contains() false 시 명시 throw (KI-024 후속 — graceful fallback + toast)
+- **PDF viewer 내부 selection** — Chromium 내장 PDF plugin 별도 path 필요 (KI-023 후속 — Phase 3 R&D)
+- **contentHash 미일치 시 path 폐기 보수성** — confidence score 노출 + Phase 3 후속 R&D (KI-025 — codex NB-1/3/5 흡수)
+
+### 11.11.6 Phase 별 구현
+
+| Phase | 구현 | 상태 |
+|---|---|---|
+| Phase 1 (Sprint 016 M4 T20) | in-memory HighlightStore (1:N noteId→highlight, byId Map) | **완료** (PR #215 머지 `1082990`) |
+| Phase 2 (Sprint 017 옵션 B) | SQLite highlights 테이블 + V4→V5 마이그레이션 (G-014 dry-run + 자동 백업) | 위임 |
+| Phase 2 (Sprint 017 옵션 B) | renderer overlay UI (`src/renderer/src/note/NoteHighlight.tsx` + WebContentsView selection 캡처 + did-finish-load 복원 trigger) — G-013 2단계 | 위임 |
+| Phase 3 | iframe / Shadow DOM graceful fallback / PDF viewer 별도 path | R&D |
+
+### 11.11.7 SSOT 인용
+
+- `src/perception/highlightAnchor.ts` — pure serialize/deserialize 모듈
+- `src/storage/HighlightStore.ts` — in-memory store
+- `tests/unit/perception/highlightAnchor.test.ts` — 21+11 = 32 회귀
+- `tests/unit/storage/HighlightStore.test.ts` — 24+11 = 35 회귀
+- Sprint 016 M4 T20 (PR #215) — 산출물 4 파일 +1505 / -0
+- Sprint 016 M5 T23 (PR #217) — 후속 안전망 22 회귀 추가 (HighlightStore + highlightAnchor edge case)
