@@ -17,6 +17,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 
 import { FlowbrowserDatabase } from '../../../src/storage/Database'
 import { TagStore } from '../../../src/storage/TagStore'
+import { NoteStore } from '../../../src/storage/NoteStore'
 import { AutoTagger, parseTagsResponse } from '../../../src/ai/tagging/AutoTagger'
 import type { ProviderAdapter } from '../../../src/ai/ProviderAdapter'
 import type { ProviderInfo, ChatRequest, ChatResponse } from '../../../src/ai/types'
@@ -468,6 +469,214 @@ describe('AutoTagger — ensureTag idempotent', () => {
     await tagger.tagPage({ pageId: fx.pageId, workspaceId: fx.wsId, content: 'x' })
     expect(fx.tagStore.listPageTags(fx.pageId)).toHaveLength(1)
     fx.fb.close()
+  })
+})
+
+describe('AutoTagger.tagNote — Sprint 016 M4 T21 (KI-005 closed)', () => {
+  interface NoteFx {
+    fb: FlowbrowserDatabase
+    tagStore: TagStore
+    noteStore: NoteStore
+    wsId: string
+    noteId: string
+    pageId: string
+  }
+
+  function setupNote(): NoteFx {
+    const fb = FlowbrowserDatabase.openInMemory()
+    fb.applySchema()
+    const ws = fb.ensureDefaultWorkspace()
+    const tagStore = new TagStore(fb)
+    const noteStore = new NoteStore(fb)
+    // page 1건 — KI-005 회귀 (note 태깅 시 page_tags 미박힘 검증용)
+    const pageId = '22222222-2222-2222-2222-222222222222'
+    fb.getDb()
+      .prepare(
+        `INSERT INTO pages(id, workspace_id, url, title, content, content_hash, lang, visited_count, created_at, updated_at)
+         VALUES (?, ?, 'https://x.test/n', 'N', 'body', 'h', 'en', 1, ?, ?)`
+      )
+      .run(pageId, ws.id, Date.now(), Date.now())
+    const note = noteStore.create({
+      workspace_id: ws.id,
+      selected_text: '핵심 인용',
+      body: '메모'
+    })
+    return { fb, tagStore, noteStore, wsId: ws.id, noteId: note.id, pageId }
+  }
+
+  let fx: NoteFx
+  beforeEach(() => {
+    fx = setupNote()
+  })
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  it('schema 정상 응답 — note_tags 박힘 + page_tags 미박힘 (KI-005 FK 회귀)', async () => {
+    const provider = makeChatStub(
+      JSON.stringify({
+        tags: [
+          { kind: 'topic', name: 'CAR-T' },
+          { kind: 'entity', name: 'BioGen' }
+        ]
+      })
+    )
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    const result = await tagger.tagNote({
+      noteId: fx.noteId,
+      workspaceId: fx.wsId,
+      content: 'note 본문'
+    })
+    expect(result.status).toBe('tagged')
+    if (result.status === 'tagged') {
+      expect(result.tags).toHaveLength(2)
+      expect(result.schemaParsed).toBe(true)
+    }
+    // note_tags 박힘
+    expect(fx.tagStore.listNoteTags(fx.noteId)).toHaveLength(2)
+    // page_tags 미박힘 (KI-005 FK 위반 회귀)
+    expect(fx.tagStore.listPageTags(fx.pageId)).toHaveLength(0)
+  })
+
+  it('responseFormat=json_object 항상 전달 (KI-004 정합)', async () => {
+    const provider = makeChatStub(
+      JSON.stringify({ tags: [{ kind: 'topic', name: 'x' }] })
+    )
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    await tagger.tagNote({ noteId: fx.noteId, workspaceId: fx.wsId, content: 'x' })
+    expect(provider.chatCalls[0].responseFormat).toBe('json_object')
+  })
+
+  it('maxOutputTokens 전달 (codex T21 사전 dual review NB hotfix 회귀)', async () => {
+    const provider = makeChatStub(
+      JSON.stringify({ tags: [{ kind: 'topic', name: 'x' }] })
+    )
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    await tagger.tagNote({
+      noteId: fx.noteId,
+      workspaceId: fx.wsId,
+      content: 'x',
+      maxOutputTokens: 256
+    })
+    expect(provider.chatCalls[0].maxOutputTokens).toBe(256)
+  })
+
+  it('empty content → skipped + note_tags 0', async () => {
+    const provider = makeChatStub('{}')
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    const result = await tagger.tagNote({
+      noteId: fx.noteId,
+      workspaceId: fx.wsId,
+      content: '   \n\t '
+    })
+    expect(result.status).toBe('skipped')
+    if (result.status === 'skipped') expect(result.reason).toBe('empty_content')
+    expect(fx.tagStore.listNoteTags(fx.noteId)).toHaveLength(0)
+  })
+
+  it('provider.chat 미지원 → skipped', async () => {
+    const provider = makeNoChatStub()
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    const result = await tagger.tagNote({
+      noteId: fx.noteId,
+      workspaceId: fx.wsId,
+      content: 'body'
+    })
+    expect(result.status).toBe('skipped')
+    if (result.status === 'skipped') expect(result.reason).toBe('no_chat_support')
+  })
+
+  it('provider.chat throw → failed + note_tags 0', async () => {
+    const provider = makeChatThrowStub(new Error('rate limit'))
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    const result = await tagger.tagNote({
+      noteId: fx.noteId,
+      workspaceId: fx.wsId,
+      content: 'body'
+    })
+    expect(result.status).toBe('failed')
+    if (result.status === 'failed') expect(result.error).toBe('rate limit')
+    expect(fx.tagStore.listNoteTags(fx.noteId)).toHaveLength(0)
+  })
+
+  it('JSON 파싱 실패 → freeform fallback (note_tags 단일)', async () => {
+    const provider = makeChatStub('이건 JSON 이 아닙니다')
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    const result = await tagger.tagNote({
+      noteId: fx.noteId,
+      workspaceId: fx.wsId,
+      content: 'body'
+    })
+    expect(result.status).toBe('tagged')
+    if (result.status === 'tagged') {
+      expect(result.schemaParsed).toBe(false)
+      expect(result.tags).toHaveLength(1)
+      expect(result.tags[0].kind).toBe('freeform')
+    }
+    expect(fx.tagStore.listNoteTags(fx.noteId)).toHaveLength(1)
+  })
+
+  it('attachToNote 멱등 — 동일 (note, tag) 재첨부 시 INSERT OR IGNORE', async () => {
+    const provider = makeChatStub(
+      JSON.stringify({ tags: [{ kind: 'topic', name: 'dedupe' }] })
+    )
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    await tagger.tagNote({ noteId: fx.noteId, workspaceId: fx.wsId, content: 'x' })
+    await tagger.tagNote({ noteId: fx.noteId, workspaceId: fx.wsId, content: 'x' })
+    expect(fx.tagStore.listNoteTags(fx.noteId)).toHaveLength(1)
+  })
+
+  it('tagPage 와 tagNote 동시 호출 — 동일 (ws, kind, name) tag 공유 + page/note 양쪽 attach', async () => {
+    // ensureTag 가 (ws, kind, name) 단위 idempotent — page 와 note 가 같은 tag 공유.
+    const sharedResponse = JSON.stringify({ tags: [{ kind: 'topic', name: 'shared' }] })
+    const provider = makeChatStub(sharedResponse)
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+
+    const pageResult = await tagger.tagPage({
+      pageId: fx.pageId,
+      workspaceId: fx.wsId,
+      content: 'page body'
+    })
+    const noteResult = await tagger.tagNote({
+      noteId: fx.noteId,
+      workspaceId: fx.wsId,
+      content: 'note body'
+    })
+    expect(pageResult.status).toBe('tagged')
+    expect(noteResult.status).toBe('tagged')
+    if (pageResult.status === 'tagged' && noteResult.status === 'tagged') {
+      // 동일 tag id 공유
+      expect(pageResult.tags[0].id).toBe(noteResult.tags[0].id)
+    }
+    // 양쪽 attach 박힘
+    expect(fx.tagStore.listPageTags(fx.pageId)).toHaveLength(1)
+    expect(fx.tagStore.listNoteTags(fx.noteId)).toHaveLength(1)
+    // ws 단위 tag 1개만
+    expect(fx.tagStore.listByWorkspace(fx.wsId)).toHaveLength(1)
+  })
+})
+
+describe('AutoTagger.tagPage — maxOutputTokens hotfix (codex T21 사전 dual review NB 회귀)', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setup()
+  })
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  it('TagPageInput.maxOutputTokens → ChatRequest.maxOutputTokens 전달', async () => {
+    const provider = makeChatStub(
+      JSON.stringify({ tags: [{ kind: 'topic', name: 'x' }] })
+    )
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    await tagger.tagPage({
+      pageId: fx.pageId,
+      workspaceId: fx.wsId,
+      content: 'x',
+      maxOutputTokens: 512
+    })
+    expect(provider.chatCalls[0].maxOutputTokens).toBe(512)
   })
 })
 

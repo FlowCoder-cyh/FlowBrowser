@@ -1,29 +1,38 @@
 /**
  * Sprint 015 M5-7 — NoteService.
+ * Sprint 016 M4 T21 — AutoTagger.tagNote wiring (KI-005 closed).
  *
  * PRD §11 노트 (Note) 신규 패널.
  *
  * 책임:
  *   1. createNote(input) — NoteStore.create + EmbeddingQueue.enqueue (note 임베딩 자동 큐)
+ *      + 선택적 AutoTagger.tagNote (enableAutoTagging=true + opts.autoTagger 주입 시)
  *   2. listNotes(workspaceId) / deleteNote(id) — 편의 위임
  *
- * NoteStore (M3-4) + EmbeddingQueue (M3-4) 의존 주입. UI / IPC wiring 은 noteHandlers.ts 별도.
+ * NoteStore + EmbeddingQueue + 선택적 AutoTagger 의존 주입. UI / IPC wiring 은 noteHandlers.ts 별도.
  *
  * KI-003 BYOK (HIGH) 정합:
- *   AutoTagger 자동 호출이 Codex OAuth 주입 시 ChatGPT 한도 묵시 소진 위협. 본 PR 은 AutoTagger
- *   통합 자체 미도입 — 안전 디폴트. note 자동 태깅 도입은 KI-005 후속 (`AutoTagger.tagNote` 신규
- *   메서드 — attachToPage 우회 + attachToNote 호출 필요).
+ *   AutoTagger 자동 호출이 Codex OAuth 주입 시 ChatGPT 한도 묵시 소진 위협. 본 모듈 자체는
+ *   provider 종류 무관 — 호출자 (services.ts) 가 autoTagger 인스턴스에 OpenAI Provider 만 주입.
  *
- * KI-005 (codex M5-7 PR #159 발견) — AutoTagger.tagPage 가 내부에서 attachToPage 호출하므로
- *   note.id 를 pageId 자리에 주입 시 page_tags FK 위반. 별도 PR 에서 tagNote 도입 시 해소.
+ * KI-005 closed (Sprint 016 M4 T21):
+ *   AutoTagger.tagNote 신규 — attachToPage 우회 + attachToNote 호출. page_tags FK 위반 없음.
+ *   본 모듈 createNote 에서 enableAutoTagging=true + opts.autoTagger 주입 시 tagNote 호출.
+ *   opts.autoTagger 미주입 또는 enableAutoTagging=false 시 'not_called'.
  */
 
 import type { NoteStore, CreateNoteInput, NoteRow } from '../storage/NoteStore'
 import type { EmbeddingQueue } from '../storage/EmbeddingQueue'
+import type { AutoTagger } from '../ai/tagging/AutoTagger'
 
 export interface NoteServiceOptions {
   noteStore: NoteStore
   embeddingQueue: EmbeddingQueue
+  /**
+   * Sprint 016 M4 T21 (KI-005 closed) — note 자동 태깅 wiring.
+   * 미주입 시 enableAutoTagging=true 입력 무시 (safety) → autoTaggingStatus='not_called'.
+   */
+  autoTagger?: AutoTagger
 }
 
 export interface CreateNoteServiceInput {
@@ -37,8 +46,10 @@ export interface CreateNoteServiceInput {
   /** EmbeddingQueue 우선순위 (활성 탭 10 / 백그라운드 1). 디폴트 10 (사용자 명시 노트 우선). */
   priority?: number
   /**
-   * KI-005 후속 — 현 시점 호출자가 명시해도 'not_called' 반환 (safety). AutoTagger.tagNote 도입 후
-   * 본 옵션 활성 (KI-005 closed 시점).
+   * Sprint 016 M4 T21 (KI-005 closed) — AutoTagger.tagNote 호출 트리거.
+   * - true + opts.autoTagger 주입: tagNote 호출 + autoTaggingStatus='tagged'|'skipped'|'failed'
+   * - true + autoTagger 미주입: 'not_called' (safety)
+   * - false / 미지정: 'not_called'
    */
   enableAutoTagging?: boolean
 }
@@ -47,7 +58,13 @@ export interface CreateNoteResult {
   note: NoteRow
   /** EmbeddingQueue job id. note 본문 빈 케이스 시 undefined. */
   embeddingJobId?: string
-  /** AutoTagger 호출 결과 status. 현 시점 항상 'not_called' (KI-005 closed 시 활성). */
+  /**
+   * AutoTagger 호출 결과 status.
+   * - 'tagged': tagNote 성공 + 태그 attach 완료
+   * - 'skipped': empty content / no_chat_support
+   * - 'failed': provider.chat throw
+   * - 'not_called': enableAutoTagging=false 또는 autoTagger 미주입
+   */
   autoTaggingStatus?: 'tagged' | 'skipped' | 'failed' | 'not_called'
 }
 
@@ -56,10 +73,12 @@ const DEFAULT_PRIORITY = 10
 export class NoteService {
   private readonly noteStore: NoteStore
   private readonly embeddingQueue: EmbeddingQueue
+  private readonly autoTagger: AutoTagger | undefined
 
   constructor(opts: NoteServiceOptions) {
     this.noteStore = opts.noteStore
     this.embeddingQueue = opts.embeddingQueue
+    this.autoTagger = opts.autoTagger
   }
 
   /**
@@ -103,8 +122,31 @@ export class NoteService {
       embeddingJobId = job.id
     }
 
-    // KI-005 — note 자동 태깅 미구현 (AutoTagger.tagNote 도입 시 활성). 현 시점 항상 'not_called'.
-    const autoTaggingStatus: CreateNoteResult['autoTaggingStatus'] = 'not_called'
+    // Sprint 016 M4 T21 (KI-005 closed) — AutoTagger.tagNote 호출.
+    // enableAutoTagging=true + opts.autoTagger 주입 시 호출 / 그 외 'not_called'.
+    let autoTaggingStatus: CreateNoteResult['autoTaggingStatus'] = 'not_called'
+    if (input.enableAutoTagging === true && this.autoTagger) {
+      // content 결합 — selected_text + body (body 있으면 \n\n 결합, 없으면 selected_text 만).
+      // 호출자가 입력한 그대로 — 본 모듈은 trim 만 (AutoTagger 내부에서 추가 trim/truncate).
+      const noteContent =
+        input.body && input.body.trim().length > 0
+          ? `${input.selectedText}\n\n${input.body}`
+          : input.selectedText
+      // codex T21 사전 dual review NEEDS_CHANGES #1 흡수 — autoTagger 호출이 throw 해도
+      // createNote 자체 throw 안 되도록 try/catch 격리. note + embedding job 은 이미 영속.
+      // AutoTagger.tagContent 내부는 provider.chat throw 만 'failed' 변환, attach 단계 DB/FK
+      // throw 는 그대로 전파 → 본 모듈에서 catch + status='failed' 처리.
+      try {
+        const result = await this.autoTagger.tagNote({
+          noteId: note.id,
+          workspaceId: input.workspaceId,
+          content: noteContent
+        })
+        autoTaggingStatus = result.status
+      } catch {
+        autoTaggingStatus = 'failed'
+      }
+    }
 
     return { note, embeddingJobId, autoTaggingStatus }
   }
