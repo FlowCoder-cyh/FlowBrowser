@@ -307,17 +307,29 @@ describe('highlightAnchor — deserializeAnchor', () => {
     expect(result.strategy).toBe('failed')
   })
 
-  it('returns null when ownerDocument is missing (defensive)', () => {
-    // 직접 detached element — happy-dom 에서도 ownerDocument 는 보통 존재
-    // ownerDocument 가 null 인 경우를 모사하기 어려우므로 type-cast 시도
-    const detached = document.createElement('div')
-    detached.innerHTML = '<p>text</p>'
-    // detached 는 document 에 attach 되지 않았지만 ownerDocument 는 여전히 document
-    expect(detached.ownerDocument).toBe(document)
-
-    // 본 케이스는 happy-dom 으로 모사 불가 — 함수 자체의 분기 cover 위한 placeholder
-    // (실제 실행 시 ownerDocument null 케이스는 거의 없음)
-    expect(true).toBe(true)
+  it('returns failed when ownerDocument is null (defensive) — evaluator NB hotfix', () => {
+    // evaluator Partial NB 흡수 — 이전 placeholder (expect(true).toBe(true)) 는 실제 분기 cover 0.
+    // 본 hotfix — minimal fake root 로 deserializeAnchor 의 ownerDocument === null 분기 실제 cover.
+    const fakeRoot = {
+      ownerDocument: null,
+      textContent: ''
+    } as unknown as Element
+    const anchor: HighlightAnchor = {
+      rootSelector: 'body',
+      startPath: [],
+      endPath: [],
+      startOffset: 0,
+      endOffset: 0,
+      selectedText: 'x',
+      prefix: '',
+      suffix: '',
+      contentHash: '',
+      contextHash: ''
+    }
+    const result = deserializeAnchor(fakeRoot, anchor)
+    expect(result.range).toBeNull()
+    expect(result.strategy).toBe('failed')
+    expect(result.contentHashMatch).toBe(false)
   })
 })
 
