@@ -10,6 +10,12 @@
 import type { LevelPreference, WorkspaceRow } from '../storage/Database'
 import type { WorkspaceService } from './WorkspaceService'
 import { WorkspaceValidationError } from './WorkspaceService'
+import type {
+  WorkspaceExportImportService,
+  WorkspaceExportV1,
+  ImportResultSummary
+} from './WorkspaceExportImportService'
+import { WorkspaceExportImportError } from './WorkspaceExportImportService'
 
 export interface SerializedWorkspace {
   id: string
@@ -128,6 +134,34 @@ export interface WorkspaceHandlerDeps {
    * 미주입 시 (테스트) no-op.
    */
   clearWorkspacePartition?: (workspaceId: string) => Promise<void>
+  /**
+   * Sprint 016 M3 T17 (KI-008 closed) — Workspace JSON Export/Import service getter.
+   * `workspace:export-json` / `workspace:import-json` IPC 가 사용.
+   * 미주입 (테스트) 또는 null (bootstrap 실패) 시 infra_unavailable 응답.
+   */
+  getExportImportService?: () => WorkspaceExportImportService | null
+}
+
+export interface WorkspaceExportArgs {
+  id: string
+}
+
+export interface WorkspaceExportResponse {
+  ok: boolean
+  payload?: WorkspaceExportV1
+  error?: string
+  errorCode?: 'infra_unavailable' | 'invalid_input' | 'not_found'
+}
+
+export interface WorkspaceImportArgs {
+  payload: unknown
+}
+
+export interface WorkspaceImportResponse {
+  ok: boolean
+  summary?: ImportResultSummary
+  error?: string
+  errorCode?: 'infra_unavailable' | 'invalid_input' | 'invalid_export_schema' | 'invalid_version' | 'unsupported_schema_version'
 }
 
 /**
@@ -315,6 +349,85 @@ export async function handleWorkspaceDelete(
         errorCode: err.code === 'not_found' ? 'not_found' : 'invalid_input',
         error: err.code
       }
+    }
+    return { ok: false, errorCode: 'invalid_input', error: errMessage(err) }
+  }
+}
+
+/**
+ * Sprint 016 M3 T17 (KI-008) — workspace:export-json IPC handler.
+ *
+ * 한 워크스페이스의 모든 데이터를 versioned JSON 으로 export.
+ * caller (renderer) 가 결과를 파일에 저장.
+ */
+export function handleWorkspaceExportJson(
+  args: WorkspaceExportArgs,
+  deps: WorkspaceHandlerDeps
+): WorkspaceExportResponse {
+  if (typeof args?.id !== 'string' || args.id.length === 0) {
+    return { ok: false, errorCode: 'invalid_input', error: 'id 가 필요합니다.' }
+  }
+  const svc = deps.getExportImportService?.()
+  if (!svc) {
+    return {
+      ok: false,
+      errorCode: 'infra_unavailable',
+      error: 'Export/Import 인프라가 비활성입니다.'
+    }
+  }
+  try {
+    const payload = svc.exportWorkspace(args.id)
+    return { ok: true, payload }
+  } catch (err) {
+    if (err instanceof WorkspaceExportImportError && err.code === 'workspace_not_found') {
+      return { ok: false, errorCode: 'not_found', error: err.message }
+    }
+    return { ok: false, errorCode: 'invalid_input', error: errMessage(err) }
+  }
+}
+
+/**
+ * Sprint 016 M3 T17 (KI-008) — workspace:import-json IPC handler.
+ *
+ * JSON payload (보통 파일에서 읽힌) 을 새 워크스페이스로 import.
+ * 항상 새 workspace id 발급 + 모든 child id 새로 발급 + 참조 재매핑.
+ */
+export function handleWorkspaceImportJson(
+  args: WorkspaceImportArgs,
+  deps: WorkspaceHandlerDeps
+): WorkspaceImportResponse {
+  if (args === null || args === undefined) {
+    return { ok: false, errorCode: 'invalid_input', error: 'args 가 필요합니다.' }
+  }
+  const svc = deps.getExportImportService?.()
+  if (!svc) {
+    return {
+      ok: false,
+      errorCode: 'infra_unavailable',
+      error: 'Export/Import 인프라가 비활성입니다.'
+    }
+  }
+  try {
+    const summary = svc.importWorkspace(args.payload)
+    // codex BLOCKING #1 hotfix — import 성공 후 WorkspaceService 캐시 invalidation.
+    // svc 가 자체 list() 캐시를 들고 있어 import 후 새 워크스페이스가 sidebar 에 안 보이는 위험 차단.
+    const wsSvc = deps.getService()
+    if (wsSvc) {
+      wsSvc.invalidateCache()
+    }
+    return { ok: true, summary }
+  } catch (err) {
+    if (err instanceof WorkspaceExportImportError) {
+      const code = err.code
+      const errorCode =
+        code === 'invalid_export_schema'
+          ? 'invalid_export_schema'
+          : code === 'invalid_version'
+            ? 'invalid_version'
+            : code === 'unsupported_schema_version'
+              ? 'unsupported_schema_version'
+              : 'invalid_input'
+      return { ok: false, errorCode, error: err.message }
     }
     return { ok: false, errorCode: 'invalid_input', error: errMessage(err) }
   }

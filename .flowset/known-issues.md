@@ -118,16 +118,17 @@
 - **처리 예정 Sprint**: 016 (Phase 2 cookies partition 동반)
 - **상태**: `closed` (Sprint 016 M0 T03 분할 옵션 A 3편 — T03a PR #171 schema + V1→V2 마이그레이션 / T03b PR #172 TabLabel workspaceContext props / T03c PR #173 `TabManager.setActiveWorkspaceFilter` + `activeTabByWorkspace` stash map + `backfillUnassignedWorkspaceId` + `workspaceHandlers.handleWorkspaceSwitch` `onWorkspaceSwitched` callback path + `services.setWorkspaceSwitchHook` + `tab:open` 시 active ws 자동 박힘 + `initializeTabs` backfill + TabBar workspace context 주입 + `workspaceApi.onSwitched` broadcast. PR #173 회귀 +7 (TabManager activeWorkspaceFilter describe 4 case / workspaceHandlers onWorkspaceSwitched 3 case). nullable workspace_id 유지 (V1 호환 + fresh install 안전 fallback) — KI-007 본문 "NOT NULL" 권고는 main process backfill + IndexingService partition 검증으로 실효 충족.)
 
-### KI-008 [open] Workspace JSON Export/Import 미구현
+### KI-008 [closed] Workspace JSON Export/Import 미구현
 
 - **Severity**: LOW
 - **Phase**: 1
-- **Sprint**: 015 (M6 T28 evaluator KI 후보 #3)
-- **Component**: `src/main/WorkspaceService.ts` (`exportJson` / `importJson` 신규 메서드) + `src/renderer/src/workspace/WorkspaceSidebar.tsx` (Export 버튼 + handler)
+- **Sprint**: 015 (M6 T28 evaluator KI 후보 #3) → 016 M3 T17 closed
+- **Component**: `src/main/WorkspaceExportImportService.ts` (신규) + `src/main/workspaceHandlers.ts` (handleWorkspaceExportJson / handleWorkspaceImportJson) + `src/preload/index.ts` (workspaceApi.exportJson / importJson)
 - **영향**: PRD §11.5.6 "Phase 1, M6" 명시 산출물이나 contract T28 산출물 목록에 포함 0. 사용자 워크스페이스 삭제 직전 안전망 부재 (현재 cascade DELETE 후 복구 불가).
 - **권고 해소 방향**: IPC 2종 (`workspace:export-json` / `workspace:import-json`) + UI 우클릭 메뉴 추가. v0.4 자체 schema (Workspace + Page + Visit + Note + AiChatHistory + Tag 전체).
-- **처리 예정 Sprint**: 016 M0 또는 Phase 3 종료 전 정리
-- **상태**: `open`
+- **처리 예정 Sprint**: 016 M3 T17
+- **상태**: `closed` (Sprint 016 M3 T17 — `WorkspaceExportImportService` 신규 + IPC 2종 + preload 노출 + ID remap path: 항상 새 workspace id 발급 + 모든 child id 새 발급 + retrieved_items/chat_meta 안의 page_id/visit_id/note_id + RetrievedItem.id (type='page'/'note') 참조 rewrite + 단일 TX rollback. 단위 회귀 17 케이스. UI 우클릭 메뉴는 후속 hotfix.)
+- **잔여 후속 (KI-022 신규)**: import 후 vec_pages / vec_notes 재계산 (`embedding_queue` 재 enqueue) — 본 PR 미포함.
 
 ### KI-009 [open] MemoryStatsPanel React 컴포넌트 단위 테스트 0
 
@@ -287,6 +288,30 @@
 - **권고 해소 방향**: Sprint 016 T03 (KI-007 closed) 시점 동반 처리 — `tabLabel.test.ts`에 (1) workspace_id 매칭 시 **아이콘 prefix** 박힘 (2) workspace 미매칭/null/context 미주입 시 디폴트 라벨 fallback 2 케이스 추가. 라벨에 **이름은 박지 않음** (가독성 + 워크스페이스 사이드바 별도 표시로 중복 방지).
 - **처리 예정 Sprint**: 016 T03 (KI-007 동반)
 - **상태**: `closed` (Sprint 016 M0 T03b PR #172, 2026-05-19 — `formatTabLabel(t, workspaceContext?: { id, icon })` 시그니처 확장. 매칭 시 **아이콘 prefix 만** 표시 (이름은 `WorkspaceSidebar` 에서 별도 표시 — 가시성 정책 정합, codex PR #172 NEEDS_CHANGES 해소). 미매칭 / null / context 미주입 시 fallback 회귀 +2 (it 블록 2 + expect 5). UI wiring (TabBar 활성 ws 주입) 은 T03c 위임.)
+
+### KI-021 [open] 워크스페이스 삭제 partition cleanup 실패 시 영구 잔존 reconcile path 부재
+
+- **Severity**: LOW
+- **Phase**: 2
+- **Sprint**: 016 (M3 T16 사전 dual review codex NB-1)
+- **Component**: `src/main/workspaceHandlers.ts` (`handleWorkspaceDelete` clearWorkspacePartition throw swallow path) + 잠재적 `WorkspacePartitionManager.reconcileOrphanPartitions()` 부재
+- **영향**: DB cascade 성공 후 `partition.clearStorageData()` 실패 (디스크 IO / Electron session 비정상) 시 swallow + console.warn 처리. UX 차단 안 함 정책 (DB 삭제는 이미 성공) 은 정합이나, **다음 부팅 시점에 잔존 partition (cookies/storage/cache) 정리 reconcile path 부재** → 영구 잔존 위험. Privacy/storage usage 누적 가능.
+- **재현 절차**: 워크스페이스 삭제 시점에 OS 디스크 full 또는 Electron session crash → `clearStorageData` throw → swallow → partition cleanup 누락. 재부팅 후 잔존 partition 확인 path 없음.
+- **권고 해소 방향**: (1) `WorkspacePartitionManager.reconcileOrphanPartitions(activeWorkspaceIds: string[])` 신규 — DB 에 없는 partition 식별 + cleanup. (2) main process boot 시점 (initServices 후) 호출. (3) workspaces 테이블 vs `session.getStoragePath()` 결과 비교.
+- **처리 예정 Sprint**: 016 종합 (T25) 또는 Phase 3 후속 hotfix
+- **상태**: `open`
+
+### KI-022 [open] Workspace Import 후 vec_pages / vec_notes 재계산 (embedding_queue 재 enqueue) 후속
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 016 (M3 T17 KI-008 closed 시점 분리 등록)
+- **Component**: `src/main/WorkspaceExportImportService.ts` (`importWorkspace` 후 embedding_queue insert 미박힘) + `src/storage/EmbeddingQueue.ts` (재 enqueue path)
+- **영향**: T17 Import 후 새 워크스페이스의 페이지/노트 본문이 모두 들어왔으나 **벡터 임베딩 (vec_pages / vec_notes) 은 export 대상 외** (derived data, model/dimension/sqlite-vec 버전 의존). 따라서 import 직후 시맨틱 검색 (검색바 Cmd+K) 이 import 된 페이지를 찾지 못함. 사용자 인지: 검색 결과 0건 + AutoIndex 미실행. 시나리오 4 (우연재발견) cover 감소.
+- **재현 절차**: ws A export → ws B import → import 된 page A1 의 본문 키워드로 검색 → 결과 0건 (vec0 row 부재)
+- **권고 해소 방향**: (1) `importWorkspace` 트랜잭션 안에서 모든 import 된 page/note 에 대해 `embeddingQueue.enqueue({type:'page', target_id: newPageId, workspace_id: newWorkspaceId, priority: 1})` 박음. (2) 또는 IPC handler 단에서 별도 step (보고: "임베딩 큐에 N 페이지 박음, 완료까지 약 N분"). (3) 사용자 동의 후 백그라운드 임베딩.
+- **처리 예정 Sprint**: 016 종합 (T25) 또는 Phase 3 후속 hotfix
+- **상태**: `open`
 
 ---
 

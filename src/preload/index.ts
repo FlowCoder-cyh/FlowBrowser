@@ -524,6 +524,35 @@ interface WorkspaceSwitchedPayload {
   workspaceId: string
 }
 
+// Sprint 016 M3 T17 (KI-008) — Workspace JSON Export/Import payload.
+interface WorkspaceExportResponsePayload {
+  ok: boolean
+  payload?: unknown // WorkspaceExportV1 — schema 는 main 측 SSOT
+  error?: string
+  errorCode?: 'infra_unavailable' | 'invalid_input' | 'not_found'
+}
+
+interface WorkspaceImportResponsePayload {
+  ok: boolean
+  summary?: {
+    workspaceId: string
+    pages: number
+    visits: number
+    notes: number
+    aiChatHistory: number
+    tags: number
+    pageTags: number
+    noteTags: number
+  }
+  error?: string
+  errorCode?:
+    | 'infra_unavailable'
+    | 'invalid_input'
+    | 'invalid_export_schema'
+    | 'invalid_version'
+    | 'unsupported_schema_version'
+}
+
 const workspaceApi = {
   list: (): Promise<WorkspaceListResponsePayload> => ipcRenderer.invoke('workspace:list'),
   getCurrent: (): Promise<SerializedWorkspacePayload | null> =>
@@ -549,7 +578,12 @@ const workspaceApi = {
     const listener = (_e: unknown, payload: WorkspaceSwitchedPayload): void => handler(payload)
     ipcRenderer.on('workspace:switched', listener)
     return () => ipcRenderer.removeListener('workspace:switched', listener)
-  }
+  },
+  // Sprint 016 M3 T17 (KI-008) — Workspace JSON Export/Import.
+  exportJson: (id: string): Promise<WorkspaceExportResponsePayload> =>
+    ipcRenderer.invoke('workspace:export-json', { id }),
+  importJson: (payload: unknown): Promise<WorkspaceImportResponsePayload> =>
+    ipcRenderer.invoke('workspace:import-json', { payload })
 }
 
 // Sprint 015 M6 T29 — memory IPC (MemoryService).

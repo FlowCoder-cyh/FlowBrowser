@@ -22,8 +22,11 @@ import {
   handleWorkspaceCreate,
   handleWorkspaceUpdate,
   handleWorkspaceSwitch,
-  handleWorkspaceDelete
+  handleWorkspaceDelete,
+  handleWorkspaceExportJson,
+  handleWorkspaceImportJson
 } from '../../../src/main/workspaceHandlers'
+import { WorkspaceExportImportService } from '../../../src/main/WorkspaceExportImportService'
 
 interface Harness {
   db: FlowbrowserDatabase
@@ -401,6 +404,106 @@ describe('workspaceHandlers', () => {
     expect(res.ok).toBe(false)
     expect(res.errorCode).toBe('not_found')
     expect(cleanupCalls).toEqual([])
+  })
+
+  // Sprint 016 M3 T17 (KI-008) — Workspace JSON Export/Import handler
+  it('T17 — export-json returns payload when svc + exportImportService available', () => {
+    const exportImportSvc = new WorkspaceExportImportService({ fb: h.db })
+    const res = handleWorkspaceExportJson(
+      { id: h.defaultId },
+      {
+        getService: () => h.svc,
+        getExportImportService: () => exportImportSvc
+      }
+    )
+    expect(res.ok).toBe(true)
+    expect(res.payload?.workspace.id).toBe(h.defaultId)
+    expect(res.payload?.version).toBe(1)
+  })
+
+  it('T17 — export-json returns infra_unavailable when exportImportService null', () => {
+    const res = handleWorkspaceExportJson(
+      { id: h.defaultId },
+      { getService: () => h.svc, getExportImportService: () => null }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('infra_unavailable')
+  })
+
+  it('T17 — export-json returns not_found for unknown workspace', () => {
+    const exportImportSvc = new WorkspaceExportImportService({ fb: h.db })
+    const res = handleWorkspaceExportJson(
+      { id: 'nope' },
+      { getService: () => h.svc, getExportImportService: () => exportImportSvc }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('not_found')
+  })
+
+  it('T17 — export-json returns invalid_input on empty id', () => {
+    const res = handleWorkspaceExportJson(
+      { id: '' },
+      { getService: () => h.svc, getExportImportService: () => null }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('invalid_input')
+  })
+
+  it('T17 BLOCKING #1 hotfix — import-json invalidates WorkspaceService cache (새 ws 가 list 에 즉시 보임)', async () => {
+    const exportImportSvc = new WorkspaceExportImportService({ fb: h.db })
+    // 사전 list() 호출로 캐시 박음 (cachedList: WorkspaceRow[])
+    const beforeList = handleWorkspaceList({ getService: () => h.svc })
+    expect(beforeList.workspaces).toHaveLength(1)
+    // import 진행
+    const exported = exportImportSvc.exportWorkspace(h.defaultId)
+    const res = handleWorkspaceImportJson(
+      { payload: exported },
+      { getService: () => h.svc, getExportImportService: () => exportImportSvc }
+    )
+    expect(res.ok).toBe(true)
+    // 캐시 invalidation 후 list 호출 시 새 워크스페이스 포함 (총 2개)
+    const afterList = handleWorkspaceList({ getService: () => h.svc })
+    expect(afterList.workspaces).toHaveLength(2)
+    expect(afterList.workspaces.map((w) => w.id)).toContain(res.summary?.workspaceId)
+  })
+
+  it('T17 — import-json returns invalid_version on wrong version', () => {
+    const exportImportSvc = new WorkspaceExportImportService({ fb: h.db })
+    const res = handleWorkspaceImportJson(
+      { payload: { version: 999, schemaVersion: 'v04', workspace: { name: 'x', icon: '📚' } } },
+      { getService: () => h.svc, getExportImportService: () => exportImportSvc }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('invalid_version')
+  })
+
+  it('T17 — import-json returns unsupported_schema_version', () => {
+    const exportImportSvc = new WorkspaceExportImportService({ fb: h.db })
+    const res = handleWorkspaceImportJson(
+      { payload: { version: 1, schemaVersion: 'v99', workspace: { name: 'x', icon: '📚' } } },
+      { getService: () => h.svc, getExportImportService: () => exportImportSvc }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('unsupported_schema_version')
+  })
+
+  it('T17 — import-json returns invalid_export_schema on null payload', () => {
+    const exportImportSvc = new WorkspaceExportImportService({ fb: h.db })
+    const res = handleWorkspaceImportJson(
+      { payload: null },
+      { getService: () => h.svc, getExportImportService: () => exportImportSvc }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('invalid_export_schema')
+  })
+
+  it('T17 — import-json returns infra_unavailable when service null', () => {
+    const res = handleWorkspaceImportJson(
+      { payload: {} },
+      { getService: () => h.svc, getExportImportService: () => null }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('infra_unavailable')
   })
 
   it('T16 — 마지막 1개 삭제 시 replacement 정합 + 삭제된 ws id 만 cleanup (replacement id 영향 0)', async () => {
