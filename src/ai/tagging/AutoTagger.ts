@@ -50,18 +50,36 @@ kind 허용값 (정확히 하나만):
 - 동일 kind 중복 name 금지.
 - JSON 외 그 어떤 출력도 금지.`
 
-export interface TagPageInput {
-  pageId: string
+/**
+ * 공통 base — page / note 공유. Sprint 016 M4 T21 분리 (KI-005 closed).
+ *
+ * `content`:
+ *   - page: 본문 또는 추출 텍스트
+ *   - note: `selected_text` + 선택 시 `\n\n` + `body` 결합 (호출자 책임)
+ */
+interface TagInputBase {
   workspaceId: string
   title?: string
   content: string
   /** model hint (provider 가 사용). 미주입 시 provider default. */
   modelHint?: string
   /**
-   * 최대 응답 토큰. `ChatRequest.maxOutputTokens` 에 그대로 전달 (현재 본 모듈은 미사용 —
-   * 후속 spec 결정 시 provider.chat 호출에 전달 예정). evaluator NB-1 정합 정정.
+   * 최대 응답 토큰. Sprint 016 M4 T21 (KI-005) 시점 ChatRequest.maxOutputTokens 로 전달
+   * — 이전 (Sprint 015 M4-2 NB-1) 미전달 hotfix 동반 흡수.
    */
   maxOutputTokens?: number
+}
+
+export interface TagPageInput extends TagInputBase {
+  pageId: string
+}
+
+/**
+ * Sprint 016 M4 T21 (KI-005 closed) — note 자동 태깅.
+ * tagPage 와 달리 `attachToNote` 호출 — page_tags FK 위반 없음.
+ */
+export interface TagNoteInput extends TagInputBase {
+  noteId: string
 }
 
 export type AutoTagResult =
@@ -108,6 +126,50 @@ export class AutoTagger {
   }
 
   async tagPage(input: TagPageInput): Promise<AutoTagResult> {
+    return this.tagContent(input, (tagId) => {
+      this.tagStore.attachToPage(input.pageId, {
+        workspace_id: input.workspaceId,
+        tag_id: tagId,
+        ai_generated: true
+      })
+    })
+  }
+
+  /**
+   * Sprint 016 M4 T21 — note 자동 태깅 (KI-005 closed).
+   *
+   * tagPage 와 동일 흐름이나 `attachToNote` 호출 — page_tags FK 위반 회피.
+   * NoteService.createNote(enableAutoTagging=true) 진입점에서 호출.
+   *
+   * BYOK 정합 (G-003 / KI-003) — provider 가 OpenAI API Key 인지 확인은 호출자 책임.
+   * AutoTagger 자체는 provider 종류 무관.
+   */
+  async tagNote(input: TagNoteInput): Promise<AutoTagResult> {
+    return this.tagContent(input, (tagId) => {
+      this.tagStore.attachToNote(input.noteId, {
+        workspace_id: input.workspaceId,
+        tag_id: tagId,
+        ai_generated: true
+      })
+    })
+  }
+
+  /**
+   * 공통 흐름 — page / note 공유.
+   *
+   * 1. content trim 검증 → empty 시 skipped
+   * 2. provider.chat 지원 검증 → 미지원 시 skipped
+   * 3. messages 조립 + ChatRequest (responseFormat=json_object, maxOutputTokens 전달)
+   * 4. provider.chat 호출 (throw 시 failed)
+   * 5. JSON parse → 실패 시 freeform fallback
+   * 6. ensureTag (idempotent) + attach callback (page or note)
+   *
+   * codex T21 사전 dual review NB — maxOutputTokens 전달 hotfix 동반 흡수.
+   */
+  private async tagContent(
+    input: TagInputBase,
+    attach: (tagId: string) => void
+  ): Promise<AutoTagResult> {
     const trimmed = input.content.trim()
     if (trimmed.length === 0) {
       return { status: 'skipped', reason: 'empty_content' }
@@ -129,6 +191,7 @@ export class AutoTagger {
     const request: ChatRequest = {
       messages,
       modelHint: input.modelHint,
+      maxOutputTokens: input.maxOutputTokens,
       responseFormat: 'json_object'
     }
 
@@ -159,11 +222,7 @@ export class AutoTagger {
         name: item.name,
         ai_generated: true
       })
-      this.tagStore.attachToPage(input.pageId, {
-        workspace_id: input.workspaceId,
-        tag_id: tag.id,
-        ai_generated: true
-      })
+      attach(tag.id)
       tags.push(tag)
     }
 
