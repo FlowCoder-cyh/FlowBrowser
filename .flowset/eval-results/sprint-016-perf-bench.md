@@ -166,7 +166,13 @@ vitest 2.1.x bench mode 가 sqlite-vec + `beforeAll` 시드 조합에서 samples
 ### 6.2 정합 평가
 
 - KI-011~016 6종 모두 임계 PASS 재확인.
-- 측정값 변동 범위: ±0.05ms (KI-011/012/013/014) — 시스템 노이즈 범위 / KI-015/016 측정값 동일.
+- 측정값 변동:
+  - KI-011 10K: +0.006ms (baseline 0.447ms → 재측정 0.453ms, 노이즈 범위)
+  - KI-012: 동일 (0.027ms)
+  - KI-013: +0.043ms (baseline 1.404ms → 1.447ms, 노이즈 범위)
+  - KI-014: T06 baseline 0.283ms 대비 +0.056ms (노이즈) / T02 abort wiring 후 baseline 0.581ms 대비 -0.242ms (개선) — T02 abort wiring 효과 분기 정합.
+  - KI-015: 동일 ($0.20/월)
+  - KI-016: 동일 (90.32MB)
 - carryover regression 0 — Sprint 017 M0 진입 시점 perf bench baseline 정합 유지.
 - KI-011~016 closed 상태 정합 (Sprint 016 M5 T25 시점 전환 후 본 audit 시점 status 유지).
 
