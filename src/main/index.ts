@@ -11,10 +11,12 @@ import {
   saveTabState,
   getShortcutBindings,
   getActiveWorkspaceId,
+  getWorkspacePartitionName,
   setWorkspaceSwitchHook,
   tryIndexPage,
   getParagraphsExtractScript
 } from './services'
+import { buildTabWebPreferences } from './tabViewWebPreferences'
 import { inputMatchesAccelerator } from './ShortcutMatcher'
 import { TabManager, TAB_COLOR_PALETTE, type TabColor, type TabSession } from './TabManager'
 import { ThumbnailStore, type ThumbnailEntry } from './ThumbnailStore'
@@ -135,8 +137,11 @@ async function initializeTabs(): Promise<void> {
       tabManager.restore({ tabs: persisted.tabs, activeId: persisted.activeId })
       // V1 마이그레이션 직후 workspace_id null 인 탭들을 active ws 로 backfill.
       if (activeWsId) tabManager.backfillUnassignedWorkspaceId(activeWsId)
-      for (const t of persisted.tabs) {
-        createTabView(t.id, t.url)
+      // Sprint 016 M3 T15 — backfill 완료 후 tabManager 의 갱신된 workspace_id 기준으로 view 생성.
+      // codex 협의: stale persisted.tabs 원본이 아닌 snapshotAll() 의 현재 metadata 사용.
+      const restored = tabManager.snapshotAll().tabs
+      for (const t of restored) {
+        createTabView(t.id, t.url, t.workspace_id ?? activeWsId)
       }
       // 활성 ws 필터 적용 (시각 격리).
       if (activeWsId) tabManager.setActiveWorkspaceFilter(activeWsId)
@@ -149,7 +154,7 @@ async function initializeTabs(): Promise<void> {
   }
   // 복원 실패 또는 빈 상태 → 첫 탭 신규 생성 (활성 ws 메타 박힘).
   const firstTab = tabManager.open('about:blank', { workspaceId: activeWsId })
-  createTabView(firstTab.id, firstTab.url)
+  createTabView(firstTab.id, firstTab.url, activeWsId)
   if (activeWsId) tabManager.setActiveWorkspaceFilter(activeWsId)
   setActiveTabView(firstTab.id)
 }
@@ -257,9 +262,10 @@ ipcMain.handle('tab:list', () => tabManager.snapshot())
 
 ipcMain.handle('tab:open', (_event, url?: string): TabSession => {
   // Sprint 016 M0 T03c (KI-007) — 신규 탭은 활성 워크스페이스 메타 자동 박힘 (격리 invariant).
+  // Sprint 016 M3 T15 (G-015) — wsId 가 createTabView 에 전달되어 `persist:ws-{wsId}` partition 박힘.
   const wsId = getActiveWorkspaceId()
   const session = tabManager.open(url ?? 'about:blank', { workspaceId: wsId })
-  createTabView(session.id, session.url)
+  createTabView(session.id, session.url, wsId)
   setActiveTabView(session.id)
   return session
 })
@@ -287,8 +293,9 @@ ipcMain.handle('tab:close', (_event, id: string): boolean => {
   // Sprint 016 M0 T03c hotfix (codex BLOCKING #4) — 자동 빈 탭에도 active ws 메타 주입.
   let active = tabManager.getActiveId()
   if (!active) {
-    const fresh = tabManager.open('about:blank', { workspaceId: getActiveWorkspaceId() })
-    createTabView(fresh.id, fresh.url)
+    const wsId = getActiveWorkspaceId()
+    const fresh = tabManager.open('about:blank', { workspaceId: wsId })
+    createTabView(fresh.id, fresh.url, wsId)
     active = fresh.id
   }
   setActiveTabView(active)
@@ -348,7 +355,8 @@ ipcMain.handle('tab:close-right', (_event, fromId: string): boolean => {
 ipcMain.handle('tab:duplicate', (_event, id: string): TabSession | null => {
   const session = tabManager.duplicate(id)
   if (!session) return null
-  createTabView(session.id, session.url)
+  // Sprint 016 M3 T15 (G-015) — duplicate 한 탭의 workspace_id 로 partition 박음 (원본 격리 유지).
+  createTabView(session.id, session.url, session.workspace_id)
   setActiveTabView(session.id)
   return session
 })
@@ -373,10 +381,12 @@ ipcMain.handle('tab:get-thumbnail', (_event, id: string): ThumbnailEntry | null 
 function reopenLastClosedTab(): TabSession | null {
   const entry = closedTabHistory.pop()
   if (!entry) return null
-  const session = tabManager.open(entry.url, { workspaceId: getActiveWorkspaceId() })
+  const wsId = getActiveWorkspaceId()
+  const session = tabManager.open(entry.url, { workspaceId: wsId })
   if (entry.color) tabManager.setColor(session.id, entry.color)
   if (entry.pinned) tabManager.setPinned(session.id, true)
-  createTabView(session.id, session.url)
+  // Sprint 016 M3 T15 (G-015) — 복원 탭에 active ws partition 박힘.
+  createTabView(session.id, session.url, wsId)
   setActiveTabView(session.id)
   return tabManager.list().find((t) => t.id === session.id) ?? session
 }
@@ -409,8 +419,10 @@ ipcMain.handle(
             let active = tabManager.getActiveId()
             if (!active) {
               // Sprint 016 M0 T03c hotfix — 자동 빈 탭에도 active ws 메타.
-              const fresh = tabManager.open('about:blank', { workspaceId: getActiveWorkspaceId() })
-              createTabView(fresh.id, fresh.url)
+              // Sprint 016 M3 T15 (G-015) — partition 도 active ws 로 박음.
+              const wsId = getActiveWorkspaceId()
+              const fresh = tabManager.open('about:blank', { workspaceId: wsId })
+              createTabView(fresh.id, fresh.url, wsId)
               active = fresh.id
             }
             setActiveTabView(active)
@@ -444,7 +456,8 @@ ipcMain.handle(
         click: () => {
           const session = tabManager.duplicate(tabId)
           if (!session) return
-          createTabView(session.id, session.url)
+          // Sprint 016 M3 T15 (G-015) — duplicate 한 탭의 ws 로 partition 박음 (원본 격리 유지).
+          createTabView(session.id, session.url, session.workspace_id)
           setActiveTabView(session.id)
         }
       },
@@ -492,14 +505,20 @@ function buildColorSubmenu(tabId: string): Electron.MenuItemConstructorOptions[]
 /**
  * Sprint 008 M1 — 신규 탭의 WebContentsView를 생성하고 listener를 등록.
  * 활성화는 별도 함수에서.
+ *
+ * Sprint 016 M3 T15 (G-015) — workspaceId 옵션 추가. 지정 시 `persist:ws-{workspaceId}` partition 박음
+ * → cookies/localStorage/IndexedDB 격리. WebContents 생성 시점에만 partition 고정 (Electron 정책) —
+ * 같은 탭의 workspace 가 바뀌면 destroyTabView → createTabView 재생성 필요 (정상 흐름에서는 일어나지 않음:
+ * TabManager 가 workspace_id 격리 invariant 유지).
  */
-function createTabView(tabId: string, url: string): WebContentsView {
+function createTabView(
+  tabId: string,
+  url: string,
+  workspaceId: string | null = null
+): WebContentsView {
+  const partition = getWorkspacePartitionName(workspaceId)
   const view = new WebContentsView({
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: buildTabWebPreferences({ partition })
   })
   tabViews.set(tabId, view)
   WebContentsRegistry.register(view.webContents)
@@ -951,8 +970,10 @@ function installApplicationMenu(): void {
           accelerator: 'CommandOrControl+T',
           click: () => {
             // Sprint 016 M0 T03c hotfix — 메뉴 새 탭도 active ws 메타.
-            const session = tabManager.open('about:blank', { workspaceId: getActiveWorkspaceId() })
-            createTabView(session.id, session.url)
+            // Sprint 016 M3 T15 (G-015) — partition 도 active ws 로 박음.
+            const wsId = getActiveWorkspaceId()
+            const session = tabManager.open('about:blank', { workspaceId: wsId })
+            createTabView(session.id, session.url, wsId)
             setActiveTabView(session.id)
           }
         },
@@ -969,8 +990,10 @@ function installApplicationMenu(): void {
             let active = tabManager.getActiveId()
             if (!active) {
               // Sprint 016 M0 T03c hotfix — 메뉴 탭 닫기 자동 빈 탭도 active ws 메타.
-              const fresh = tabManager.open('about:blank', { workspaceId: getActiveWorkspaceId() })
-              createTabView(fresh.id, fresh.url)
+              // Sprint 016 M3 T15 (G-015) — partition 도 active ws 로 박음.
+              const wsId = getActiveWorkspaceId()
+              const fresh = tabManager.open('about:blank', { workspaceId: wsId })
+              createTabView(fresh.id, fresh.url, wsId)
               active = fresh.id
             }
             setActiveTabView(active)
