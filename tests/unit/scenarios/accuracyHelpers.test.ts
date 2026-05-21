@@ -91,4 +91,41 @@ describe('aiSourcesPrecision 산식 (KI-019)', () => {
   it('임계 상수 — PRD §15.4 #6 = 0.9', () => {
     expect(AI_SOURCES_PRECISION_THRESHOLD).toBe(0.9)
   })
+
+  /**
+   * Sprint 016 M5 T23 — 산식 후속 edge case.
+   */
+  it('T23 — topKHitRate k=0 일 때 항상 0 (slice(0,0) = [])', () => {
+    const pairs = [{ expected: ['p1'], returnedTopK: ['p1', 'p2'] }]
+    expect(topKHitRate(pairs, 0)).toBe(0)
+  })
+
+  it('T23 — topKHitRate expected 빈 array → 항상 miss (some 빈 array = false)', () => {
+    const pairs = [{ expected: [] as string[], returnedTopK: ['p1', 'p2'] }]
+    expect(topKHitRate(pairs, 10)).toBe(0)
+  })
+
+  it('T23 — aiSourcesPrecision citedSources 중복 시 산식 정합 (duplicate counts twice)', () => {
+    // citedSources 가 ['p1', 'p1'] (모델이 같은 출처 두 번 인용) — 둘 다 retrieved 안 → precision 1.0
+    const pairs = [{ citedSources: ['p1', 'p1'], retrievedItems: ['p1'] }]
+    expect(aiSourcesPrecision(pairs)).toBe(1)
+  })
+
+  it('T23 — aiSourcesPrecision retrievedItems 비어 + citedSources 비어있지 않음 → 0 precision', () => {
+    const pairs = [{ citedSources: ['p1', 'p2'], retrievedItems: [] }]
+    expect(aiSourcesPrecision(pairs)).toBe(0)
+  })
+
+  it('T23 — topKHitRate 정확 임계 (4/5 = 0.8) PASS', () => {
+    const pairs = [
+      { expected: ['p1'], returnedTopK: ['p1'] },
+      { expected: ['p2'], returnedTopK: ['p2'] },
+      { expected: ['p3'], returnedTopK: ['p3'] },
+      { expected: ['p4'], returnedTopK: ['p4'] },
+      { expected: ['p5'], returnedTopK: ['q9'] }
+    ]
+    const hr = topKHitRate(pairs, 10)
+    expect(hr).toBe(0.8)
+    expect(hr).toBeGreaterThanOrEqual(TOP_K_HIT_RATE_THRESHOLD)
+  })
 })

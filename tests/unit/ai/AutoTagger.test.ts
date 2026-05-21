@@ -710,6 +710,72 @@ describe('parseTagsResponse 단위', () => {
     expect(r).toHaveLength(3)
   })
 
+  /**
+   * Sprint 016 M5 T23 — parseTagsResponse 후속 edge case.
+   */
+  it('T23 — tags 빈 array → null (parseTagsResponse 산식 정합 — empty 시 freeform fallback path 결정은 호출자 책임)', () => {
+    // codex 사전 dual review NB-3 정합 — `tags: []` 는 parseTagsResponse 자체는 null 반환,
+    // 호출자 (AutoTagger.tagPage / tagNote) 는 본 null 을 freeform fallback path 진입 신호로 사용.
+    expect(parseTagsResponse(JSON.stringify({ tags: [] }), 6)).toBeNull()
+  })
+
+  it('T23 — tag.name 누락 → invalid 처리, 나머지만 반환', () => {
+    const text = JSON.stringify({
+      tags: [
+        { kind: 'topic' /* name 누락 */ },
+        { kind: 'topic', name: 'valid' }
+      ]
+    })
+    const r = parseTagsResponse(text, 6)
+    expect(r).not.toBeNull()
+    expect(r!).toHaveLength(1)
+    expect(r![0].name).toBe('valid')
+  })
+
+  it('T23 — tag.kind 6 가지 모두 valid (topic/entity/metric/sentiment/domain/freeform)', () => {
+    const kinds = ['topic', 'entity', 'metric', 'sentiment', 'domain', 'freeform']
+    for (const kind of kinds) {
+      const r = parseTagsResponse(JSON.stringify({ tags: [{ kind, name: 't' }] }), 6)
+      expect(r).not.toBeNull()
+      expect(r!).toHaveLength(1)
+      expect(r![0].kind).toBe(kind)
+    }
+  })
+
+  it('T23 — maxTags 작은 값 (=1) — 첫 valid 1개만 반환', () => {
+    const r = parseTagsResponse(
+      JSON.stringify({
+        tags: [
+          { kind: 'topic', name: 'first' },
+          { kind: 'topic', name: 'second' },
+          { kind: 'topic', name: 'third' }
+        ]
+      }),
+      1
+    )
+    expect(r).not.toBeNull()
+    expect(r!).toHaveLength(1)
+    expect(r![0].name).toBe('first')
+  })
+
+  it('T23 — partially invalid (valid 1 + invalid kind) — valid 만 반환', () => {
+    const text = JSON.stringify({
+      tags: [
+        { kind: 'topic', name: 'valid-1' },
+        { kind: 'bogus-kind', name: 'rejected' }
+      ]
+    })
+    const r = parseTagsResponse(text, 6)
+    expect(r).not.toBeNull()
+    expect(r!.map((t) => t.name)).toEqual(['valid-1'])
+  })
+
+  it('T23 — tag.name whitespace → invalid 처리', () => {
+    const text = JSON.stringify({ tags: [{ kind: 'topic', name: '   ' }] })
+    const r = parseTagsResponse(text, 6)
+    expect(r).toBeNull()
+  })
+
   it('vi spy + provider.chat 호출 카운트 — schema 응답', async () => {
     const fb = FlowbrowserDatabase.openInMemory()
     fb.applySchema()

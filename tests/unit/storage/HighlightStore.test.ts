@@ -482,4 +482,200 @@ describe('HighlightStore — remove / clear / size', () => {
     store.clear()
     expect(store.size()).toBe(0)
   })
+
+  /**
+   * Sprint 016 M5 T23 — HighlightStore 후속 edge case.
+   * codex 사전 협의 권고 — T20 후속 안전망 (renderer overlay/SQLite swap 전제).
+   */
+  it('throws when adding duplicate explicit id', () => {
+    const store = new HighlightStore()
+    store.add({
+      id: 'dup',
+      noteId: 'n1',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1'
+    })
+    expect(() =>
+      store.add({
+        id: 'dup',
+        noteId: 'n2',
+        url: 'https://b.com',
+        contentHash: 'h2',
+        anchor: makeAnchor(),
+        workspaceId: 'ws1'
+      })
+    ).toThrow(/duplicate id=dup/)
+  })
+
+  it('listByNote returns empty after removing the last highlight of that note', () => {
+    const store = new HighlightStore()
+    const r = store.add({
+      noteId: 'noteX',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1'
+    })
+    expect(store.listByNote('noteX')).toHaveLength(1)
+    store.remove(r.id)
+    expect(store.listByNote('noteX')).toEqual([])
+  })
+
+  it('listByPage no longer returns removed record', () => {
+    const store = new HighlightStore()
+    const a = store.add({
+      noteId: 'n1',
+      pageId: 'p1',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1'
+    })
+    store.add({
+      noteId: 'n2',
+      pageId: 'p1',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1'
+    })
+    store.remove(a.id)
+    const remaining = store.listByPage({ workspaceId: 'ws1', pageId: 'p1' })
+    expect(remaining.map((r) => r.noteId)).toEqual(['n2'])
+  })
+
+  it('listByWorkspace returns empty array when workspace has no highlights', () => {
+    const store = new HighlightStore()
+    store.add({
+      noteId: 'n1',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1'
+    })
+    expect(store.listByWorkspace('ws-empty')).toEqual([])
+  })
+
+  it('listByNote sorts by createdAt ascending across multi-page notes', () => {
+    const store = new HighlightStore()
+    store.add({
+      id: 'late',
+      noteId: 'multi',
+      pageId: 'p2',
+      url: 'https://b.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1',
+      createdAt: 999
+    })
+    store.add({
+      id: 'mid',
+      noteId: 'multi',
+      pageId: 'p1',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1',
+      createdAt: 50
+    })
+    store.add({
+      id: 'early',
+      noteId: 'multi',
+      pageId: 'p1',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1',
+      createdAt: 1
+    })
+    expect(store.listByNote('multi').map((r) => r.id)).toEqual(['early', 'mid', 'late'])
+  })
+
+  it('listByPage with pageId="" treats empty string as identity-present (hasRealPageId = filter.pageId != null)', () => {
+    // != null 분기 — empty string 도 pageId identity 인정 (caller 책임: 빈 string 주입 자체 금지)
+    const store = new HighlightStore()
+    store.add({
+      id: 'h1',
+      noteId: 'n1',
+      pageId: '',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1',
+      createdAt: 1
+    })
+    const result = store.listByPage({ workspaceId: 'ws1', pageId: '' })
+    expect(result.map((r) => r.id)).toEqual(['h1'])
+  })
+
+  it('clear keeps the store usable for subsequent add', () => {
+    const store = new HighlightStore()
+    store.add({
+      noteId: 'n1',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1'
+    })
+    store.clear()
+    expect(store.size()).toBe(0)
+    const r = store.add({
+      noteId: 'n2',
+      url: 'https://b.com',
+      contentHash: 'h2',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1'
+    })
+    expect(store.size()).toBe(1)
+    expect(store.get(r.id)?.noteId).toBe('n2')
+  })
+
+  it('size 0 on a fresh store', () => {
+    expect(new HighlightStore().size()).toBe(0)
+  })
+
+  it('listByPage workspaceId scope is strict — workspace match required even with same pageId', () => {
+    const store = new HighlightStore()
+    store.add({
+      id: 'a',
+      noteId: 'n1',
+      pageId: 'shared',
+      url: 'https://x.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws-a',
+      createdAt: 1
+    })
+    store.add({
+      id: 'b',
+      noteId: 'n2',
+      pageId: 'shared',
+      url: 'https://x.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws-b',
+      createdAt: 2
+    })
+    expect(store.listByPage({ workspaceId: 'ws-a', pageId: 'shared' }).map((r) => r.id)).toEqual([
+      'a'
+    ])
+    expect(store.listByPage({ workspaceId: 'ws-b', pageId: 'shared' }).map((r) => r.id)).toEqual([
+      'b'
+    ])
+  })
+
+  it('add throws when anchor is null/undefined explicitly', () => {
+    const store = new HighlightStore()
+    expect(() =>
+      store.add({
+        noteId: 'n1',
+        url: 'https://a.com',
+        contentHash: 'h',
+        anchor: null as unknown as ReturnType<typeof makeAnchor>,
+        workspaceId: 'ws1'
+      })
+    ).toThrow(/anchor required/)
+  })
 })

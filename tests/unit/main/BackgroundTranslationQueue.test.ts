@@ -716,6 +716,194 @@ function makeJob(
   }
 }
 
+/**
+ * Sprint 016 M5 T23 — BackgroundTranslationQueue 후속 edge case (codex 권고 정합 — queue reset/cancel/retry path).
+ */
+describe('BackgroundTranslationQueue — T23 후속 edge case', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setupFx()
+  })
+
+  it('cancel pending → cancelled 후 다시 cancel → false (idempotent)', () => {
+    const q = makeQueue(fx, async () => ({ translatedText: 'ok' }))
+    const job = q.enqueue({ workspaceId: 'ws', sourceText: 'x', providerId: 'p' })
+    expect(q.cancel(job.id)).toBe(true)
+    expect(q.cancel(job.id)).toBe(false)
+  })
+
+  it('cancel failed job → false (no-op)', async () => {
+    const q = makeQueue(fx, async () => {
+      throw new Error('boom')
+    })
+    const job = q.enqueue({ workspaceId: 'ws', sourceText: 'x', providerId: 'p' })
+    q.start()
+    advance(fx, 0)
+    await vi.waitFor(() => expect(fx.store.findById(job.id)?.status).toBe('failed'))
+    expect(q.cancel(job.id)).toBe(false)
+  })
+
+  it('다른 provider threshold 격리 — provider-a above 여도 provider-b 별도 카운트', async () => {
+    const thresholdSpy = vi.fn()
+    const q = makeQueue(
+      fx,
+      async () => ({ translatedText: 'ok' }),
+      { thresholdPages: 2, minStartIntervalMs: 0, thresholdWindowMs: 1_000_000 }
+    )
+    q.on('thresholdExceeded', thresholdSpy)
+    q.enqueue({ workspaceId: 'ws', sourceText: 'a1', providerId: 'provider-a' })
+    q.enqueue({ workspaceId: 'ws', sourceText: 'a2', providerId: 'provider-a' })
+    q.enqueue({ workspaceId: 'ws', sourceText: 'b1', providerId: 'provider-b' })
+    q.start()
+    // 첫 dispatch — j1 (provider-a) 처리. waitFor 안에서 추가 advance 호출로 후속 dispatch flush.
+    for (let i = 0; i < 5; i++) {
+      advance(fx, 0)
+      await Promise.resolve()
+    }
+    await vi.waitFor(() =>
+      expect(fx.store.listAll().filter((j) => j.status === 'completed').length).toBe(3)
+    )
+    // provider-a above (2 ≥ 2), provider-b below (1 < 2) — emit 은 provider-a 만 1회
+    expect(thresholdSpy).toHaveBeenCalledTimes(1)
+    const emittedProviders = thresholdSpy.mock.calls.map((c) => c[0].providerId)
+    expect(emittedProviders).toEqual(['provider-a'])
+  })
+
+  it('start() 중복 호출 시 두 번째 no-op (recover 한 번만)', () => {
+    const recoverCalled = vi.fn(() => [] as TranslationJob[])
+    const stubStore = {
+      insert: (j: TranslationJob) => fx.store.insert(j),
+      update: (id: string, p: Partial<TranslationJob>) => fx.store.update(id, p),
+      findById: (id: string) => fx.store.findById(id),
+      listQueued: () => fx.store.listQueued(),
+      listAll: () => fx.store.listAll(),
+      recoverRunnableJobs: recoverCalled,
+      countCompletedInWindow: (p: string, w: number) =>
+        fx.store.countCompletedInWindow(p, w)
+    }
+    const q = new BackgroundTranslationQueue({
+      store: stubStore,
+      processor: async () => ({ translatedText: 'ok' }),
+      now: () => fx.fakeTime.now,
+      scheduleTimer: (fn, ms) => {
+        const id = fx.nextTimerId++
+        fx.timers.push({ id, fn, fireAt: fx.fakeTime.now + ms })
+        return id
+      },
+      clearScheduledTimer: (handle) => {
+        fx.timers = fx.timers.filter((t) => t.id !== handle)
+      }
+    })
+    q.start()
+    q.start()
+    q.start()
+    expect(recoverCalled).toHaveBeenCalledTimes(1)
+  })
+
+  it('enqueue pageId / model / reasoningEffort 보존', () => {
+    const q = makeQueue(fx, async () => ({ translatedText: 'ok' }))
+    const job = q.enqueue({
+      workspaceId: 'ws',
+      sourceText: 'x',
+      providerId: 'p',
+      pageId: 'page-abc',
+      model: 'gpt-5.5',
+      reasoningEffort: 'medium',
+      sourceLang: 'en',
+      targetLang: 'ko',
+      estimatedCostUsd: 0.05
+    })
+    expect(job.pageId).toBe('page-abc')
+    expect(job.model).toBe('gpt-5.5')
+    expect(job.reasoningEffort).toBe('medium')
+    expect(job.sourceLang).toBe('en')
+    expect(job.targetLang).toBe('ko')
+    expect(job.estimatedCostUsd).toBe(0.05)
+  })
+
+  it('enqueue input pageId null + estimatedCostUsd null → 기본값 null 유지', () => {
+    const q = makeQueue(fx, async () => ({ translatedText: 'ok' }))
+    const job = q.enqueue({
+      workspaceId: 'ws',
+      sourceText: 'x',
+      providerId: 'p',
+      pageId: null,
+      estimatedCostUsd: null
+    })
+    expect(job.pageId).toBeNull()
+    expect(job.estimatedCostUsd).toBeNull()
+    expect(job.sourceLang).toBeNull()
+    expect(job.model).toBeNull()
+    expect(job.reasoningEffort).toBeNull()
+  })
+
+  it('constructor policy 부분 override — minStartIntervalMs 만 변경 시 나머지 디폴트', async () => {
+    const q = makeQueue(fx, async () => ({ translatedText: 'ok' }), {
+      minStartIntervalMs: 0
+    })
+    // 디폴트 확인 — thresholdPages / thresholdWindowMs / progressCoalesceMs
+    // direct 검증 인터페이스 없음 → 동작 검증 (시간 0 후 두 번째 즉시 시작)
+    const j1 = q.enqueue({ workspaceId: 'ws', sourceText: 'a', providerId: 'p' })
+    const j2 = q.enqueue({ workspaceId: 'ws', sourceText: 'b', providerId: 'p' })
+    q.start()
+    // 다중 advance + microtask flush — j1 completed 후 j2 dispatch trigger
+    for (let i = 0; i < 5; i++) {
+      advance(fx, 0)
+      await Promise.resolve()
+    }
+    await vi.waitFor(() => {
+      expect(fx.store.findById(j1.id)?.status).toBe('completed')
+      expect(fx.store.findById(j2.id)?.status).toBe('completed')
+    })
+  })
+
+  it('cancel 된 job 은 thresholdActive 카운트 미포함 (cancel ≠ completed)', async () => {
+    const thresholdSpy = vi.fn()
+    const q = makeQueue(
+      fx,
+      async () => ({ translatedText: 'ok' }),
+      { thresholdPages: 2, minStartIntervalMs: 0, thresholdWindowMs: 1_000_000 }
+    )
+    q.on('thresholdExceeded', thresholdSpy)
+    // 첫 job — 완료. 두 번째 — pending cancel. 세 번째 — 완료
+    q.enqueue({ workspaceId: 'ws', sourceText: 'a', providerId: 'p' })
+    const j2 = q.enqueue({ workspaceId: 'ws', sourceText: 'b', providerId: 'p' })
+    q.cancel(j2.id) // pending 상태에서 cancel
+    q.enqueue({ workspaceId: 'ws', sourceText: 'c', providerId: 'p' })
+    q.start()
+    for (let i = 0; i < 5; i++) {
+      advance(fx, 0)
+      await Promise.resolve()
+    }
+    await vi.waitFor(() =>
+      expect(fx.store.listAll().filter((j) => j.status === 'completed').length).toBe(2)
+    )
+    // completed 2건 = threshold 2 → above crossing → emit 1
+    expect(thresholdSpy).toHaveBeenCalledTimes(1)
+    // cancelled 1건 + completed 2건 + queued 0 = total 3
+    expect(fx.store.listAll()).toHaveLength(3)
+    expect(fx.store.listAll().filter((j) => j.status === 'cancelled')).toHaveLength(1)
+  })
+
+  it('stop() 후 cancel pending 정상 동작 (running=false 여도 cancel 작동)', () => {
+    const q = makeQueue(fx, async () => ({ translatedText: 'ok' }))
+    const j = q.enqueue({ workspaceId: 'ws', sourceText: 'a', providerId: 'p' })
+    q.start()
+    q.stop()
+    // stop 후에도 cancel 동작 (큐 dispatch 와 무관, store 직접 update)
+    expect(q.cancel(j.id)).toBe(true)
+    expect(fx.store.findById(j.id)?.status).toBe('cancelled')
+  })
+
+  it('getActiveJob() — activeJob 없을 때 null', () => {
+    const q = makeQueue(fx, async () => ({ translatedText: 'ok' }))
+    expect(q.getActiveJob()).toBeNull()
+    q.enqueue({ workspaceId: 'ws', sourceText: 'a', providerId: 'p' })
+    // start 안 함 → activeJob 박힘 0
+    expect(q.getActiveJob()).toBeNull()
+  })
+})
+
 afterEach(() => {
   vi.useRealTimers()
 })
