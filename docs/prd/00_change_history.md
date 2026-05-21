@@ -132,3 +132,37 @@ v0.3.12까지의 핵심 완성 자산:
 - 작성 완료: 2026-05-17 (Sprint 015 M1 종합 evaluator Pass 6/2/0)
 - 구현 완료: 2026-05-19 (Sprint 015 M6 T28~T30 머지)
 - 종합 evaluator: 2026-05-19 (Sprint 015 M6 T31)
+
+## 0.7 v0.4.1 — Phase 2 진입 + KI batch 정리 (2026-05-21)
+
+Sprint 016 M0~M5 종결 시점 발행. M0 KI MEDIUM batch + LOW perf bench + M1 시나리오 2·3 cover + M2 어댑터 일괄 제거 + M3 cookies partition + Export/Import + M4 백그라운드 번역 + 하이라이트 + M5 종합 (T23 회귀 + T24 본 PRD + T25 핸드오프 + T26 Sprint 017 시안).
+
+### 0.7.1 v0.4.1 발행 메타
+
+- 발행일: 2026-05-21 (Sprint 016 M5 T24 시점)
+- Sprint: 016 M0~M5 (T01~T26 모두 머지 예정 — T23 #217 + T24 본 PRD docs PR)
+- 누적 PR: 114+ (Sprint 015 65 + Sprint 016 M0~M4 누적 +49 + M5 진행 중)
+- 누적 단위 테스트: **1436 PASS** (Sprint 015 1068 → Sprint 016 M0~M4 +306 → M5 T23 +62 = +368 누적)
+- 시나리오 회귀 셋 cover: 시나리오 1·4 100% (Sprint 015 T30) + 시나리오 2·3 cover (Sprint 016 M1 T07~T08) — 18/18 통합 회귀. KI-018 / KI-019 30 케이스 산식 cover (Sprint 016 M5 T23 scenario-accuracy 신규 통합 회귀 보강).
+- KI 변동 (Sprint 016 누적 closed 후보 + 신규):
+  - **MEDIUM closed (4)**: KI-001 macOS sqlite-vec (M0 T01 1차 PoC + 2차 matrix) / KI-004 response_format (M0 T04) / KI-006 abort 정책 (M0 T02 + T02-followup) / KI-007 TabManager workspace_id (M0 T03a/b/c)
+  - **LOW closed (5)**: KI-002 PageResultStore (M2 T12) / KI-005 AutoTagger.tagNote (M4 T21) / KI-008 Workspace JSON Export/Import (M3 T17) / KI-010 인덱싱 broadcast (M0 T05) / KI-017 tabLabel context 회귀 (M0 T03b)
+  - **HIGH 자가 status 전환**: KI-003 BYOK wiring (Sprint 015 M5 완료, `open` → `closed` 본 v0.4.1 메타)
+  - **LOW perf bench infra cover (PASS 6 / DEFERRED 2)**: KI-011 (MemoryStats 0.447ms) / KI-012 (Indexing 0.027ms) / KI-013 (Search 1.404ms) / KI-014 (Workspace switch 0.283ms) / KI-015 ($0.20/월) / KI-016 (90.32MB) — `closed` 후보. KI-018 / KI-019 — 30 케이스 산식 cover (closed 후보 본 v0.4.1).
+  - **신규 (Sprint 016 M3/M4)**: KI-020 (SPA did-navigate-in-page) / KI-021 (partition cleanup reconcile, Phase 2) / KI-022 (Import embedding_queue re-enqueue) / KI-023 (PDF viewer DOM range) / KI-024 (Shadow DOM cross-boundary) / KI-025 (contentHash 폐기 보수성) / KI-026 (PRD 표기 정정 — 본 v0.4.1 발행 시점 옵션 B `§11.11` 으로 해소)
+- 가드레일 활성: G-001~G-015 (Sprint 015 8 + Sprint 016 신규 G-015 cookies partition 격리)
+- 가드레일 추가 후보 (T25 핸드오프 박음): G-019 (perf bench infra 정량 임계 매트릭스 강제) — Sprint 017 시안 박음
+
+### 0.7.2 v0.4.1 주요 변경 — Phase 2 진입
+
+- **§11.11 Highlights 신설** (M4 T20 + M5 T24) — KI-026 옵션 B 해소. codex 사전 협의 권고 정합 (§11.5 Workspace CRUD 점유로 §11.11 박음). G-013 1단계 옵션 A (in-memory store) 산출물 보존. Phase 2 옵션 B (SQLite swap) Sprint 017 위임.
+- **G-015 cookies partition 격리 실효** (M3 T14~T16) — WorkspacePartitionManager (`persist:ws-{uuid}` 단위) 도입. 워크스페이스 삭제 시 cascade clearStorageData + clearCache.
+- **어댑터 일괄 제거 종결** (M2 T09~T13) — ProviderAdapter.translate / executeTranslateRequest / TranslationCache 어댑터 / PageResultStore 어댑터 / fetchImpl 통일. v0.3 자산 완전 폐기.
+- **백그라운드 번역 + 하이라이트 인프라** (M4 T18~T22) — BackgroundTranslationQueue / NotificationService / AutoTagger.tagNote / UserLevelEstimator mock / NoteHighlight DOM anchor.
+
+### 0.7.3 v0.4.1 작성 메타
+
+- 작성 시작: 2026-05-21 (Sprint 016 M5 T24 진입)
+- 작성 완료: 2026-05-21 (본 docs PR 머지 시점)
+- 종합 evaluator: 2026-05-21 (Sprint 016 M5 T25 시점)
+- 다음 발행 예고: v0.4.2 또는 v0.5.0 (Sprint 017 Phase 3 진입 — 로컬 LLM / Notion Export / 공유 / T20 renderer UI overlay / 옵션 B SQLite swap)
