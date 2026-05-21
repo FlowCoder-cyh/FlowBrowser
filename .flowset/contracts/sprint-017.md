@@ -40,8 +40,8 @@
 | S017-T01 | drainUntil(fx, predicate, max=20) helper 신규 + BackgroundTranslationQueue.test.ts 의 `for advance + Promise.resolve()` 패턴 정리 (codex T23 후속 위임 정합) | `tests/unit/main/_helpers/drainUntil.ts` + BackgroundTranslationQueue.test.ts refactor |
 | S017-T02 | pageId='' validation 위치 정합 — LOW KI 등록 + 호출자 path 검증 (SQLite swap / IPC 경계) | `.flowset/known-issues.md` KI 신규 + `src/main/noteHandlers.ts` 검증 |
 | S017-T03 | KI-009 MemoryStatsPanel React 컴포넌트 단위 테스트 — `@testing-library/react` 추가 + 4 케이스 (mount / workspaceId 변경 / 폴링 / error fallback) | `package.json` dev dep + `tests/unit/renderer/MemoryStatsPanel.test.tsx` |
-| S017-T04 | KI-018/019 closed 전환 — Sprint 016 M5 T23 scenario-accuracy 30 케이스 산식 cover 완성. status 변동 + 핸드오프 메모 | `.flowset/known-issues.md` status 변동 |
-| S017-T05 | Sprint 016 M0 perf bench infra 의 KI-011/012/013/014/015/016 6종 closed 전환 (M5 T25 카르오버 정합 확인) | `.flowset/known-issues.md` status 변동 |
+| S017-T04 | **KI-018/019 closed 상태 audit + 정합 확인** — Sprint 016 M5 T25 시점 이미 status `closed` 전환 (T23 scenario-accuracy 30 케이스 산식 cover). 본 Sprint 017 진입 시점 재검증 + carryover regression 0 확인 | `.flowset/known-issues.md` audit log |
+| S017-T05 | **KI-011/012/013/014/015/016 6종 closed 상태 audit + carryover 재측정** — Sprint 016 M0 T06 perf bench infra closed 후 Sprint 017 진입 시점 perf-baseline 재실행 (회귀 0 확인). 임계 변동 시 KI 재 open + hotfix path | `.flowset/known-issues.md` audit log + `npm run perf` 재실행 보고서 |
 | **M1 T20 후속 — renderer UI overlay + Highlight SQLite swap (T06~T09)** | | |
 | S017-T06 | NoteHighlight renderer UI overlay (`src/renderer/src/note/NoteHighlight.tsx`) — WebContentsView selection 캡처 + did-finish-load 시 deserializeAnchor 복원 trigger — G-013 2단계 | `src/renderer/src/note/NoteHighlight.tsx` + `src/main/index.ts` IPC wiring |
 | S017-T07 | Highlight schema 신규 (`v05.sql`) + V4→V5 마이그레이션 — G-014 dry-run + 자동 백업 강제. HighlightStore SQLite swap (in-memory → SQLite) | `src/storage/schema/v05.sql` + `src/storage/migrations/v04_to_v05.ts` + `src/storage/HighlightStore.ts` swap |
@@ -124,7 +124,7 @@
 - **누적 단위 테스트 ≥ 1520** (목표 1520~1560, Sprint 017 M0~M4 +80~120)
 - 시나리오 회귀 셋 18+ 통합 회귀 + 30 케이스 산식 cover 유지
 - PRD v0.5.0 발행
-- **KI 잔여 ≤ 5 (HIGH 0 / MEDIUM 0 / LOW ≤ 5)** — Sprint 017 M0~M5 closed 후보 (KI-009/018/019/011~016 carry-over 8 closed + KI-020~022/024 batch closed = 12 closed)
+- **KI 잔여 ≤ 5 (HIGH 0 / MEDIUM 0 / LOW ≤ 5)** — Sprint 017 진입 시점 잔여 11 (Sprint 016 M5 T25 시점 closed 15 + open 11). 본 Sprint 017 M0~M5 closed 후보 (KI-009 React 단위 + KI-001 macOS 2차 + KI-004 response_format + KI-006 abort carryover + KI-020/022 batch + KI-024 Shadow DOM = 7 closed 후보). 진입 시점 carryover 매트릭스 정합.
 - Sprint 018 contract 시안 작성 (Phase 3 종료 + MVP 진입 검토)
 
 ## 4. 마일스톤
@@ -189,7 +189,7 @@ M3 (T14~T17) 는 spike 위주 — 산출물 보고서 정합성 가중 (dependen
 - 방향 SSOT: `.flowset/specs/v04-direction.md` (Sprint 015 박힘, Sprint 016 M5 시점 정합)
 - 최신 핸드오프: `.flowset/handoffs/2026-05-21.md` (Sprint 016 M5 진행)
 - 가드레일: G-013 / G-014 (Sprint 015 박힘) + G-015 (Sprint 016 박힘) + **G-019 / G-020 신규 (본 시안)**
-- Known Issues: `.flowset/known-issues.md` KI-001 ~ KI-026 (26건 — Sprint 016 종결 시점 closed 9 + carryover 17)
+- Known Issues: `.flowset/known-issues.md` KI-001 ~ KI-026 (26건 — Sprint 016 M5 T25 종결 시점 closed 15 + carryover 11). 본 시안 정식화 PR 시점에 신규 KI 후보 3건 (drainUntil helper / pageId='' validation / freeform fallback wording) 등록 권고.
 - 외부 참조 (M3 spike 진입 전):
   - Ollama: https://ollama.com/ + https://github.com/ollama/ollama-js
   - sentence-transformers: https://huggingface.co/sentence-transformers + ONNX runtime
