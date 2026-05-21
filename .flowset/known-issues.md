@@ -314,13 +314,60 @@
 - **처리 예정 Sprint**: 016 종합 (T25) 또는 Phase 3 후속 hotfix
 - **상태**: `open`
 
+### KI-023 [open] HighlightStore PDF viewer 내부 selection DOM Range 캡처 미지원
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 016 (M4 T20 PR #215 evaluator KI 후보 1)
+- **Component**: `src/perception/highlightAnchor.ts` (`serializeRange` / `deserializeAnchor`) + 호출자 (renderer overlay 후속 PR)
+- **영향**: Chromium 내장 PDF viewer (`<embed>` / `<object>` plugin) 내부 selection 은 일반 DOM Range API 로 캡처 불가 — Range.startContainer 가 plugin 외부 element 또는 null. 본 PR `serializeRange` 가 `assertWithinRoot` 통해 throw 하지만 사용자 인지: PDF 페이지에서 하이라이트 기능 미동작. 시나리오 1 (논문 PDF 학습) 영향. 본 PR scope 명시 미지원 (commit body L24) — 호출자 책임. PDF 별도 path 필요.
+- **재현 절차**: 사용자가 논문 PDF (`https://arxiv.org/pdf/XXX.pdf`) 열기 → 텍스트 선택 → 노트 하이라이트 trigger → serialize 시 throw 또는 anchor 부정확.
+- **권고 해소 방향**: (1) UI 단 — PDF MIME 감지 시 하이라이트 버튼 비활성 + "PDF 는 지원 예정" 안내. (2) Phase 3 후속 R&D — PDF.js wrapper (pdfjs-dist) 기반 text layer 위에 별도 anchor schema (page_index + char_offset_in_page). (3) Chromium 내장 PDF viewer 의 selection API 노출 검토.
+- **처리 예정 Sprint**: Phase 3 후속 R&D 또는 별도 PDF spike
+- **상태**: `open`
+
+### KI-024 [open] HighlightStore Shadow DOM cross-boundary range graceful fallback 부재
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 016 (M4 T20 PR #215 evaluator KI 후보 2)
+- **Component**: `src/perception/highlightAnchor.ts` (`assertWithinRoot` L226-231 throw path)
+- **영향**: Shadow DOM 안 (open / closed shadow root) 의 text 선택 시 Range.startContainer 가 root.contains() 외부 → `serializeRange` throw. 사용자 인지: 일부 사이트 (Notion / Slack web / 일부 SPA) 에서 하이라이트 미동작 + graceful fallback 없음. 본 PR throw 정책 정합이나 호출자 (renderer overlay) 가 사용자에게 안내 메시지 미전달 시 silent 실패.
+- **재현 절차**: Shadow DOM 컴포넌트 (예: Notion 노트 본문) 안 텍스트 선택 → 하이라이트 trigger → console error 만, UI 무반응.
+- **권고 해소 방향**: (1) renderer overlay 후속 PR 에서 try/catch + 사용자 toast "이 영역의 하이라이트는 미지원 — Shadow DOM" 표시. (2) Phase 3 후속 — open Shadow DOM 진입 path (root.shadowRoot.contains(node) 검사) + closed Shadow DOM 명시 미지원. (3) selection event listener 에서 사전 검사 + 버튼 비활성.
+- **처리 예정 Sprint**: 016 후속 (renderer overlay PR) 또는 Phase 3
+- **상태**: `open`
+
+### KI-025 [open] HighlightStore contentHash 미일치 시 path 폐기 보수성 (사용자 데이터 회복률 영향)
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 016 (M4 T20 PR #215 evaluator KI 후보 3 + codex NB-1)
+- **Component**: `src/perception/highlightAnchor.ts` (`deserializeAnchor` L327-339 fallback 우선순위)
+- **영향**: 현 `deserializeAnchor` — contentHash 일치 시 path fast path 시도, 불일치 시 path 완전 폐기 + fuzzy 만. 보수적 정책 (잘못된 path 복원 회피). 다만 사용자 입장 — 페이지 작은 변경 (오타 수정 1자, 광고 삽입) 시 contentHash 변경 → path 가 정답이어도 fuzzy 만 시도 → ambiguous 또는 prefix/suffix collision 시 복원 실패. 사용자 데이터 회복률 영향.
+- **재현 절차**: ws A 에서 페이지 X 의 "quick brown fox" 선택 → 하이라이트 생성 → 페이지 X 다음 방문 시 새 광고 div 1개 추가 (contentHash 변경) → fuzzy 매칭 성공 시 OK, prefix/suffix 가 짧고 collision 시 실패.
+- **권고 해소 방향**: (1) Phase 3 후속 — confidence score 노출 (high: contentHash + path / medium: path + selectedText / low: fuzzy / dropped: ambiguous). UI 에서 low/dropped 시 사용자에게 "위치 추정 — 검증 필요" 안내. (2) contentHash mismatch + path text 매칭 시 low-confidence 후보 유지 옵션. (3) codex NB-3 — element container path 의 canonicalize (start/end 모두 text node 우선) 가능. (4) codex NB-5 — `computeContextHash` delimiter U+241F 대신 `JSON.stringify([prefix, selectedText, suffix])` 또는 length-prefix 사용 시 collision 완전 차단.
+- **처리 예정 Sprint**: Phase 3 후속 R&D
+- **상태**: `open`
+
+### KI-026 [open] Sprint 016 contract L62 "PRD §11.2.1 highlights" 표기 PRD 본문 불일치
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 016 (M4 T20 PR #215 evaluator KI 후보 4)
+- **Component**: `.flowset/contracts/sprint-016.md` L62 (S016-T20 산출물 표기) + 잠재적 `docs/prd/11_phase_1_isolation.md` 본문 (또는 §11.5 신설)
+- **영향**: contract L62 — "노트 하이라이트 (DOM anchor + 고정 위치 표시) — PRD §11.2.1 highlights". 실제 PRD §11.2.1 본문은 Phase 1 격리 (메타 단위) 표 (탭/페이지/AI/노트/태그) — highlight 본문 없음. PRD §4.3.4 Note.highlight_anchor 와 §16 roadmap 에는 박힘. contract 의 §11.2.1 표기 부정확 → 검증 시 PRD trace 어려움.
+- **권고 해소 방향**: 옵션 (A) contract L62 표기를 "PRD §4.3.4 Note.highlight_anchor + §16 roadmap" 로 정정 (간단). 옵션 (B) PRD §11.5 또는 §11.4 신설 — DOM anchor + UI overlay spec + W3C Range 시그니처 박음 (정합 강화, 권장). Sprint 016 M5 T24 PRD v0.4.1 발행 시점 결정.
+- **처리 예정 Sprint**: 016 M5 T24 (PRD v0.4.1 발행)
+- **상태**: `open`
+
 ---
 
 ## 통계 (Phase 단위)
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 14 | 3 | 16 |
+| Phase 1 | 1 | 4 | 18 | 4 | 19 |
 | Phase 2 | — | — | 1 | — | 1 |
 | Phase 3 | — | — | — | — | — |
 
@@ -345,3 +392,4 @@
 - 2026-05-19 (Sprint 016 M0 T03c PR #173 — KI-007 closed): `TabManager.setActiveWorkspaceFilter` + `activeTabByWorkspace` stash map + `backfillUnassignedWorkspaceId` + `listAll` / `snapshotAll` + `handleWorkspaceSwitch` `onWorkspaceSwitched` callback path + `services.setWorkspaceSwitchHook` + `tab:open` 시 active ws 자동 박힘 + `initializeTabs` backfill + TabBar workspace context 주입 + `workspaceApi.onSwitched` broadcast. 회귀 +7 (TabManager 4 + workspaceHandlers 3). Phase 1 해소 1 → **2** / 잔여 18 → **17** (HIGH 1 / MEDIUM 3 / LOW 13). KI-007 분할 옵션 A 3편 (T03a #171 + T03b #172 + T03c #173) 모두 머지 후 closed.
 - 2026-05-19 (Sprint 016 M0 T05 PR #176 — KI-010 closed + KI-020 신규): `IndexingGate` (UserSetting.privacyExclusions getter wiring) + `IndexingService` 인스턴스화 + `createIndexingBroadcastHandler` factory 함수로 onStatusChange wiring 추출 (status='indexed' 시 `broadcastMemoryInvalidated(payload.workspaceId)`) + `IndexingStatusPayload.workspaceId` 추가 + main/index.ts `createTabView` did-finish-load 에 `runPageIndexing` 헬퍼 (scanWebContentsFields + ParagraphExtractor.executeJavaScript + tryIndexPage, http/https allowlist 선필터, graceful try/catch) + tryIndexPage / getParagraphsExtractScript export. 회귀 +12 (IndexingService.test.ts +7 workspaceId payload + indexingBroadcast.test.ts +5 broadcast wiring). dual review evaluator Pass 8/8 / codex NEEDS_CHANGES 1 + NB-5 본 PR hotfix 흡수. NB-1 (SPA did-navigate-in-page 인덱싱 누락) **KI-020 LOW 신규 등록**. Phase 1 해소 2 → **3** / 잔여 17 → **17** (KI-010 closed -1 + KI-020 신규 +1 = 동수, HIGH 1 / MEDIUM 3 / LOW 13).
 - 2026-05-21 (Sprint 016 M4 T21 — KI-005 closed): `AutoTagger.tagNote(input: TagNoteInput)` 신규 + private `tagContent(input, attach)` helper 추출 (DRY) + tagStore.attachToNote 호출 path. NoteService.opts.autoTagger optional + createNote(enableAutoTagging=true + autoTagger 주입 시) tagNote 호출, 그 외 'not_called'. 회귀 +20 (AutoTagger.test.ts +11: tagNote 9 케이스 + tagPage maxOutputTokens 회귀 1 + parseTagsResponse 1 / NoteService.test.ts +9: enableAutoTagging path 7 + autoTagger 미주입 safety 1 + codex NEEDS_CHANGES #1 try/catch autoTagger throw 격리 1). 부가 hotfix: TagInputBase.maxOutputTokens → ChatRequest.maxOutputTokens 실 전달 (Sprint 015 M4-2 NB-1 잔존 정정). dual review evaluator Pass 7/Partial 1 (G-018 PR body 산출물 표 net vs gross 정합 권고) / codex NEEDS_CHANGES 1 (autoTagger throw 시 createNote 자체 throw 위험 → try/catch 격리 + autoTaggingStatus='failed') + NB 다수 모두 본 PR hotfix 흡수. Phase 1 해소 3 → **4** / 잔여 17 → 16 (HIGH 1 / MEDIUM 3 / LOW 12) + Phase 2 잔여 누계 0 → 1 (KI-021 M3 T16 누락분 정합 흡수, HIGH 0 / MEDIUM 0 / LOW 1). 총 잔여 17건.
+- 2026-05-21 (Sprint 016 M4 T20 — PR #215 머지 후 본 docs PR): KI-023 LOW (HighlightStore PDF viewer 미지원) + KI-024 LOW (Shadow DOM graceful fallback 부재) + KI-025 LOW (contentHash 미일치 시 path 폐기 보수성 — codex NB-1/NB-3/NB-5 흡수) + KI-026 LOW (contract L62 표기 PRD §11.2.1 불일치) 4건 등록. T20 PR 머지 후 evaluator + codex 권고 batch — 본 feature PR 안 박지 않고 docs PR 에서 통합 등록 (codex threadId 019e4a2b 권고 정합). Phase 1 해소 4 / 잔여 16 → **19** (HIGH 1 / MEDIUM 3 / LOW 15) + Phase 2 잔여 1 = 총 잔여 **20건**. KI-025 본문에 codex NB-1 (fallback ordering) + NB-3 (element container path canonicalize) + NB-5 (U+241F delimiter → JSON.stringify) sub-section 흡수.
