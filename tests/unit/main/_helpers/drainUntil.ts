@@ -28,11 +28,14 @@ export interface DrainUntilOptions {
  * `step` 을 동기 실행 → microtask 1회 flush 반복.
  * `predicate` 가 true 가 되면 즉시 종료. 최대 `maxIterations` 회 후에도 false 면 throw.
  *
- * @param step       매 반복마다 동기 실행될 함수 (보통 `() => advance(fx, 0)`)
- * @param predicate  종료 조건 — true 반환 시 종료
+ * @param step       매 반복마다 **동기** 실행될 함수 (보통 `() => advance(fx, 0)`).
+ *                   비동기 step 은 지원 X — Promise 반환 시 helper 가 await 하지 않음
+ *                   (TS `() => void` 시그니처가 async 함수도 허용하므로 호출자 책임).
+ * @param predicate  종료 조건 — **동기** boolean 반환 시 종료. 비동기 predicate 미지원.
  * @param options    maxIterations / description
  *
- * @throws Error  `maxIterations` 도달 후에도 predicate false 일 때
+ * @throws Error  `maxIterations` 도달 후에도 predicate false 일 때,
+ *                또는 `maxIterations` 가 정수가 아니거나 ≤ 0 또는 NaN/Infinity 일 때.
  */
 export async function drainUntil(
   step: () => void,
@@ -40,9 +43,9 @@ export async function drainUntil(
   options?: DrainUntilOptions
 ): Promise<void> {
   const max = options?.maxIterations ?? 20
-  if (max <= 0) {
+  if (!Number.isInteger(max) || max <= 0) {
     throw new Error(
-      `drainUntil: maxIterations must be > 0 (got ${max})` +
+      `drainUntil: maxIterations must be a positive integer (got ${max})` +
         (options?.description ? ` (${options.description})` : '')
     )
   }

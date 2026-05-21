@@ -56,7 +56,7 @@ describe('drainUntil', () => {
     const step = vi.fn()
     await expect(
       drainUntil(step, () => false, { maxIterations: 0 })
-    ).rejects.toThrow(/maxIterations must be > 0 \(got 0\)/)
+    ).rejects.toThrow(/maxIterations must be a positive integer \(got 0\)/)
     expect(step).not.toHaveBeenCalled()
   })
 
@@ -64,7 +64,35 @@ describe('drainUntil', () => {
     const step = vi.fn()
     await expect(
       drainUntil(step, () => false, { maxIterations: -3, description: 'neg' })
-    ).rejects.toThrow(/maxIterations must be > 0 \(got -3\).*neg/)
+    ).rejects.toThrow(
+      /maxIterations must be a positive integer \(got -3\).*neg/
+    )
+    expect(step).not.toHaveBeenCalled()
+  })
+
+  it('maxIterations NaN → throw (입력 검증)', async () => {
+    const step = vi.fn()
+    await expect(
+      drainUntil(step, () => false, { maxIterations: Number.NaN })
+    ).rejects.toThrow(/maxIterations must be a positive integer \(got NaN\)/)
+    expect(step).not.toHaveBeenCalled()
+  })
+
+  it('maxIterations Infinity → throw (입력 검증) — 무한 hang 회피', async () => {
+    const step = vi.fn()
+    await expect(
+      drainUntil(step, () => false, { maxIterations: Number.POSITIVE_INFINITY })
+    ).rejects.toThrow(
+      /maxIterations must be a positive integer \(got Infinity\)/
+    )
+    expect(step).not.toHaveBeenCalled()
+  })
+
+  it('maxIterations 비정수 (1.5) → throw (입력 검증)', async () => {
+    const step = vi.fn()
+    await expect(
+      drainUntil(step, () => false, { maxIterations: 1.5 })
+    ).rejects.toThrow(/maxIterations must be a positive integer \(got 1.5\)/)
     expect(step).not.toHaveBeenCalled()
   })
 
@@ -89,6 +117,30 @@ describe('drainUntil', () => {
       vi.advanceTimersByTime(0)
     }
     await drainUntil(step, () => phase === 'done', { maxIterations: 10 })
+    expect(phase).toBe('done')
+  })
+
+  it('promise continuation chain — timer callback 이 next timer 를 promise 연속으로 등록 (BackgroundTranslationQueue dispatch 루프 정합)', async () => {
+    // BackgroundTranslationQueue.dispatchNext() 의 실제 패턴 시뮬레이션:
+    //   - setTimeout(0) 발화 → processor await → resolve 시점에 next setTimeout 등록.
+    // microtask 1회 flush 없으면 next timer 가 보이지 않음 — helper 의 `await Promise.resolve()` 검증.
+    let phase: 'init' | 'p1' | 'p2' | 'p3' | 'done' = 'init'
+    function scheduleNext(): void {
+      setTimeout(() => {
+        // resolve 후 microtask 에서 next timer 등록 — drainUntil 의 microtask flush 가 필수.
+        Promise.resolve().then(() => {
+          if (phase === 'init') phase = 'p1'
+          else if (phase === 'p1') phase = 'p2'
+          else if (phase === 'p2') phase = 'p3'
+          else if (phase === 'p3') phase = 'done'
+        })
+      }, 0)
+    }
+    function step(): void {
+      if (phase !== 'done') scheduleNext()
+      vi.advanceTimersByTime(0)
+    }
+    await drainUntil(step, () => phase === 'done', { maxIterations: 20 })
     expect(phase).toBe('done')
   })
 
