@@ -240,6 +240,21 @@ export function setWorkspaceSwitchHook(hook: ((workspaceId: string) => void) | n
 }
 
 /**
+ * Sprint 016 M3 T16 (G-015, codex BLOCKING #1) — 워크스페이스 삭제 직후 live 탭/view cleanup hook.
+ * main/index.ts 가 등록 — 삭제된 ws 의 모든 탭 close + destroyTabView + active filter 갱신.
+ * 등록 미설정 시 (테스트) no-op.
+ */
+let workspaceDeleteHook:
+  | ((workspaceId: string, newActiveId: string) => void)
+  | null = null
+
+export function setWorkspaceDeleteHook(
+  hook: ((workspaceId: string, newActiveId: string) => void) | null
+): void {
+  workspaceDeleteHook = hook
+}
+
+/**
  * Sprint 015 M6 T29 hotfix (codex NEEDS_CHANGES #10) — PRD §07.4.2 broadcast.
  * chat / note / 인덱싱 INSERT 후 renderer 측 MemoryStatsPanel 즉시 refresh 트리거.
  * BrowserWindow.getAllWindows()[0] 미존재 시 (테스트 / headless) no-op.
@@ -532,7 +547,15 @@ function registerWorkspaceIpc(): void {
   ipcMain.handle(
     'workspace:delete',
     async (_event, args: WorkspaceDeleteArgs): Promise<WorkspaceDeleteResponse> => {
-      return handleWorkspaceDelete(args, { getService: () => workspaceService })
+      return handleWorkspaceDelete(args, {
+        getService: () => workspaceService,
+        // Sprint 016 M3 T16 (G-015) — DB cascade 성공 후 live view cleanup → partition cleanup 순서.
+        // hook 미등록 (테스트) 또는 manager null (bootstrap 실패) 시 callback 미주입 — handler 가 no-op.
+        destroyWorkspaceTabs: workspaceDeleteHook ?? undefined,
+        clearWorkspacePartition: workspacePartitionManager
+          ? (ws: string) => workspacePartitionManager!.clearWorkspaceData(ws)
+          : undefined
+      })
     }
   )
 }
