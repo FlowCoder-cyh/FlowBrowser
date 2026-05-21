@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **2 진입 완료** (Sprint 016 M0~M5 모두 머지 — cookies partition + 백그라운드 번역 + 하이라이트 + KI MEDIUM batch closed). Phase 3 (로컬 LLM / Notion Export / 공유) Sprint 017 진입 권고.
-- **Sprint**: **016 M0~M5 완료** — M0 KI MEDIUM batch + perf bench infra + 시나리오 2·3 / M1 시나리오 cover / M2 어댑터 일괄 제거 (5종) / M3 cookies partition + Export/Import / M4 백그라운드 번역 + 하이라이트 / **M5 종합 (T23 단위 +62 / T24 PRD v0.4.1 / T26 Sprint 017 시안 / T25 핸드오프)**
+- **Phase**: **3 진입 (Sprint 017 M0 진행 중)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 T01~T03 코드 PR 머지 + T04/T05 audit 본 docs PR). Phase 3 후속 — M1 (Highlight UI overlay + SQLite swap) / M2 (Sprint 016 신규 KI batch) / M3 (로컬 LLM spike) / M4 (Notion Export 등) / M5 (종합).
+- **Sprint**: **017 M0 진행 중** — T01 drainUntil helper (#219) / T02 pageId/visitId normalize + KI-027 closed + KI-028 신규 (#220) / T03 MemoryStatsPanel React 단위 + KI-009 closed (#221) / T04 KI-018/019 audit + T05 KI-011~016 perf bench 재측정 (본 docs PR). M0 5/5 종결 후 M1 진입.
 - **PROJECT_CLASS**: hybrid
-- **PRD 버전**: **v0.4.1 발행 (Phase 2 진입 메타 + §11.11 Highlights 신설 + Sprint 016 KI batch 정리)** (2026-05-21, Sprint 016 M5 T24)
-- **최근 갱신 (Sprint 016 M5 T23 단위 +62 PR #217 머지 + T24/T26/T25 docs PR 진입)**: 2026-05-21 (T23 회귀 +62 머지 commit `217` PR / 단위 **1374 → 1436 PASS** / 본 docs PR T24 PRD v0.4.1 §11.11 Highlights 신설 + T26 Sprint 017 contract 시안 (6 마일스톤 / T01~T26 / G-019 G-020 신규 후보) + T25 known-issues + state 갱신. **KI 변동**: Sprint 016 closed 누적 — KI-002 (M2) + KI-005 (M4 T21) + KI-007 (M0 T03c) + KI-008 (M3 T17) + KI-010 (M0 T05) + KI-017 (M0 T03b) + 본 M5 T25 status 전환 후보 (KI-003 / KI-011~016 / KI-018 / KI-019 / KI-026 옵션 B = 9건 추가) = **15 closed** / **잔여 11** (HIGH 0 / MEDIUM 0 + KI-001 in-progress 1 + KI-004 / KI-006 carryover / LOW 8 = KI-009/020/022/023/024/025/Phase 2 KI-021 + 신규 3 후보). **codex 사전 협의 (threadId 019e4a52)** + **사전 dual review (019e4a6c)** + **사후 dual review (019e4a75)** + **evaluator 1차 평가** — Pass 7 / Partial 1 / Fail 1 (PR body template 양식 미준수) → 본 PR body hotfix 흡수 후 머지 가능 판정. 학습 #18 12번째 확증 (T23 codex NB 3 본 PR 내 흡수 + evaluator Fail 1 hotfix 흡수 + 후속 위임 3건 Sprint 017 시안 박음).
-- **다음 세션 진입점**: **Sprint 017 M0 T01~T05 진입** (`.flowset/contracts/sprint-017.md` 시안 정식화 후). T01 drainUntil helper / T02 pageId='' validation / T03 KI-009 MemoryStatsPanel React 단위 / T04 KI-018/019 closed 전환 / T05 KI-011~016 carryover closed. 그 후 M1 T20 후속 renderer UI overlay + Highlight SQLite swap (G-013 2단계 + G-014 dry-run). Sprint 017 정식화 전 사용자 검토 권고 — Phase 3 우선순위 (로컬 LLM vs Export vs 공유) 조정 가능.
+- **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 017 M5 시점 v0.5.0 발행 예정.
+- **최근 갱신 (Sprint 017 M0 T01~T05 진행 + 본 docs PR)**: 2026-05-22 (T01 #219 / T02 #220 / T03 #221 3 코드 PR 머지 + 본 T04/T05 audit docs PR). 단위 **1436 → 1482** (+46, T01 +17 / T02 +19 / T03 +10). **KI 변동**: Sprint 017 M0 진행 누적 closed +2 (KI-009 T03 / KI-027 T02) + 신규 +1 (KI-028 codex separate candidate, open) / **잔여 10** (Phase 1 9 + Phase 2 1). 통계 정합화 (T03 codex Finding 1 흡수 — Sprint 016 M5 carryover stale 1건 정정). 학습 #18 13~15번째 확증 (T01~T03 매 PR codex Minor/Finding 모두 본 PR 흡수).
+- **다음 세션 진입점**: **Sprint 017 M1 진입** (T06 NoteHighlight renderer UI overlay / T07 Highlight schema v05 + SQLite swap + V4→V5 마이그레이션 dry-run + 자동 백업 / T08 renderer overlay UX / T09 Highlight Export/Import). codex 사전 협의 후 T06 → T07 → T08 → T09 시퀀스 권고. M1 진입 전 본 T04/T05 audit docs PR 머지 + M0 5/5 종결 선언.
 
 ## 현재 작업
 

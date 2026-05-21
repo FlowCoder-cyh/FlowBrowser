@@ -162,7 +162,7 @@
 - **영향**: PRD §11.3.2 임계 측정 데이터 부재. 실측 < 20ms 정량 검증 필요 (10K page workspace 기준). 단위 테스트는 in-memory SQLite — 실디스크 WAL mode + 인덱스 활용 시 차이 가능성.
 - **권고 해소 방향**: T31 종합 evaluator 또는 Sprint 016 M0 에 stopwatch 측정 셋 추가 (1K / 10K 페이지 시 getStats 실측 ms). 임계 초과 시 denormalized 카운트 컬럼 (workspaces 테이블에 신규) 도입 권고.
 - **처리 예정 Sprint**: 016 M0
-- **상태**: `closed` (Sprint 016 M0 T06 perf bench infra — `tests/perf/memoryStats.bench.ts` 박음 + perf-baseline 실측 1K=0.046ms / 10K=0.447ms PASS — 임계 < 20ms 의 44.7× 마진. 보고서: `.flowset/eval-results/sprint-016-perf-bench.md` §2.1. Sprint 016 M5 T25 시점 status `open` → `closed` 전환.)
+- **상태**: `closed` (Sprint 016 M0 T06 perf bench infra — `tests/perf/memoryStats.bench.ts` 박음 + perf-baseline 실측 1K=0.046ms / 10K=0.447ms PASS — 임계 < 20ms 의 44.7× 마진. 보고서: `.flowset/eval-results/sprint-016-perf-bench.md` §2.1. Sprint 016 M5 T25 시점 status `open` → `closed` 전환. **Sprint 017 M0 T05 audit (2026-05-22)**: 1K=0.046ms / 10K=0.453ms 재측정 PASS, +0.006ms 노이즈 (회귀 0) — handoff 2026-05-22.md §5 + 보고서 §6.)
 
 ### KI-005 [closed] AutoTagger.tagPage(pageId=note.id) page_tags FK 위반 — note 자동 태깅 차단
 
@@ -199,7 +199,7 @@
 - **영향**: PRD §11.3.2 + Sprint 016 contract §6 정량 임계. 시나리오 1·2 (대량 인덱싱) 사용자 체감 직결. 단위 테스트는 in-memory SQLite — 실디스크 WAL + EmbeddingClient 호출 시 차이 미측정.
 - **권고 해소 방향**: Sprint 016 M0 perf bench 셋 (`tests/perf/indexing.bench.ts` 신규) — recordVisit 진입 → recordVisit 완료 ms 측정. 임계 초과 시 EmbeddingQueue 비동기 우선 (인덱싱 본체는 즉시 반환 + 임베딩 백그라운드) 정책 강화.
 - **처리 예정 Sprint**: 016 M0
-- **상태**: `closed` (Sprint 016 M0 T06 — `tests/perf/indexing.bench.ts` 박음 + perf-baseline 실측 100 iter mean 0.027ms PASS — 임계 < 500ms 의 18,500× 마진. 보고서 §2.2.)
+- **상태**: `closed` (Sprint 016 M0 T06 — `tests/perf/indexing.bench.ts` 박음 + perf-baseline 실측 100 iter mean 0.027ms PASS — 임계 < 500ms 의 18,500× 마진. 보고서 §2.2. **Sprint 017 M0 T05 audit (2026-05-22)**: 0.027ms 재측정 동일 PASS (회귀 0) — handoff §5 + 보고서 §6.)
 
 ### KI-013 [closed] 검색 응답 < 200ms (top-10 표시까지) 임계 미측정
 
@@ -210,7 +210,7 @@
 - **영향**: PRD §15.4 #2 + §9.7 + Sprint 016 contract §6 정량 임계. 시나리오 1·4 (Cmd+K 즉시 검색) 사용자 체감 직결. Query 임베딩 비용 (~100~300ms 평균) + vec0 JOIN top-k=20 + 정렬 후 top-10 표시 시간 미측정. PRD §9.7 정의: 1000 페이지 + retrieval × 100회 평균, 본문 캐시 fetch 제외.
 - **권고 해소 방향**: Sprint 016 M0 perf bench (`tests/perf/search.bench.ts` 신규) — embed 호출 mock + vec0 JOIN ms 측정. AIResponseCache TTL 30일 hit 시 < 50ms 검증.
 - **처리 예정 Sprint**: 016 M0 T06
-- **상태**: `closed` (Sprint 016 M0 T06 — `tests/perf/search.bench.ts` 박음 + perf-baseline 실측 1000 pages + 임베딩 50 iter mean 1.404ms PASS — 임계 < 200ms 의 142× 마진. 보고서 §2.3.)
+- **상태**: `closed` (Sprint 016 M0 T06 — `tests/perf/search.bench.ts` 박음 + perf-baseline 실측 1000 pages + 임베딩 50 iter mean 1.404ms PASS — 임계 < 200ms 의 142× 마진. 보고서 §2.3. **Sprint 017 M0 T05 audit (2026-05-22)**: 1.447ms 재측정 PASS, +0.043ms 노이즈 (회귀 0) — handoff §5 + 보고서 §6.)
 
 ### KI-014 [closed] 워크스페이스 전환 < 1초 임계 미측정
 
@@ -221,7 +221,7 @@
 - **영향**: PRD §11.3.2 + Sprint 016 contract §6 정량 임계. 워크스페이스 사이드바 클릭 ~ active ws 전환 완료 broadcast 까지. KI-006 abort 정책 (Sprint 016 T02) + KI-007 TabManager stash/restore (T03) 적용 후 측정.
 - **권고 해소 방향**: Sprint 016 M3 (cookies/storage partition 도입) 시점에 e2e timer 측정. KI-006 + KI-007 closed 직후 1차 측정 권고.
 - **처리 예정 Sprint**: 016 M0 (1차 baseline) + M3 (partition 도입 후 재측정)
-- **상태**: `closed` (Sprint 016 M0 T06 — `tests/perf/workspaceSwitch.bench.ts` 박음 + perf-baseline 실측 10 ws × 10 tabs 50 iter mean 0.283ms PASS — 임계 < 1000ms 의 3,500× 마진. KI-006 abort wiring 후 재측정 0.581ms 정합. 보고서 §2.4.)
+- **상태**: `closed` (Sprint 016 M0 T06 — `tests/perf/workspaceSwitch.bench.ts` 박음 + perf-baseline 실측 10 ws × 10 tabs 50 iter mean 0.283ms PASS — 임계 < 1000ms 의 3,500× 마진. KI-006 abort wiring 후 재측정 0.581ms 정합. 보고서 §2.4. **Sprint 017 M0 T05 audit (2026-05-22)**: 0.339ms 재측정 PASS (T02 abort baseline 0.581ms 대비 -0.242ms 개선 / T06 baseline 0.283ms 대비 +0.056ms 노이즈, 회귀 0) — handoff §5 + 보고서 §6.)
 
 ### KI-015 [closed] 임베딩 비용 < $3/월 (1만 페이지) 임계 미측정
 
@@ -232,7 +232,7 @@
 - **영향**: PRD §9.7 + Sprint 016 contract §6 정량 임계. 1만 페이지 / 월 사용자 시나리오 — 비용 임계 초과 시 BYOK 디폴트 모델 변경 (3-small → 3-large 보류) 권고.
 - **권고 해소 방향**: Sprint 016 M0 EmbeddingClient 호출 횟수 + 평균 token usage 측정 셋 (Mock OpenAI API + token counter). AIResponseCache TTL 7일 dedup hit rate 측정 동반.
 - **처리 예정 Sprint**: 016 M0
-- **상태**: `closed` (Sprint 016 M0 T06 — `tests/perf/embeddingCost.bench.ts` + `embeddingCostHelpers.ts` 박음 + 산식 estimateMonthlyCostUsd(1만, 1000 tokens) = $0.2000/월 PASS — 임계 < $3 의 15× 마진. 보고서 §2.5.)
+- **상태**: `closed` (Sprint 016 M0 T06 — `tests/perf/embeddingCost.bench.ts` + `embeddingCostHelpers.ts` 박음 + 산식 estimateMonthlyCostUsd(1만, 1000 tokens) = $0.2000/월 PASS — 임계 < $3 의 15× 마진. 보고서 §2.5. **Sprint 017 M0 T05 audit (2026-05-22)**: $0.20/월 재측정 동일 PASS (회귀 0) — handoff §5 + 보고서 §6.)
 
 ### KI-016 [closed] 저장 용량 < 200MB / 만 페이지 임계 미측정
 
@@ -243,7 +243,7 @@
 - **영향**: PRD §11.3.2 + Sprint 016 contract §6 정량 임계. 사용자 디스크 SSD 용량 — 1만 페이지 시 200MB 임계 초과 시 본문 캐시 압축 (zstd) + vec0 row dimension 축소 (text-embedding-3-small 512 dim → 384 dim quantize) 권고.
 - **권고 해소 방향**: Sprint 016 M0 DB 용량 측정 (1K + 1만 페이지 모킹 시 .sqlite 파일 크기). 임계 초과 시 본문 캐시 zstd 압축 도입 검토.
 - **처리 예정 Sprint**: 016 M0
-- **상태**: `closed` (Sprint 016 M0 T06 — `tests/perf/storageSize.bench.ts` 박음 + perf-baseline 실측 10K pages + 임베딩 1024차원 + WAL = 90.32MB PASS — 임계 < 200MB 의 2.2× 마진. 보고서 §2.6. 5만 페이지 스케일링 시 ~450MB 후속 검토 (PRD §15.3).)
+- **상태**: `closed` (Sprint 016 M0 T06 — `tests/perf/storageSize.bench.ts` 박음 + perf-baseline 실측 10K pages + 임베딩 1024차원 + WAL = 90.32MB PASS — 임계 < 200MB 의 2.2× 마진. 보고서 §2.6. 5만 페이지 스케일링 시 ~450MB 후속 검토 (PRD §15.3). **Sprint 017 M0 T05 audit (2026-05-22)**: 90.32MB 재측정 동일 PASS (회귀 0) — handoff §5 + 보고서 §6.)
 
 ### KI-018 [closed] top-10 hit rate ≥ 80% 정확도 임계 미측정
 
@@ -254,7 +254,7 @@
 - **영향**: PRD §15.4 #3 + §9.7 정량 임계. 검색 결과가 사용자 의도와 맞는지 — 정답 페이지가 top-10 안에 포함되는 비율. 측정 부재 시 시나리오 1·4 cover 100% 통과해도 retrieval 품질 불명. PRD 정의: 회귀 셋 + 50 페어 자체 테스트 셋 (positive/negative 쌍).
 - **권고 해소 방향**: Sprint 016 M0 T06 — (1) 50 페어 자체 테스트 셋 (`tests/integration/searchHitRate.test.ts`) 신규: 각 페어는 모킹 검색 쿼리 + 정답 페이지 ID + retrieval 후 top-10 안 포함 여부 검증. (2) 시나리오 1·2·3·4 회귀 셋의 검색 단계에 hit rate 누적 측정 + 종합 보고서 (`.flowset/eval-results/sprint-016-perf-bench.md`) 박힘.
 - **처리 예정 Sprint**: 016 M0 T06
-- **상태**: `closed` (Sprint 016 M0 T06 산식 헬퍼 `topKHitRate` + `TOP_K_HIT_RATE_THRESHOLD=0.8` 박음. Sprint 016 M5 T23 PR #217 `tests/integration/scenarios/scenario-accuracy.test.ts` 신규 — 시나리오 1·3·4 각 5/5/3 페어 셋 + 종합 13 페어 셋 hit rate 100% PASS — 임계 ≥ 80% 충족. 시나리오 2 기존 S2-C4 5 페어 동반 = 총 18 페어 회귀 + 12 케이스 산식 보강 = 30 케이스 cover 완성.)
+- **상태**: `closed` (Sprint 016 M0 T06 산식 헬퍼 `topKHitRate` + `TOP_K_HIT_RATE_THRESHOLD=0.8` 박음. Sprint 016 M5 T23 PR #217 `tests/integration/scenarios/scenario-accuracy.test.ts` 신규 — 시나리오 1·3·4 각 5/5/3 페어 셋 + 종합 13 페어 셋 hit rate 100% PASS — 임계 ≥ 80% 충족. 시나리오 2 기존 S2-C4 5 페어 동반 = 총 18 페어 회귀 + 12 케이스 산식 보강 = 30 케이스 cover 완성. **Sprint 017 M0 T04 audit (2026-05-22)**: scenario-accuracy 12 + accuracyHelpers 17 = 29 PASS 재실행 carryover regression 0 — handoff §4.)
 
 ### KI-019 [closed] AI 응답 출처 정확도 ≥ 90% 임계 미측정
 
@@ -265,7 +265,7 @@
 - **영향**: PRD §15.4 #6 + §10.8 정량 임계. AI 응답이 retrieval 결과 (top-k page_id) 와 일치하는 비율 — `chat_meta.cells.sources` 각 page_id 가 실제 `retrieved_items` 내에 존재 비율. 측정 부재 시 시나리오 cover 통과해도 출처 hallucination 가능. 현 `scenario-1-academic.test.ts` S1-C3는 `chat_meta.cells.sources` schema 만 확인 — 일치 비율 산식 부재.
 - **권고 해소 방향**: Sprint 016 M0 T06 — (1) 시나리오 회귀 셋 30 케이스 (Sprint 015 T30 S1+S4 = 8 케이스 + Sprint 016 T07~T08 S2+S3 = 10 케이스 + 추가 12 케이스 = 30) 각각에 chat_meta.cells.sources ∈ retrieved_items 검증 (`expect(sources.every(s => retrievedItems.has(s))).toBe(true)`) + 정확도 카운터 ≥ 27/30 (90%). (2) 종합 보고서 (`.flowset/eval-results/sprint-016-perf-bench.md`).
 - **처리 예정 Sprint**: 016 M0 T06
-- **상태**: `closed` (Sprint 016 M0 T06 산식 헬퍼 `aiSourcesPrecision` + `AI_SOURCES_PRECISION_THRESHOLD=0.9` 박음. Sprint 016 M5 T23 PR #217 scenario-accuracy 종합 30 케이스 산식 cover (27 perfect 1.0 + 3 hallucinated 0.5 → mean 0.95 PASS — `expect(precision).toBeCloseTo(0.95, 5)` exact assertion) — 임계 ≥ 90% 충족.)
+- **상태**: `closed` (Sprint 016 M0 T06 산식 헬퍼 `aiSourcesPrecision` + `AI_SOURCES_PRECISION_THRESHOLD=0.9` 박음. Sprint 016 M5 T23 PR #217 scenario-accuracy 종합 30 케이스 산식 cover (27 perfect 1.0 + 3 hallucinated 0.5 → mean 0.95 PASS — `expect(precision).toBeCloseTo(0.95, 5)` exact assertion) — 임계 ≥ 90% 충족. **Sprint 017 M0 T04 audit (2026-05-22)**: scenario-accuracy 12 + accuracyHelpers 17 = 29 PASS 재실행 carryover regression 0 — handoff §4.)
 
 ### KI-020 [open] SPA `did-navigate-in-page` 자동 인덱싱 누락
 
