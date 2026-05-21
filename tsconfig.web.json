@@ -28,6 +28,7 @@
   "include": [
     "src/renderer/src/**/*.ts",
     "src/renderer/src/**/*.tsx",
-    "src/preload/index.d.ts"
+    "src/preload/index.d.ts",
+    "tests/unit/renderer/**/*.test.tsx"
   ]
 }
