@@ -72,7 +72,8 @@ export default tseslint.config(
     }
   },
   {
-    files: ['tests/**/*.ts'],
+    // Sprint 017 M0 T03 — `.test.tsx` 도 동일 lint override 적용 (renderer React 단위 회귀).
+    files: ['tests/**/*.ts', 'tests/**/*.tsx'],
     languageOptions: {
       globals: { ...globals.node }
     },

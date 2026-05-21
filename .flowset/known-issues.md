@@ -131,16 +131,16 @@
 - **상태**: `closed` (Sprint 016 M3 T17 — `WorkspaceExportImportService` 신규 + IPC 2종 + preload 노출 + ID remap path: 항상 새 workspace id 발급 + 모든 child id 새 발급 + retrieved_items/chat_meta 안의 page_id/visit_id/note_id + RetrievedItem.id (type='page'/'note') 참조 rewrite + 단일 TX rollback. 단위 회귀 17 케이스. UI 우클릭 메뉴는 후속 hotfix.)
 - **잔여 후속 (KI-022 신규)**: import 후 vec_pages / vec_notes 재계산 (`embedding_queue` 재 enqueue) — 본 PR 미포함.
 
-### KI-009 [open] MemoryStatsPanel React 컴포넌트 단위 테스트 0
+### KI-009 [closed] MemoryStatsPanel React 컴포넌트 단위 테스트 0
 
 - **Severity**: LOW
 - **Phase**: 1
-- **Sprint**: 015 (M6 T29 evaluator NB-7)
+- **Sprint**: 015 (M6 T29 evaluator NB-7) → 017 M0 T03 closed
 - **Component**: `src/renderer/src/memory/MemoryStatsPanel.tsx`
 - **영향**: 폴링 동작 / workspaceId prop 변경 시 즉시 재로드 / error fallback UI / loading state / broadcast onInvalidated 구독 — React component 단위 미검증. pure logic 17 cover 완전 + 시나리오 통합 회귀로 부분 cover.
 - **권고 해소 방향**: vitest + @testing-library/react + IPC mock 으로 4 케이스 (mount / workspaceId 변경 / 폴링 / error). renderer 환경 happy-dom 활성 필요.
-- **처리 예정 Sprint**: Phase 3 종료 후 MVP 직전 정리 또는 Sprint 016
-- **상태**: `open`
+- **처리 예정 Sprint**: 017 M0 T03
+- **상태**: `closed` (Sprint 017 M0 T03 — `@testing-library/react` + `@testing-library/dom` dev dep 추가 + vitest config renderer happy-dom 매트릭스 + `tests/**/*.test.tsx` include + esbuild `jsx: 'automatic'` + `MemoryStatsPanel.test.tsx` 10 케이스 (mount / workspaceId 변경 / 폴링 / 3 error variant / null + onInvalidated 격리 2 + unmount cleanup). 회귀 +10.)
 
 ### KI-010 [closed] MemoryStatsPanel 인덱싱 완료 broadcast 미구현 (잔여 1종)
 
@@ -392,23 +392,23 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 22 | **16** | **11** |
+| Phase 1 | 1 | 4 | 22 | **18** | **9** |
 | Phase 2 | — | — | 1 | — | 1 |
 | Phase 3 | — | — | — | — | — |
 
-**Phase 1 closed 16 내역** (Sprint 017 M0 T02 시점 — KI-027 신규 +1 동시 closed 반영):
+**Phase 1 closed 18 내역** (Sprint 017 M0 T03 시점 — KI-009 closed 반영 + T02 시점 LOW open carryover stale 정정):
 - **HIGH closed 1**: KI-003 (Sprint 015 M5-5 BYOK wiring 완료, Sprint 016 M5 T25 status 자가 전환)
 - **MEDIUM closed 1**: KI-007 (T03c #173)
-- **LOW closed 14**: KI-002 (T12 #202) / KI-005 (T21 #210) / KI-008 (T17 #208) / KI-010 (T05 #176) / KI-011~016 (T06 perf bench, T25) / KI-017 (T03b #172) / KI-018 / KI-019 (T23 #217 산식 cover, T25) / KI-026 (T24 §11.11 신설, T25) / **KI-027 (Sprint 017 M0 T02 — `idNormalize.ts` 신규 + 3 site 방어선 적용)**
+- **LOW closed 16**: KI-002 (T12 #202) / KI-005 (T21 #210) / KI-008 (T17 #208) / **KI-009 (Sprint 017 M0 T03 — @testing-library/react + MemoryStatsPanel.test.tsx 10 케이스)** / KI-010 (T05 #176) / KI-011~016 (T06 perf bench, T25 — 6건) / KI-017 (T03b #172) / KI-018 / KI-019 (T23 #217 산식 cover, T25) / KI-026 (T24 §11.11 신설, T25) / KI-027 (Sprint 017 M0 T02 — `idNormalize.ts` 신규 + 3 site 방어선 적용)
 
-**Phase 1 open 11 내역**:
+**Phase 1 open 9 내역**:
 - HIGH 0
 - MEDIUM 3 (1 in-progress): KI-001 (in-progress, macOS PoC 1차 + 2차 matrix carryover) / KI-004 (response_format API-level, Sprint 017 M3 또는 carryover) / KI-006 (abort 정책 carryover)
-- LOW 8: KI-009 (MemoryStatsPanel React 단위) / KI-020 (SPA did-navigate-in-page) / KI-022 (Import embedding_queue re-enqueue) / KI-023 (PDF viewer DOM range) / KI-024 (Shadow DOM cross-boundary) / KI-025 (contentHash 폐기 보수성, Phase 3 R&D) / **KI-028 (chatHandlers/ChatService nullable FK normalize 후속, Sprint 017 M0 T02 codex separate KI candidate)**
+- LOW 6: KI-020 (SPA did-navigate-in-page) / KI-022 (Import embedding_queue re-enqueue) / KI-023 (PDF viewer DOM range) / KI-024 (Shadow DOM cross-boundary) / KI-025 (contentHash 폐기 보수성, Phase 3 R&D) / KI-028 (chatHandlers/ChatService nullable FK normalize 후속, Sprint 017 M0 T02 codex separate KI candidate)
 
 **Phase 2 잔여 1**: KI-021 (partition cleanup reconcile, Sprint 017 M2 T11 박음)
 
-**총 잔여 12** (Phase 1 11 + Phase 2 1). Sprint 016 M5 T25 시점 신규 후보 3건 중 **KI-027 (pageId='' validation) 본 T02 PR 머지 시점 closed**. 잔여 후보 2건 (drainUntil refactor T01b / freeform fallback T13) 은 Sprint 017 M0 carryover. **KI-028 신규 +1** (codex dual review separate KI candidate — chat IPC 경계 동일 normalize 후속).
+**총 잔여 10** (Phase 1 9 + Phase 2 1). Sprint 017 M0 진행 누적 closed: T02 KI-027 + T03 KI-009 = **+2**. 신규 +1 (T02 KI-028 carryover). T02 시점 LOW open 명단 vs 카운트 stale 1건 (이전 "LOW 7 / 명단 6") 본 T03 PR 에 흡수 (codex T03 dual review Finding 1 정합).
 
 ---
 
