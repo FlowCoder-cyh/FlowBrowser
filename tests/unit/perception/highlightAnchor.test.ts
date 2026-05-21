@@ -363,3 +363,159 @@ describe('highlightAnchor — round-trip', () => {
     expect(result.range!.toString()).toBe('Hello world')
   })
 })
+
+/**
+ * Sprint 016 M5 T23 — highlightAnchor 후속 edge case (codex 권고 정합 — renderer overlay 전제 안전망).
+ */
+describe('highlightAnchor — T23 후속 edge case', () => {
+  beforeEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('computeContentHash CRLF → LF normalize 동일 hash', () => {
+    document.body.innerHTML = '<p>a\r\nb</p>'
+    const crlf = computeContentHash(document.body)
+    document.body.innerHTML = '<p>a\nb</p>'
+    const lf = computeContentHash(document.body)
+    expect(crlf).toBe(lf)
+  })
+
+  it('computeContentHash 다중 whitespace + tab → 단일 space normalize', () => {
+    document.body.innerHTML = '<p>foo\t\t   bar</p>'
+    const tabbed = computeContentHash(document.body)
+    document.body.innerHTML = '<p>foo bar</p>'
+    const single = computeContentHash(document.body)
+    expect(tabbed).toBe(single)
+  })
+
+  it('computeContextHash 빈 입력도 deterministic + 64 hex char', () => {
+    const h = computeContextHash('', '', '')
+    expect(h).toMatch(/^[0-9a-f]{64}$/)
+    expect(h).toBe(computeContextHash('', '', ''))
+  })
+
+  it('extractContext surrogate pair (emoji) 안전 — Array.from 기준 CONTEXT_LEN', () => {
+    // U+1F600 (😀) = 2 UTF-16 code units, Array.from 기준 1 char
+    const emoji = '😀'.repeat(40) // Array.from 기준 40 chars, UTF-16 기준 80 code units
+    const rootText = `${emoji}TARGET${emoji}`
+    const { prefix, suffix } = extractContext(rootText, 'TARGET')
+    // Array.from(prefix).length ≤ CONTEXT_LEN, surrogate pair 분리 0
+    expect(Array.from(prefix).length).toBeLessThanOrEqual(CONTEXT_LEN)
+    expect(Array.from(suffix).length).toBeLessThanOrEqual(CONTEXT_LEN)
+    // 모든 emoji 가 온전한 single char (surrogate 분리 시 lone surrogate 발생)
+    for (const ch of Array.from(prefix)) {
+      expect(ch).toBe('😀')
+    }
+    for (const ch of Array.from(suffix)) {
+      expect(ch).toBe('😀')
+    }
+  })
+
+  it('serializeRange 가 selectedText 전체가 root.textContent 일 때도 동작', () => {
+    document.body.innerHTML = '<p>only-content</p>'
+    const text = document.querySelector('p')!.firstChild as Text
+    const range = makeRange(text, 0, text, text.data.length)
+    const anchor = serializeRange(document.body, 'body', range)
+    expect(anchor.selectedText).toBe('only-content')
+    // prefix/suffix 둘 다 ''
+    expect(anchor.prefix).toBe('')
+    expect(anchor.suffix).toBe('')
+  })
+
+  it('serializeRange end container 만 root 외부 시 throw', () => {
+    document.body.innerHTML = '<p id="p1">inside</p>'
+    const insideText = document.querySelector('#p1')!.firstChild as Text
+    const detached = document.createElement('div')
+    detached.textContent = 'outside'
+    const outsideText = detached.firstChild as Text
+    const range = document.createRange()
+    range.setStart(insideText, 0)
+    range.setEnd(outsideText, 5)
+    expect(() => serializeRange(document.body, 'body', range)).toThrow(/iframe\/Shadow DOM/)
+  })
+
+  it('deserializeAnchor 가 root.textContent 가 empty 일 때도 graceful (failed)', () => {
+    document.body.innerHTML = ''
+    const anchor: HighlightAnchor = {
+      rootSelector: 'body',
+      startPath: [0],
+      endPath: [0],
+      startOffset: 0,
+      endOffset: 5,
+      selectedText: 'gone',
+      prefix: '',
+      suffix: '',
+      contentHash: 'stale',
+      contextHash: 'stale'
+    }
+    const result = deserializeAnchor(document.body, anchor)
+    expect(result.range).toBeNull()
+    expect(result.strategy).toBe('failed')
+  })
+
+  it('deserializeAnchor path 가 element node 종점일 때 path fast path 거부 → fuzzy fallback', () => {
+    // path 가 element 까지만 가도록 (text node 아님). selectedText 가 root 에 있으면 fuzzy 로 복원.
+    document.body.innerHTML = '<p>The brown fox.</p>'
+    const anchor: HighlightAnchor = {
+      rootSelector: 'body',
+      startPath: [0], // <p> element 종점 (text node 아님)
+      endPath: [0],
+      startOffset: 0,
+      endOffset: 5,
+      selectedText: 'brown',
+      prefix: 'The ',
+      suffix: ' fox.',
+      contentHash: computeContentHash(document.body),
+      contextHash: 'irrelevant'
+    }
+    const result = deserializeAnchor(document.body, anchor)
+    expect(result.contentHashMatch).toBe(true)
+    // path fast path 거부 (text node 아님) → fuzzy fallback
+    expect(result.strategy).toBe('context-fuzzy')
+    expect(result.range).not.toBeNull()
+    expect(result.range!.toString()).toBe('brown')
+  })
+
+  it('deserializeAnchor path index 범위 초과 시 fuzzy fallback', () => {
+    document.body.innerHTML = '<p>The quick brown fox.</p>'
+    const anchor: HighlightAnchor = {
+      rootSelector: 'body',
+      startPath: [0, 100], // children 1개만 있는데 100 — out of bound
+      endPath: [0, 100],
+      startOffset: 0,
+      endOffset: 5,
+      selectedText: 'quick',
+      prefix: 'The ',
+      suffix: ' brown',
+      contentHash: computeContentHash(document.body),
+      contextHash: 'irrelevant'
+    }
+    const result = deserializeAnchor(document.body, anchor)
+    expect(result.strategy).toBe('context-fuzzy')
+    expect(result.range).not.toBeNull()
+    expect(result.range!.toString()).toBe('quick')
+  })
+
+  it('round-trip 정합 — 다층 nested 같은 root 내부 (3-level)', () => {
+    document.body.innerHTML =
+      '<section><article><p>Deeply nested selection target word here.</p></article></section>'
+    const text = document.querySelector('p')!.firstChild as Text
+    const start = text.data.indexOf('target')
+    const range = makeRange(text, start, text, start + 'target'.length)
+    const anchor = serializeRange(document.body, 'body', range)
+    expect(anchor.startPath).toEqual([0, 0, 0, 0])
+    expect(anchor.endPath).toEqual([0, 0, 0, 0])
+
+    const result = deserializeAnchor(document.body, anchor)
+    expect(result.strategy).toBe('path')
+    expect(result.range!.toString()).toBe('target')
+  })
+
+  it('sha256Hex 가 UTF-8 multi-byte 입력도 처리 (한글)', () => {
+    const ko = sha256Hex('한글 입력')
+    const en = sha256Hex('hangul input')
+    expect(ko).toMatch(/^[0-9a-f]{64}$/)
+    expect(ko).not.toBe(en)
+    expect(sha256Hex('한글 입력')).toBe(ko)
+  })
+})

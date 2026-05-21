@@ -350,5 +350,100 @@ describe('WorkspaceExportImportService', () => {
       expect(originalReExport.pages[0].id).toBe(ids.pageId)
       expect(originalReExport.notes[0].id).toBe(ids.noteId)
     })
+
+    /**
+     * Sprint 016 M5 T23 — WorkspaceExportImportService 후속 round-trip 보존 검증.
+     */
+    it('round-trip — page.title / content / lang / content_hash 보존', () => {
+      seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exported)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.pages[0].title).toBe('Example')
+      expect(reExported.pages[0].content).toBe('body')
+      expect(reExported.pages[0].lang).toBe('en')
+      expect(reExported.pages[0].content_hash).toBe('hash1')
+      expect(reExported.pages[0].url).toBe('https://example.com')
+    })
+
+    it('round-trip — note.body / selected_text / created_by 보존', () => {
+      seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exported)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.notes[0].body).toBe('body text')
+      expect(reExported.notes[0].selected_text).toBe('selected')
+      expect(reExported.notes[0].created_by).toBe('user')
+    })
+
+    it('round-trip — workspace.name + icon 보존', () => {
+      seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exported)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.workspace.name).toBe('기본')
+      expect(reExported.workspace.icon).toBe('📥')
+    })
+
+    it('round-trip — tag.name / kind / ai_generated 보존', () => {
+      seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exported)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.tags[0].name).toBe('react')
+      expect(reExported.tags[0].kind).toBe('topic')
+      expect(reExported.tags[0].ai_generated).toBe(1)
+    })
+
+    it('round-trip — page_tags / note_tags ai_generated 값 보존', () => {
+      seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exported)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.pageTags[0].ai_generated).toBe(1)
+      expect(reExported.noteTags[0].ai_generated).toBe(0)
+    })
+
+    it('round-trip — chat status + role 보존', () => {
+      seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exported)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.aiChatHistory[0].status).toBe('ok')
+      expect(reExported.aiChatHistory[0].role).toBe('assistant')
+      expect(reExported.aiChatHistory[0].content).toBe('answer')
+    })
+
+    it('빈 chat_meta / retrieved_items 둘 다 null 인 chat 도 round-trip 정상', () => {
+      const db = h.fb.getDb()
+      const pageId = randomUUID()
+      const chatId = randomUUID()
+      const now = Date.now()
+      db.prepare(
+        `INSERT INTO pages(id, workspace_id, url, title, content, content_hash, lang, visited_count, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(pageId, h.defaultId, 'https://x.com', 'X', 'body', null, 'en', 1, now, now)
+      db.prepare(
+        `INSERT INTO ai_chat_history(id, workspace_id, page_id, visit_id, role, content, retrieved_items, chat_meta, status, created_at)
+         VALUES (?, ?, ?, NULL, ?, ?, NULL, NULL, ?, ?)`
+      ).run(chatId, h.defaultId, pageId, 'user', 'question', 'ok', now)
+
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exported)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      const chat = reExported.aiChatHistory[0]
+      expect(chat.retrieved_items).toBeNull()
+      expect(chat.chat_meta).toBeNull()
+      expect(chat.role).toBe('user')
+    })
+
+    it('exportWorkspace level_preference null 인 워크스페이스도 schema 정합', () => {
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      // 기본 워크스페이스 level_preference 는 null (사용자 미선택)
+      expect(exported.workspace).toHaveProperty('level_preference')
+      // null 또는 string 둘 다 허용 — schema 정합
+      const lp = exported.workspace.level_preference
+      expect(lp === null || typeof lp === 'string').toBe(true)
+    })
   })
 })
