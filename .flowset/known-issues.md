@@ -163,18 +163,19 @@
 - **처리 예정 Sprint**: 016 M0
 - **상태**: `open`
 
-### KI-005 [open] AutoTagger.tagPage(pageId=note.id) page_tags FK 위반 — note 자동 태깅 차단
+### KI-005 [closed] AutoTagger.tagPage(pageId=note.id) page_tags FK 위반 — note 자동 태깅 차단
 
 - **Severity**: LOW (현 시점 wiring 미활성 — NoteService.opts.autoTagger 미주입 + 통합 자체 제거)
 - **Phase**: 1
-- **Sprint**: 015 (M5-7 PR #159 codex 정밀 검토 발견)
-- **Component**: `src/ai/tagging/AutoTagger.ts` (tagPage 가 내부에서 attachToPage 호출) + `src/main/NoteService.ts` (호출 path 차단)
+- **Sprint**: 015 (M5-7 PR #159 codex 정밀 검토 발견) → 016 M4 T21 closed
+- **Component**: `src/ai/tagging/AutoTagger.ts` (tagPage / tagNote 분리 + private tagContent helper) + `src/main/NoteService.ts` (opts.autoTagger optional + enableAutoTagging path 활성)
 - **영향**: AutoTagger.tagPage 가 내부에서 `tagStore.attachToPage(input.pageId, ...)` 호출 — schema `page_tags.page_id REFERENCES pages(id) ON DELETE CASCADE` FK 제약. NoteService 가 note.id 를 pageId 자리에 주입 시 SQLite FOREIGN KEY constraint 실패. 현 NoteService 는 autoTagger 호출 자체 차단으로 안전.
 - **발견 출처**: M5-7 PR #159 codex 정밀 검토 N-001 + evaluator KI 후보 1 (Sprint 015 M5 종료 핸드오프 §10.5)
 - **재현 절차**: 향후 NoteService 에 AutoTagger 인스턴스 주입 + createNote({enableAutoTagging: true}) 호출 시 — schema FK 검사에서 throw
 - **권고 해소 방향**: AutoTagger.tagNote 신규 메서드 도입 — `tagStore.attachToNote` 호출 path. 또는 AutoTagger 가 attach 호출 자체 호출자에게 분리 (provider.chat 결과 tag rows 만 반환).
 - **처리 예정 Sprint**: 016 (note 자동 태깅 UI 도입 시점)
-- **상태**: `open`
+- **상태**: `closed` (Sprint 016 M4 T21 — `AutoTagger.tagNote(input: TagNoteInput)` 신규 메서드 + private `tagContent(input, attach)` helper 추출 (DRY). `tagNote` 는 `tagStore.attachToNote` 호출 — page_tags FK 회피. `NoteService.opts.autoTagger?` optional 주입 + `createNote({enableAutoTagging: true})` + autoTagger 주입 시 tagNote 호출, 그 외 'not_called' safety 디폴트. 회귀 +20: AutoTagger.test.ts tagNote 8 케이스 + maxOutputTokens hotfix 회귀 (TagPageInput maxOutputTokens 가 ChatRequest 로 미전달 잔존 Sprint 015 M4-2 NB-1 정정) + NoteService.test.ts enableAutoTagging path 7 + autoTagger 미주입 safety 3 + codex NEEDS_CHANGES #1 흡수 (try/catch autoTagger throw 격리) 1.)
+- **사전 dual review hotfix 흡수** (학습 #18 정합): codex NEEDS_CHANGES #1 — `await this.autoTagger.tagNote(...)` 가 attach 단계 DB/FK throw 시 createNote 자체 throw 위험. NoteService.createNote 에 try/catch 격리 추가 + autoTaggingStatus='failed' 반환 + 회귀 1 케이스 (throwing tagger stub).
 
 ### KI-004 [open] ChatRequest.response_format JSON 강제 API-level 미구현
 
@@ -319,8 +320,8 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 14 | 2 | 17 |
-| Phase 2 | — | — | — | — | — |
+| Phase 1 | 1 | 4 | 14 | 3 | 16 |
+| Phase 2 | — | — | 1 | — | 1 |
 | Phase 3 | — | — | — | — | — |
 
 ---
@@ -343,3 +344,4 @@
 - 2026-05-19 (Sprint 016 M0 T03b PR #172 — KI-017 closed): `formatTabLabel` 시그니처 확장 `(t, workspaceContext?: WorkspaceLabelContext | null)` + 매칭 시 `${icon} ${base}` prefix + 미매칭/null/context 미주입 시 fallback. tabLabel.test.ts +2 회귀 (매칭 + 미매칭 매트릭스 3 case). UI wiring (TabBar 활성 ws 주입) 은 T03c 위임. Phase 1 해소 0 → **1** / 잔여 19 → **18** (HIGH 1 / MEDIUM 4 / LOW 13).
 - 2026-05-19 (Sprint 016 M0 T03c PR #173 — KI-007 closed): `TabManager.setActiveWorkspaceFilter` + `activeTabByWorkspace` stash map + `backfillUnassignedWorkspaceId` + `listAll` / `snapshotAll` + `handleWorkspaceSwitch` `onWorkspaceSwitched` callback path + `services.setWorkspaceSwitchHook` + `tab:open` 시 active ws 자동 박힘 + `initializeTabs` backfill + TabBar workspace context 주입 + `workspaceApi.onSwitched` broadcast. 회귀 +7 (TabManager 4 + workspaceHandlers 3). Phase 1 해소 1 → **2** / 잔여 18 → **17** (HIGH 1 / MEDIUM 3 / LOW 13). KI-007 분할 옵션 A 3편 (T03a #171 + T03b #172 + T03c #173) 모두 머지 후 closed.
 - 2026-05-19 (Sprint 016 M0 T05 PR #176 — KI-010 closed + KI-020 신규): `IndexingGate` (UserSetting.privacyExclusions getter wiring) + `IndexingService` 인스턴스화 + `createIndexingBroadcastHandler` factory 함수로 onStatusChange wiring 추출 (status='indexed' 시 `broadcastMemoryInvalidated(payload.workspaceId)`) + `IndexingStatusPayload.workspaceId` 추가 + main/index.ts `createTabView` did-finish-load 에 `runPageIndexing` 헬퍼 (scanWebContentsFields + ParagraphExtractor.executeJavaScript + tryIndexPage, http/https allowlist 선필터, graceful try/catch) + tryIndexPage / getParagraphsExtractScript export. 회귀 +12 (IndexingService.test.ts +7 workspaceId payload + indexingBroadcast.test.ts +5 broadcast wiring). dual review evaluator Pass 8/8 / codex NEEDS_CHANGES 1 + NB-5 본 PR hotfix 흡수. NB-1 (SPA did-navigate-in-page 인덱싱 누락) **KI-020 LOW 신규 등록**. Phase 1 해소 2 → **3** / 잔여 17 → **17** (KI-010 closed -1 + KI-020 신규 +1 = 동수, HIGH 1 / MEDIUM 3 / LOW 13).
+- 2026-05-21 (Sprint 016 M4 T21 — KI-005 closed): `AutoTagger.tagNote(input: TagNoteInput)` 신규 + private `tagContent(input, attach)` helper 추출 (DRY) + tagStore.attachToNote 호출 path. NoteService.opts.autoTagger optional + createNote(enableAutoTagging=true + autoTagger 주입 시) tagNote 호출, 그 외 'not_called'. 회귀 +20 (AutoTagger.test.ts +11: tagNote 9 케이스 + tagPage maxOutputTokens 회귀 1 + parseTagsResponse 1 / NoteService.test.ts +9: enableAutoTagging path 7 + autoTagger 미주입 safety 1 + codex NEEDS_CHANGES #1 try/catch autoTagger throw 격리 1). 부가 hotfix: TagInputBase.maxOutputTokens → ChatRequest.maxOutputTokens 실 전달 (Sprint 015 M4-2 NB-1 잔존 정정). dual review evaluator Pass 7/Partial 1 (G-018 PR body 산출물 표 net vs gross 정합 권고) / codex NEEDS_CHANGES 1 (autoTagger throw 시 createNote 자체 throw 위험 → try/catch 격리 + autoTaggingStatus='failed') + NB 다수 모두 본 PR hotfix 흡수. Phase 1 해소 3 → **4** / 잔여 17 → 16 (HIGH 1 / MEDIUM 3 / LOW 12) + Phase 2 잔여 누계 0 → 1 (KI-021 M3 T16 누락분 정합 흡수, HIGH 0 / MEDIUM 0 / LOW 1). 총 잔여 17건.

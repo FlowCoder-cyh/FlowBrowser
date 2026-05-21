@@ -383,6 +383,42 @@ describe('NoteService — Sprint 016 M4 T21 AutoTagger.tagNote wiring (KI-005 cl
     expect(fx.embeddingQueue.stats().pending).toBe(1)
     fx.fb.close()
   })
+
+  it('codex NEEDS_CHANGES #1 흡수 — autoTagger 가 throw 해도 createNote 자체는 throw 안 함 + autoTaggingStatus=failed', async () => {
+    // AutoTagger.tagContent 내부 provider.chat throw 는 'failed' 변환되지만 attach 단계 DB FK
+    // throw 는 전파. NoteService 가 try/catch 로 격리 — note + embeddingJob 은 정상 영속.
+    const fb = FlowbrowserDatabase.openInMemory()
+    fb.applySchema()
+    const ws = fb.ensureDefaultWorkspace()
+    const noteStore = new NoteStore(fb)
+    const embeddingQueue = new EmbeddingQueue(fb)
+    // throw stub — autoTagger.tagNote 가 직접 throw
+    const throwingTagger = {
+      async tagNote() {
+        throw new Error('attach throw simulated (FK violation)')
+      },
+      async tagPage() {
+        throw new Error('not used')
+      }
+    } as unknown as AutoTagger
+    const service = new NoteService({ noteStore, embeddingQueue, autoTagger: throwingTagger })
+
+    const r = await service.createNote({
+      workspaceId: ws.id,
+      selectedText: '인용',
+      enableAutoTagging: true
+    })
+    // note 자체는 정상 영속
+    expect(r.note).toBeDefined()
+    expect(r.note.selected_text).toBe('인용')
+    // embedding job 도 정상 큐
+    expect(r.embeddingJobId).toBeDefined()
+    // autoTagger throw → 'failed'
+    expect(r.autoTaggingStatus).toBe('failed')
+    // 영속 검증
+    expect(noteStore.findById(r.note.id)).not.toBeNull()
+    fb.close()
+  })
 })
 
 describe('NoteService — list / delete', () => {

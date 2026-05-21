@@ -132,12 +132,20 @@ export class NoteService {
         input.body && input.body.trim().length > 0
           ? `${input.selectedText}\n\n${input.body}`
           : input.selectedText
-      const result = await this.autoTagger.tagNote({
-        noteId: note.id,
-        workspaceId: input.workspaceId,
-        content: noteContent
-      })
-      autoTaggingStatus = result.status
+      // codex T21 사전 dual review NEEDS_CHANGES #1 흡수 — autoTagger 호출이 throw 해도
+      // createNote 자체 throw 안 되도록 try/catch 격리. note + embedding job 은 이미 영속.
+      // AutoTagger.tagContent 내부는 provider.chat throw 만 'failed' 변환, attach 단계 DB/FK
+      // throw 는 그대로 전파 → 본 모듈에서 catch + status='failed' 처리.
+      try {
+        const result = await this.autoTagger.tagNote({
+          noteId: note.id,
+          workspaceId: input.workspaceId,
+          content: noteContent
+        })
+        autoTaggingStatus = result.status
+      } catch {
+        autoTaggingStatus = 'failed'
+      }
     }
 
     return { note, embeddingJobId, autoTaggingStatus }
