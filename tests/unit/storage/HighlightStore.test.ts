@@ -593,20 +593,27 @@ describe('HighlightStore — remove / clear / size', () => {
     expect(store.listByNote('multi').map((r) => r.id)).toEqual(['early', 'mid', 'late'])
   })
 
-  it('listByPage with pageId="" treats empty string as identity-present (hasRealPageId = filter.pageId != null)', () => {
-    // != null 분기 — empty string 도 pageId identity 인정 (caller 책임: 빈 string 주입 자체 금지)
+  it("listByPage with pageId='' normalize → null + url 분기 강제 (Sprint 017 T02 — 이전 '== null' 분기에서 변경)", () => {
+    // Sprint 017 T02 normalize 적용 — `''` 와 whitespace-only 는 "pageId 미지정" 으로 강제.
+    // add 시점에서 pageId='' → null normalize 되고, listByPage 도 filter.pageId='' → null normalize.
+    // 결과: 'pageId or url required' throw (url 분기 강제).
     const store = new HighlightStore()
     store.add({
       id: 'h1',
       noteId: 'n1',
-      pageId: '',
+      pageId: '', // add 경계에서 null 로 normalize 됨
       url: 'https://a.com',
       contentHash: 'h',
       anchor: makeAnchor(),
       workspaceId: 'ws1',
       createdAt: 1
     })
-    const result = store.listByPage({ workspaceId: 'ws1', pageId: '' })
+    // record.pageId 는 null. filter.pageId='' 도 null normalize → url 미지정 시 throw.
+    expect(() => store.listByPage({ workspaceId: 'ws1', pageId: '' })).toThrow(
+      /pageId or url required/
+    )
+    // url 동반 제공 시 정상 — pageId='' → null → url 분기.
+    const result = store.listByPage({ workspaceId: 'ws1', pageId: '', url: 'https://a.com' })
     expect(result.map((r) => r.id)).toEqual(['h1'])
   })
 
@@ -677,5 +684,78 @@ describe('HighlightStore — remove / clear / size', () => {
         workspaceId: 'ws1'
       })
     ).toThrow(/anchor required/)
+  })
+})
+
+// Sprint 017 T02 — storage 경계 normalize.
+describe('HighlightStore — pageId normalize (Sprint 017 T02)', () => {
+  it("add: pageId='' → record.pageId=null (storage 경계 normalize)", () => {
+    const store = new HighlightStore()
+    const record = store.add({
+      noteId: 'n1',
+      pageId: '',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1'
+    })
+    expect(record.pageId).toBeNull()
+  })
+
+  it("add: pageId='  page-abc  ' → record.pageId='page-abc' (trim)", () => {
+    const store = new HighlightStore()
+    const record = store.add({
+      noteId: 'n1',
+      pageId: '  page-abc  ',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1'
+    })
+    expect(record.pageId).toBe('page-abc')
+  })
+
+  it("listByPage: filter.pageId='' → 'pageId or url required' throw (url 분기 강제)", () => {
+    const store = new HighlightStore()
+    expect(() => store.listByPage({ workspaceId: 'ws1', pageId: '' })).toThrow(
+      /pageId or url required/
+    )
+  })
+
+  it("listByPage: filter.pageId='   ' (whitespace) + url 제공 → url 분기 동작", () => {
+    const store = new HighlightStore()
+    store.add({
+      id: 'h1',
+      noteId: 'n1',
+      pageId: null,
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1',
+      createdAt: 1
+    })
+    // filter.pageId='   ' 가 normalize 되어 null → url 분기 호출됨.
+    const result = store.listByPage({
+      workspaceId: 'ws1',
+      pageId: '   ',
+      url: 'https://a.com'
+    })
+    expect(result.map((r) => r.id)).toEqual(['h1'])
+  })
+
+  it("listByPage: filter.pageId='  page-abc  ' → trim 적용 후 매칭", () => {
+    const store = new HighlightStore()
+    store.add({
+      id: 'h1',
+      noteId: 'n1',
+      pageId: 'page-abc',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1',
+      createdAt: 1
+    })
+    const result = store.listByPage({ workspaceId: 'ws1', pageId: '  page-abc  ' })
+    expect(result.map((r) => r.id)).toEqual(['h1'])
   })
 })

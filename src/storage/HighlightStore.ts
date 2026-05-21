@@ -25,6 +25,7 @@
 import { randomUUID } from 'node:crypto'
 
 import type { HighlightAnchor } from '../perception/highlightAnchor'
+import { normalizeOptionalId } from './idNormalize'
 
 export interface HighlightRecord {
   /** highlight 자체 id (noteId 와 별개 — 한 노트가 여러 highlight 가능). */
@@ -80,10 +81,11 @@ export class HighlightStore {
     if (!input.contentHash) throw new Error('HighlightStore.add: contentHash required')
     if (!input.anchor) throw new Error('HighlightStore.add: anchor required')
 
+    // storage 경계 normalize — `'' or whitespace-only → null` (Sprint 017 T02).
     const record: HighlightRecord = {
       id: input.id ?? randomUUID(),
       noteId: input.noteId,
-      pageId: input.pageId ?? null,
+      pageId: normalizeOptionalId(input.pageId),
       url: input.url,
       contentHash: input.contentHash,
       anchor: input.anchor,
@@ -121,7 +123,11 @@ export class HighlightStore {
     if (!filter.workspaceId) {
       throw new Error('HighlightStore.listByPage: workspaceId required')
     }
-    const hasRealPageId = filter.pageId != null
+    // filter normalize — `''` 또는 whitespace-only 는 "pageId 미지정" 으로 강제 (Sprint 017 T02).
+    // 이전 `!= null` 만으로는 `''` 통과 → cross-URL 노출 가능 (record.pageId=null 인 다른 페이지의 highlight 매칭 X 이나
+    // record.pageId=''(legacy) 데이터와 match 위험).
+    const normalizedPageId = normalizeOptionalId(filter.pageId)
+    const hasRealPageId = normalizedPageId !== null
     if (!hasRealPageId && !filter.url) {
       throw new Error('HighlightStore.listByPage: pageId or url required')
     }
@@ -130,7 +136,7 @@ export class HighlightStore {
     for (const record of this.byId.values()) {
       if (record.workspaceId !== filter.workspaceId) continue
       if (hasRealPageId) {
-        if (record.pageId !== filter.pageId) continue
+        if (record.pageId !== normalizedPageId) continue
       } else {
         if (record.url !== filter.url) continue
         if (filter.contentHash && record.contentHash !== filter.contentHash) continue

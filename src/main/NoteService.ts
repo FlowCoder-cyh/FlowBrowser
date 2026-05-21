@@ -24,6 +24,7 @@
 import type { NoteStore, CreateNoteInput, NoteRow } from '../storage/NoteStore'
 import type { EmbeddingQueue } from '../storage/EmbeddingQueue'
 import type { AutoTagger } from '../ai/tagging/AutoTagger'
+import { normalizeOptionalId } from '../storage/idNormalize'
 
 export interface NoteServiceOptions {
   noteStore: NoteStore
@@ -97,11 +98,13 @@ export class NoteService {
       throw new Error('NoteService.createNote: workspaceId required.')
     }
 
+    // 방어선 normalize — IPC 외 직접 호출자도 정합 (Sprint 017 T02).
+    // `'' or whitespace-only → null` 강제 — `?? null` 만으로는 '' 통과.
     const noteInput: CreateNoteInput = {
       workspace_id: input.workspaceId,
       selected_text: input.selectedText,
-      page_id: input.pageId ?? null,
-      visit_id: input.visitId ?? null,
+      page_id: normalizeOptionalId(input.pageId),
+      visit_id: normalizeOptionalId(input.visitId),
       body: input.body ?? null,
       ai_tags: input.initialTags ?? null,
       created_by: 'user'

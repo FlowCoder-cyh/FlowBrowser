@@ -15,6 +15,7 @@
 
 import type { NoteService } from './NoteService'
 import type { NoteRow } from '../storage/NoteStore'
+import { normalizeOptionalId } from '../storage/idNormalize'
 
 export interface SerializedNoteRow {
   id: string
@@ -72,11 +73,12 @@ export async function handleNoteCreate(
       errorCode: 'infra_unavailable'
     }
   }
+  // IPC 경계 normalize — renderer 가 빈 문자열 / whitespace 전달 시 null 로 정규화 (Sprint 017 T02).
   const result = await service.createNote({
     workspaceId,
     selectedText,
-    pageId: args.pageId,
-    visitId: args.visitId,
+    pageId: normalizeOptionalId(args.pageId),
+    visitId: normalizeOptionalId(args.visitId),
     body: args.body,
     initialTags: args.initialTags,
     enableAutoTagging: args.enableAutoTagging
