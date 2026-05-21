@@ -108,6 +108,13 @@ describe('highlightAnchor — serializeRange', () => {
     expect(anchor.endOffset).toBe(5)
   })
 
+  it('throws on empty (collapsed) selection — codex dual review NB-4 hotfix', () => {
+    document.body.innerHTML = '<p>hello</p>'
+    const text = document.querySelector('p')!.firstChild as Text
+    const range = makeRange(text, 2, text, 2) // collapsed at offset 2
+    expect(() => serializeRange(document.body, 'body', range)).toThrow(/empty selection/)
+  })
+
   it('throws when range.startContainer is outside root', () => {
     document.body.innerHTML = '<p>inside</p>'
     // 별도 detached document fragment 만든 후 그 안의 text node 로 Range 박음

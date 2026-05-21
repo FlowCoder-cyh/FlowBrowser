@@ -285,6 +285,44 @@ describe('HighlightStore — listByPage', () => {
     expect(() => store.listByPage({ workspaceId: 'ws1' })).toThrow(/pageId or url required/)
   })
 
+  it('treats pageId:null as page-identity-missing and routes to url branch (codex dual review hotfix)', () => {
+    // 이전 버전 — `filter.pageId !== undefined` 분기 — 가 pageId:null 명시 시 record.pageId===null
+    // 매칭을 cross-URL 적용. 본 hotfix 후 pageId:null 은 url 분기 강제 → 다른 URL 노출 차단.
+    store.add({
+      id: 'h1',
+      noteId: 'n1',
+      pageId: null,
+      url: 'https://a.com',
+      contentHash: 'hA',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1',
+      createdAt: 1
+    })
+    store.add({
+      id: 'h2',
+      noteId: 'n2',
+      pageId: null,
+      url: 'https://b.com',
+      contentHash: 'hB',
+      anchor: makeAnchor(),
+      workspaceId: 'ws1',
+      createdAt: 2
+    })
+
+    const result = store.listByPage({
+      workspaceId: 'ws1',
+      pageId: null,
+      url: 'https://a.com'
+    })
+    expect(result.map((r) => r.id)).toEqual(['h1'])
+  })
+
+  it('throws when pageId:null and url missing (codex dual review hotfix)', () => {
+    expect(() => store.listByPage({ workspaceId: 'ws1', pageId: null })).toThrow(
+      /pageId or url required/
+    )
+  })
+
   it('returns empty when nothing matches', () => {
     store.add({
       id: 'h1',

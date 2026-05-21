@@ -103,12 +103,17 @@ export class HighlightStore {
   }
 
   /**
-   * 페이지 재방문 시 복원용 — workspaceId 강제 + (pageId 또는 url+contentHash) 필터.
+   * 페이지 재방문 시 복원용 — workspaceId 강제 + (실 pageId 또는 url+contentHash) 필터.
    *
    * 필터 우선순위:
-   *   1. pageId 지정: workspaceId + pageId 일치
-   *   2. pageId 미지정 + url 지정: workspaceId + url 일치 (contentHash 지정 시 동반)
-   *   3. 둘 다 미지정: 에러 (cross-workspace 또는 cross-page 노출 차단)
+   *   1. 실 pageId 지정 (string + non-null): workspaceId + record.pageId === filter.pageId 일치
+   *   2. pageId 가 null 또는 undefined: url 분기 — workspaceId + record.url === filter.url 일치
+   *      (contentHash 지정 시 동반 일치 강제)
+   *   3. pageId 가 null/undefined 인데 url 도 없으면: throw (cross-page 노출 차단)
+   *
+   * codex 사전 dual review hotfix (threadId 019e4a16) 흡수 — `pageId: null` 을
+   * "pageId 없는 모든 record 매칭" 으로 해석하던 이전 버전은 cross-URL 노출 위험.
+   * 본 hotfix 후 `pageId: null` 은 "pageId identity 미지정" 으로 해석 → url 분기 강제.
    *
    * 결과는 createdAt 오름차순 정렬.
    */
@@ -116,14 +121,15 @@ export class HighlightStore {
     if (!filter.workspaceId) {
       throw new Error('HighlightStore.listByPage: workspaceId required')
     }
-    if (filter.pageId === undefined && !filter.url) {
+    const hasRealPageId = filter.pageId != null
+    if (!hasRealPageId && !filter.url) {
       throw new Error('HighlightStore.listByPage: pageId or url required')
     }
 
     const result: HighlightRecord[] = []
     for (const record of this.byId.values()) {
       if (record.workspaceId !== filter.workspaceId) continue
-      if (filter.pageId !== undefined) {
+      if (hasRealPageId) {
         if (record.pageId !== filter.pageId) continue
       } else {
         if (record.url !== filter.url) continue

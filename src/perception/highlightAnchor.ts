@@ -233,10 +233,14 @@ function assertWithinRoot(root: Node, node: Node): void {
 /**
  * DOM Range → HighlightAnchor 직렬화.
  *
+ * rootSelector 는 metadata — 본 모듈의 deserializeAnchor 는 root: Element 를 직접 받으므로
+ * selector 를 사용하지 않는다. 호출자 (renderer overlay 또는 후속 SQLite swap path) 가 anchor.rootSelector
+ * 로 root 를 다시 querySelector 하는 책임 모델. 본 metadata 가 비어 있어도 deserialize 동작에는 영향 없음.
+ *
  * @param root         anchor 기준 root (보통 document.body)
- * @param rootSelector root 를 다시 찾기 위한 selector (호출자 책임, 예: 'body' / 'main#content')
- * @param range        선택된 W3C Range
- * @throws iframe/Shadow DOM cross-boundary range 또는 range 가 root 외부
+ * @param rootSelector root 를 다시 찾기 위한 selector — metadata 보존만 (예: 'body' / 'main#content')
+ * @param range        선택된 W3C Range — collapsed/empty selection 차단
+ * @throws iframe/Shadow DOM cross-boundary range 또는 range 가 root 외부 또는 empty selection
  */
 export function serializeRange(root: Element, rootSelector: string, range: Range): HighlightAnchor {
   assertWithinRoot(root, range.startContainer)
@@ -249,6 +253,10 @@ export function serializeRange(root: Element, rootSelector: string, range: Range
   }
 
   const selectedText = range.toString()
+  // codex 사전 dual review NB-4 흡수 — empty selection 방어. UI 가 막아도 pure 모듈 자체 방어.
+  if (selectedText.length === 0) {
+    throw new Error('serializeRange: empty selection (collapsed range)')
+  }
   const rootText = root.textContent ?? ''
 
   // Range 의 실제 character offset 기반 prefix/suffix 추출 — 동일 selectedText 가 여러 번
