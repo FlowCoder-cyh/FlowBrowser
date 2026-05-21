@@ -3,7 +3,7 @@
  * Privacy / Credentials / UsageLog / Provider 통합 진입점.
  */
 
-import { app, BrowserWindow, ipcMain, type WebContents } from 'electron'
+import { app, BrowserWindow, ipcMain, session, type WebContents } from 'electron'
 import { join } from 'node:path'
 import { promises as fs } from 'node:fs'
 import { createHash } from 'node:crypto'
@@ -85,6 +85,7 @@ import {
   type NoteDeleteResponse
 } from './noteHandlers'
 import { WorkspaceService } from './WorkspaceService'
+import { WorkspacePartitionManager } from './WorkspacePartitionManager'
 import {
   handleWorkspaceList,
   handleWorkspaceGetCurrent,
@@ -170,6 +171,11 @@ let embeddingQueue: EmbeddingQueue | null = null
 let searchService: SearchService | null = null
 let noteService: NoteService | null = null
 let workspaceService: WorkspaceService | null = null
+// Sprint 016 M3 T14/T15 (G-015) — 워크스페이스 단위 cookies/storage partition 격리.
+// initServices 시점에 인스턴스화 (Electron `session.fromPartition` 위임).
+// createTabView (main/index.ts) 가 `getWorkspacePartitionName(workspaceId)` 호출 → WebContentsView
+// `webPreferences.partition` 박음. 미설정 시 디폴트 session.
+let workspacePartitionManager: WorkspacePartitionManager | null = null
 let memoryService: MemoryService | null = null
 // Sprint 016 M0 T05 (KI-010) — IndexingGate + IndexingService wiring.
 // did-finish-load hook 호출 (main/index.ts) 시점에 indexingService.indexPage(...) 진입.
@@ -189,6 +195,37 @@ const providers: Map<CredentialProviderType, ProviderAdapter> = new Map()
 export function getActiveWorkspaceId(): string | null {
   if (workspaceService) return workspaceService.getActiveId()
   return defaultWorkspaceId
+}
+
+/**
+ * Sprint 016 M3 T15 (G-015) — 워크스페이스 partition name 조회.
+ *
+ * main/index.ts createTabView 가 호출 → WebContentsView `webPreferences.partition` 박음.
+ *
+ * 반환:
+ *   - workspaceId 가 valid + manager 초기화 됨 → `persist:ws-{workspaceId}`
+ *   - workspaceId 가 null/undefined/빈 문자열 → undefined (디폴트 session)
+ *   - manager 미초기화 (bootstrap 실패) → undefined (디폴트 session, graceful)
+ *   - manager.getPartitionName() throw (invalid id) → undefined + console.warn
+ *
+ * 사용 패턴:
+ *   const partition = getWorkspacePartitionName(workspaceId)
+ *   new WebContentsView({ webPreferences: buildTabWebPreferences({ partition }) })
+ */
+export function getWorkspacePartitionName(
+  workspaceId: string | null | undefined
+): string | undefined {
+  if (!workspaceId) return undefined
+  if (!workspacePartitionManager) return undefined
+  try {
+    return workspacePartitionManager.getPartitionName(workspaceId)
+  } catch (err) {
+    console.warn(
+      '[services] getWorkspacePartitionName invalid workspaceId:',
+      err instanceof Error ? err.message : String(err)
+    )
+    return undefined
+  }
 }
 
 /**
@@ -349,6 +386,12 @@ export async function initServices(): Promise<void> {
       userSettingStore,
       defaultWorkspace: defaultWs
     })
+    // Sprint 016 M3 T15 (G-015) — WorkspacePartitionManager 인스턴스화.
+    // Electron `session.fromPartition` 위임 — main/index.ts createTabView 가
+    // `webPreferences.partition` 으로 박는다. 워크스페이스 삭제 시점 cleanup 은 T16.
+    workspacePartitionManager = new WorkspacePartitionManager({
+      factory: { fromPartition: (name: string) => session.fromPartition(name) }
+    })
     const persistedActive = (userSettingStore.getState() as { activeWorkspaceId?: string | null })
       .activeWorkspaceId
     if (!persistedActive) {
@@ -389,6 +432,7 @@ export async function initServices(): Promise<void> {
     searchService = null
     noteService = null
     workspaceService = null
+    workspacePartitionManager = null
     memoryService = null
     indexingGate = null
     indexingService = null
