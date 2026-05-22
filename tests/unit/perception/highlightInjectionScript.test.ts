@@ -23,6 +23,8 @@ import {
   buildSerializeScript,
   buildRestoreScript,
   buildHighlightCssForIds,
+  buildRemoveVisualScript,
+  buildScrollToScript,
   HIGHLIGHT_NAME_PREFIX,
   CONTEXT_LEN
 } from '../../../src/perception/highlightInjectionScript'
@@ -194,5 +196,87 @@ describe('module 상수 + main 측 알고리즘 정합', () => {
     expect(computeContentHash({ textContent: '  foo\t bar\r\nbaz  ' } as unknown as Element)).toBe(
       sha256Hex('foo bar\nbaz')
     )
+  })
+})
+
+/**
+ * Sprint 017 M1 T08 — `buildRemoveVisualScript` + `buildScrollToScript` 단위 회귀.
+ *
+ * codex 사전 협의 019e4ec8 #2 + #3 정합 검증:
+ *   - id 가 JSON.stringify 로 안전 escape (script injection 방어)
+ *   - HIGHLIGHT_NAME_PREFIX + __fbSanitizeId 정합 (registry name 매칭)
+ *   - Highlight 의 set-like iteration (Array.from(hl)[0]) 사용 — getRanges() API 호환 위험 회피
+ */
+describe('buildRemoveVisualScript — Sprint 017 M1 T08', () => {
+  it('단일 id IIFE 구조 + CSS.highlights.delete 포함', () => {
+    const code = buildRemoveVisualScript('h-1')
+    expect(code).toMatch(/^\(\(\) => \{[\s\S]*\}\)\(\)$/)
+    expect(code).toContain('highlightsApi.delete')
+    expect(code).toContain('highlightsApi.has')
+  })
+
+  it('HIGHLIGHT_NAME_PREFIX + __fbSanitizeId 정합 (registry name 매칭)', () => {
+    const code = buildRemoveVisualScript('한글-id_1')
+    expect(code).toContain(JSON.stringify(HIGHLIGHT_NAME_PREFIX))
+    expect(code).toContain('__fbSanitizeId')
+    // id 가 JSON.stringify 로 안전 escape
+    expect(code).toContain(JSON.stringify('한글-id_1'))
+  })
+
+  it('API 미지원 시 graceful no-op (apiSupported=false)', () => {
+    const code = buildRemoveVisualScript('h-1')
+    // highlightsApi 가 null 일 때 deleted=false 로 early return
+    expect(code).toContain('if (!highlightsApi) return result')
+    expect(code).toContain('apiSupported: false')
+  })
+
+  it('throw 발생 시 ok=false 반환 (graceful)', () => {
+    const code = buildRemoveVisualScript('h-1')
+    expect(code).toContain('catch (_e)')
+    expect(code).toContain('ok: false')
+  })
+
+  it('script injection 방어 — id 에 ", \\, JS 키워드 포함 시 안전 escape', () => {
+    const code = buildRemoveVisualScript('"; alert(1); //')
+    // JSON.stringify 결과는 escaped string 으로 박힘 — 외부 코드 주입 차단
+    expect(code).toContain(JSON.stringify('"; alert(1); //'))
+    expect(code).not.toContain('; alert(1); //"\n')
+  })
+})
+
+describe('buildScrollToScript — Sprint 017 M1 T08', () => {
+  it('단일 id IIFE 구조 + Array.from(hl)[0] 패턴 (codex 019e4ec8 #3 호환 정합)', () => {
+    const code = buildScrollToScript('h-1')
+    expect(code).toMatch(/^\(\(\) => \{[\s\S]*\}\)\(\)$/)
+    // getRanges() 미사용 — Array.from(hl) 안전 path
+    expect(code).toContain('Array.from(hl)')
+    expect(code).not.toContain('.getRanges()')
+  })
+
+  it('scrollIntoView smooth/center 호출', () => {
+    const code = buildScrollToScript('h-1')
+    expect(code).toContain('scrollIntoView')
+    expect(code).toMatch(/behavior:\s*'smooth'/)
+    expect(code).toMatch(/block:\s*'center'/)
+  })
+
+  it('startContainer text node → parentElement fallback', () => {
+    const code = buildScrollToScript('h-1')
+    expect(code).toContain('range.startContainer.nodeType === 1')
+    expect(code).toContain('range.startContainer.parentElement')
+  })
+
+  it('API 미지원 / 미존재 highlight / range 0개 모두 graceful (scrolled=false)', () => {
+    const code = buildScrollToScript('h-1')
+    expect(code).toContain('if (!highlightsApi) return result')
+    expect(code).toContain('if (!hl) return result')
+    expect(code).toContain('if (ranges.length === 0) return result')
+  })
+
+  it('HIGHLIGHT_NAME_PREFIX + __fbSanitizeId 정합', () => {
+    const code = buildScrollToScript('id with spaces')
+    expect(code).toContain(JSON.stringify(HIGHLIGHT_NAME_PREFIX))
+    expect(code).toContain('__fbSanitizeId')
+    expect(code).toContain(JSON.stringify('id with spaces'))
   })
 })

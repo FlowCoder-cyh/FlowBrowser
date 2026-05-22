@@ -52,6 +52,9 @@ interface HighlightApi {
   remove: (id: string) => Promise<{ ok: boolean }>
   create: (args: unknown) => Promise<unknown>
   listByNote: (noteId: string) => Promise<{ highlights: SerializedHighlightRecordPayload[] }>
+  // Sprint 017 M1 T08 추가
+  scrollTo?: (id: string) => Promise<{ ok: boolean; scrolled: boolean }>
+  onToast?: (handler: unknown) => () => void
 }
 
 declare global {
@@ -85,18 +88,22 @@ function makeRecord(overrides: Partial<SerializedHighlightRecordPayload> = {}): 
 interface Fx {
   listSpy: ReturnType<typeof vi.fn>
   removeSpy: ReturnType<typeof vi.fn>
+  scrollToSpy: ReturnType<typeof vi.fn>
 }
 
 function setupFx(): Fx {
   const fx: Fx = {
     listSpy: vi.fn(),
-    removeSpy: vi.fn()
+    removeSpy: vi.fn(),
+    scrollToSpy: vi.fn()
   }
   ;(window as unknown as { highlightApi: HighlightApi }).highlightApi = {
     listByPage: fx.listSpy as HighlightApi['listByPage'],
     remove: fx.removeSpy as HighlightApi['remove'],
     create: vi.fn(),
-    listByNote: vi.fn()
+    listByNote: vi.fn(),
+    // Sprint 017 M1 T08 — 디폴트 ok=true, scrolled=true (필요 시 mockResolvedValueOnce 로 override).
+    scrollTo: fx.scrollToSpy.mockResolvedValue({ ok: true, scrolled: true })
   }
   return fx
 }
@@ -223,5 +230,106 @@ describe('NoteHighlight — remove + 재로드', () => {
     rerender(<NoteHighlight workspaceId={'ws-1'} url={'https://example.com'} refreshKey={1} />)
     await flush()
     expect(fx.listSpy).toHaveBeenCalledTimes(2)
+  })
+})
+
+/**
+ * Sprint 017 M1 T08 — 클릭 / scrollTo / selected state / toast 신규 회귀.
+ *
+ * codex 사전 협의 019e4ec8 권고:
+ *   - list item 클릭 시 highlightApi.scrollTo 호출 + selected state 갱신
+ *   - selected 시 className + aria-pressed 정합
+ *   - selected highlight remove 시 selected null 로 cleanup
+ *   - remove 클릭 event.stopPropagation — 본 li 의 scrollTo 동시 트리거 차단
+ */
+describe('NoteHighlight — Sprint 017 M1 T08 클릭/포커스/scrollTo', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setupFx()
+  })
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  it('list item 클릭 → highlightApi.scrollTo 호출', async () => {
+    fx.listSpy.mockResolvedValue({
+      highlights: [
+        makeRecord({ id: 'h-target', anchor: { ...makeRecord().anchor, selectedText: 'TARGET' } })
+      ]
+    })
+    render(<NoteHighlight workspaceId={'ws-1'} url={'https://example.com'} />)
+    await flush()
+    const btn = screen.getByLabelText(/이동:.*TARGET/)
+    fireEvent.click(btn)
+    await flush()
+    expect(fx.scrollToSpy).toHaveBeenCalledWith('h-target')
+  })
+
+  it('클릭 후 selected state — aria-pressed=true + selected class', async () => {
+    fx.listSpy.mockResolvedValue({
+      highlights: [makeRecord({ id: 'h-sel', anchor: { ...makeRecord().anchor, selectedText: 'SEL' } })]
+    })
+    render(<NoteHighlight workspaceId={'ws-1'} url={'https://example.com'} />)
+    await flush()
+    const btn = screen.getByLabelText(/이동:.*SEL/)
+    fireEvent.click(btn)
+    await flush()
+    expect(btn.getAttribute('aria-pressed')).toBe('true')
+    expect(btn.closest('li')?.className).toContain('note-highlight__item--selected')
+  })
+
+  it('selected highlight remove → selected state null cleanup', async () => {
+    fx.listSpy.mockResolvedValue({
+      highlights: [makeRecord({ id: 'h-x', anchor: { ...makeRecord().anchor, selectedText: 'XYZ' } })]
+    })
+    fx.removeSpy.mockResolvedValue({ ok: true })
+    render(<NoteHighlight workspaceId={'ws-1'} url={'https://example.com'} />)
+    await flush()
+    const clickBtn = screen.getByLabelText(/이동:.*XYZ/)
+    fireEvent.click(clickBtn)
+    await flush()
+    expect(clickBtn.getAttribute('aria-pressed')).toBe('true')
+    // remove
+    fireEvent.click(screen.getByLabelText(/하이라이트 삭제: XYZ/))
+    await flush()
+    expect(screen.queryByText('XYZ')).toBeNull()
+    // remove 후 list 갱신 — selected state 도 null (item 자체 사라짐).
+  })
+
+  it('remove 클릭 event.stopPropagation — scrollTo 미호출', async () => {
+    fx.listSpy.mockResolvedValue({
+      highlights: [makeRecord({ id: 'h-stop', anchor: { ...makeRecord().anchor, selectedText: 'STOP' } })]
+    })
+    fx.removeSpy.mockResolvedValue({ ok: true })
+    render(<NoteHighlight workspaceId={'ws-1'} url={'https://example.com'} />)
+    await flush()
+    fireEvent.click(screen.getByLabelText(/하이라이트 삭제: STOP/))
+    await flush()
+    expect(fx.removeSpy).toHaveBeenCalledWith('h-stop')
+    expect(fx.scrollToSpy).not.toHaveBeenCalled()
+  })
+
+  it('scrollTo result.ok=false / scrolled=false 모두 graceful (throw 없음)', async () => {
+    fx.listSpy.mockResolvedValue({
+      highlights: [makeRecord({ id: 'h-graceful', anchor: { ...makeRecord().anchor, selectedText: 'G' } })]
+    })
+    fx.scrollToSpy.mockResolvedValueOnce({ ok: false, scrolled: false })
+    render(<NoteHighlight workspaceId={'ws-1'} url={'https://example.com'} />)
+    await flush()
+    // throw 없이 정상 진행
+    fireEvent.click(screen.getByLabelText(/이동:.*G/))
+    await flush()
+    expect(fx.scrollToSpy).toHaveBeenCalledWith('h-graceful')
+  })
+
+  it('selected state 미선택 시 default — aria-pressed=false', async () => {
+    fx.listSpy.mockResolvedValue({
+      highlights: [makeRecord({ id: 'h-1', anchor: { ...makeRecord().anchor, selectedText: 'A' } })]
+    })
+    render(<NoteHighlight workspaceId={'ws-1'} url={'https://example.com'} />)
+    await flush()
+    const btn = screen.getByLabelText(/이동:.*A/)
+    expect(btn.getAttribute('aria-pressed')).toBe('false')
   })
 })

@@ -520,6 +520,13 @@ interface HighlightListResponsePayload {
   highlights: SerializedHighlightRecordPayload[]
 }
 
+/** Sprint 017 M1 T08 — main → renderer toast 신호 (highlight error / Shadow DOM graceful). */
+export interface HighlightToastPayload {
+  kind: 'error' | 'info' | 'success'
+  message: string
+  errorCode?: string
+}
+
 const highlightApi = {
   create: (args: HighlightCreateArgsPayload): Promise<HighlightCreateResponsePayload> =>
     ipcRenderer.invoke('highlight:create', args),
@@ -528,7 +535,16 @@ const highlightApi = {
   listByNote: (noteId: string): Promise<HighlightListResponsePayload> =>
     ipcRenderer.invoke('highlight:list-by-note', { noteId }),
   remove: (id: string): Promise<{ ok: boolean }> =>
-    ipcRenderer.invoke('highlight:remove', { id })
+    ipcRenderer.invoke('highlight:remove', { id }),
+  /** Sprint 017 M1 T08 — 활성 페이지에서 highlight first range scrollIntoView. */
+  scrollTo: (id: string): Promise<{ ok: boolean; scrolled: boolean }> =>
+    ipcRenderer.invoke('highlight:scroll-to', { id }),
+  /** Sprint 017 M1 T08 — main 측 'highlight:toast' broadcast 구독. unsubscribe 함수 반환. */
+  onToast: (handler: (payload: HighlightToastPayload) => void): (() => void) => {
+    const listener = (_: unknown, payload: HighlightToastPayload): void => handler(payload)
+    ipcRenderer.on('highlight:toast', listener)
+    return () => ipcRenderer.off('highlight:toast', listener)
+  }
 }
 
 const shortcutApi = {
