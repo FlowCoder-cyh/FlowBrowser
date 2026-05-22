@@ -51,7 +51,7 @@
 | S017-T10 | KI-020 (SPA did-navigate-in-page) — `createTabView` 에 `did-navigate-in-page` hook 추가 + debounce 500ms~1s + `runPageIndexing` 재호출 + iframe nav 무시 (sender frame === mainFrame check) | `src/main/index.ts` + 단위 회귀 |
 | S017-T11 | KI-021 (partition cleanup reconcile, Phase 2) — `WorkspacePartitionManager.reconcileOrphanPartitions()` 신규 + 부팅 시 1회 호출 + console.warn → main log 박음 | `src/main/WorkspacePartitionManager.ts` + 단위 회귀 |
 | S017-T12 | KI-022 (Import embedding_queue re-enqueue) — `WorkspaceExportImportService.importWorkspace` 후 `EmbeddingQueue.enqueue` 자동 호출 (pages + notes 양쪽) | `src/main/WorkspaceExportImportService.ts` + 단위 회귀 |
-| S017-T13 | Sprint 016 freeform fallback wording 정합 — `AutoTagger.tagPage` / `tagNote` 의 `parseTagsResponse → null` path 호출자 책임 명시 + 단위 회귀 추가 | `src/ai/tagging/AutoTagger.ts` 코멘트 + 단위 회귀 |
+| S017-T13 | Sprint 016 freeform fallback wording 정합 (KI-031) — `AutoTagger.tagPage` / `tagNote` 의 `parseTagsResponse → null` path 호출자 책임 명시 + 단위 회귀 추가 | `src/ai/tagging/AutoTagger.ts` 코멘트 + 단위 회귀 |
 
 ### 포함 (헤더 + 진입 조건만 — M3~M5, dependency 별도 승인 후 구체화)
 
@@ -102,7 +102,7 @@
 - KI-020 SPA did-navigate-in-page hook 동작 (GitHub issue 클릭 / Notion 페이지 전환 시나리오)
 - KI-021 partition cleanup reconcile path 부팅 시 1회 실행 + log 박음
 - KI-022 Import 후 embedding_queue 자동 재 enqueue (page + note 양쪽)
-- KI-013 freeform fallback wording 정합 + 회귀
+- KI-031 freeform fallback wording 정합 + 회귀 (Sprint 017 M2 T13 closed — KI-013 표기는 contract 시안 시점 ID 오기, KI-013 은 검색 perf KI [closed] 라 재사용 불가)
 
 ### AC-4 Phase 3 진입 spike (T14~T17)
 

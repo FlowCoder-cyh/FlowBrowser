@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **3 진행 중 (Sprint 017 M1 T09 머지 — M1 종결)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 종결 / **M1 T06~T09 모두 머지 → M1 closure**). Phase 3 후속 — M2 신규 KI batch (T10~T13) / M3 로컬 LLM spike / M4 Notion Export 등 / M5 종합.
-- **Sprint**: **017 M1 종결 — T09 머지** (PR #228 `d710fde`). M0 5/5 종결 (T01 #219 / T02 #220 / T03 #221 / T04+T05 #222) + M1 T06 (#223) / T07 (#224) / T08 (#226) / **T09 (#228)** = 8 PR + docs 1 (#227 예정). 후속 M2 진입.
+- **Phase**: **3 진행 중 (Sprint 017 M2 4/4 종결)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 종결 / M1 4/4 종결 / **M2 T10~T13 모두 머지 → M2 closure**). Phase 3 후속 — M3 로컬 LLM spike / M4 Notion Export 등 / M5 종합.
+- **Sprint**: **017 M2 4/4 종결 — T10/T11/T12/T13 머지** (PR #230 `94c43fb` / #231 `b04ec95` / #232 `9e23b73` / #233 `2a56cc4`). 누적 코드 PR Sprint 017: M0 4 + M1 4 + M2 4 = **12 + docs**. 후속 M3 (Phase 3 spike) 진입.
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 017 M5 시점 v0.5.0 발행 예정.
-- **최근 갱신 (Sprint 017 M1 T09 머지)**: 2026-05-22 (T09 #228 머지). 단위 **1590 → 1605** (+15, T09 본문 +13 + dual review hotfix +2). **KI 변동 0** — 본 PR 은 Export/Import path 만 확장 (KI-022 T12 위임 / KI-024 T08 closed / KI-030 T08 신규 모두 무영향). 학습 #18 **19번째 확증** (T09 codex 사전 권고 6 + dual review BLOCKING 0 + NEEDS_CHANGES 2 + NOTABLE 1 = 9 finding 중 8 본 PR 내 흡수 + 1 후속 위임). 자기 검증 루프 **42회차 SUCCESS**.
-- **다음 세션 진입점**: **Sprint 017 M2 진입** (Sprint 016 신규 KI batch — T10 KI-020 SPA did-navigate-in-page / T11 KI-021 partition cleanup reconcile / T12 KI-022 Import embedding_queue re-enqueue / T13 KI-013 freeform fallback wording). T12 는 T09 산출물 (`WorkspaceExportImportService.importWorkspace`) 위에 EmbeddingQueue.enqueue 자동 호출 박음.
+- **최근 갱신 (Sprint 017 M2 종결)**: 2026-05-22 (T10/T11/T12/T13 머지 완료). 단위 **1605 → 1643** (+38, T10 +15 / T11 +8 / T12 +8 / T13 +7). **KI 변동**: closed **+4** (KI-020 T10 / KI-021 T11 / KI-022 T12 / KI-031 T13 신규 closed). Phase 2 잔여 **1 → 0** 도달. 잔여 11 → **9** (Phase 1 7 + Phase 2 0 + Phase 3 2). 학습 #18 **20~23번째 확증** (T10 codex 사전 + dual review 11 finding 모두 흡수 / T11 dual review 9 finding 흡수 / T12 dual review 9 finding 흡수 / T13 dual review 7 finding 흡수). 자기 검증 루프 **46회차 SUCCESS**.
+- **다음 세션 진입점**: **Sprint 017 M3 진입** (Phase 3 spike — T14 Ollama provider adapter / T15 sentence-transformers 로컬 임베딩 PoC / T16 로컬 LLM 통합 / T17 로컬 임베딩 통합). T14/T15 는 외부 dependency 추가 별도 사용자 승인 필수 (G-020 신규 후보).
 
 ## 현재 작업
 

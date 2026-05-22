@@ -267,17 +267,17 @@
 - **처리 예정 Sprint**: 016 M0 T06
 - **상태**: `closed` (Sprint 016 M0 T06 산식 헬퍼 `aiSourcesPrecision` + `AI_SOURCES_PRECISION_THRESHOLD=0.9` 박음. Sprint 016 M5 T23 PR #217 scenario-accuracy 종합 30 케이스 산식 cover (27 perfect 1.0 + 3 hallucinated 0.5 → mean 0.95 PASS — `expect(precision).toBeCloseTo(0.95, 5)` exact assertion) — 임계 ≥ 90% 충족. **Sprint 017 M0 T04 audit (2026-05-22)**: scenario-accuracy 12 + accuracyHelpers 17 = 29 PASS 재실행 carryover regression 0 — handoff §4.)
 
-### KI-020 [open] SPA `did-navigate-in-page` 자동 인덱싱 누락
+### KI-020 [closed] SPA `did-navigate-in-page` 자동 인덱싱 누락
 
 - **Severity**: LOW
 - **Phase**: 1
-- **Sprint**: 016 (M0 T05 사전 dual review codex NB-1)
+- **Sprint**: 016 (M0 T05 사전 dual review codex NB-1) → 017 M2 T10 closed
 - **Component**: `src/main/index.ts` (`createTabView` did-finish-load hook — 본 PR 에 박힘) + 잠재적 `did-navigate-in-page` 별도 hook 필요
 - **영향**: Sprint 016 M0 T05 PR #176 의 자동 페이지 인덱싱 hook 은 `did-finish-load` 1종만 결합. SPA (React/Vue Single-Page App) 의 history.pushState 기반 in-page 네비게이션 (`did-navigate-in-page`) 시점에는 인덱싱 trigger 0 — 사용자가 SPA 내 URL 변경으로 콘텐츠 탐색해도 IndexedPageStore 에 누적 안 됨. 예: GitHub 의 issue → pull request 전환, Notion 의 페이지 전환.
 - **재현 절차**: GitHub repository 페이지에서 issue 클릭 → URL 변경되나 페이지 reload 없음 → IndexedPageStoreSqlite.countPages() 증가 0
 - **권고 해소 방향**: (1) `createTabView` 에 `did-navigate-in-page` hook 추가 + `runPageIndexing` 재호출 (debounce 500ms~1s, SPA 가 단기간 여러 번 navigate 가능 — 마지막 안정 URL 만 인덱싱). (2) `did-finish-load` 와 동일 path 재사용 가능 — IndexingService 의 recordVisit UPSERT + content_hash 매칭이 중복 차단. (3) iframe nav 는 무시 (sender frame === mainFrame check).
 - **처리 예정 Sprint**: 016 M1 (시나리오 2 PM 경쟁 — GitHub/공식 docs SPA 흐름 cover 필요 시점) 또는 후속 hotfix
-- **상태**: `open`
+- **상태**: `closed` (Sprint 017 M2 T10 PR #230 `94c43fb`, 2026-05-22 — `createTabView` did-navigate-in-page hook 박힘 + `spaNavIndexingScheduler` 신규 (debounce 1000ms + URL consistency guard + cancel/cancelAll/pending 모듈 전역 Map) + `did-start-navigation` hook (isMainFrame + !isInPlace 시 timer cancel — provisional/same-URL reload race 차단) + hash-only navigation skip (`urlPathAndSearch`/`isHashOnlyNavigation` helper) + `runHighlightRestore.clearWhenEmpty` 옵션 (SPA same-document stale CSS Highlight registry clear) + `runPageIndexing` 내부 URL guard 2 개소 (scan/extract 직후) + destroyTabView timer/path cache 정리. 회귀 +15 (scheduler 13 + highlightRestore 2). codex 사전 협의 019e4f40 + dual review 019e4f51 BLOCKING 3 + HIGH 1 + MEDIUM 1 + NEEDS_CHANGES 1 + NOTABLE 5 모두 본 PR 안 hotfix `aafb85b` 흡수 또는 정합 path 확인.)
 
 ### KI-017 [closed] tabLabel.test.ts +2 워크스페이스 컨텍스트 회귀 누락
 
@@ -291,29 +291,29 @@
 - **처리 예정 Sprint**: 016 T03 (KI-007 동반)
 - **상태**: `closed` (Sprint 016 M0 T03b PR #172, 2026-05-19 — `formatTabLabel(t, workspaceContext?: { id, icon })` 시그니처 확장. 매칭 시 **아이콘 prefix 만** 표시 (이름은 `WorkspaceSidebar` 에서 별도 표시 — 가시성 정책 정합, codex PR #172 NEEDS_CHANGES 해소). 미매칭 / null / context 미주입 시 fallback 회귀 +2 (it 블록 2 + expect 5). UI wiring (TabBar 활성 ws 주입) 은 T03c 위임.)
 
-### KI-021 [open] 워크스페이스 삭제 partition cleanup 실패 시 영구 잔존 reconcile path 부재
+### KI-021 [closed] 워크스페이스 삭제 partition cleanup 실패 시 영구 잔존 reconcile path 부재
 
 - **Severity**: LOW
 - **Phase**: 2
-- **Sprint**: 016 (M3 T16 사전 dual review codex NB-1)
+- **Sprint**: 016 (M3 T16 사전 dual review codex NB-1) → 017 M2 T11 closed
 - **Component**: `src/main/workspaceHandlers.ts` (`handleWorkspaceDelete` clearWorkspacePartition throw swallow path) + 잠재적 `WorkspacePartitionManager.reconcileOrphanPartitions()` 부재
 - **영향**: DB cascade 성공 후 `partition.clearStorageData()` 실패 (디스크 IO / Electron session 비정상) 시 swallow + console.warn 처리. UX 차단 안 함 정책 (DB 삭제는 이미 성공) 은 정합이나, **다음 부팅 시점에 잔존 partition (cookies/storage/cache) 정리 reconcile path 부재** → 영구 잔존 위험. Privacy/storage usage 누적 가능.
 - **재현 절차**: 워크스페이스 삭제 시점에 OS 디스크 full 또는 Electron session crash → `clearStorageData` throw → swallow → partition cleanup 누락. 재부팅 후 잔존 partition 확인 path 없음.
 - **권고 해소 방향**: (1) `WorkspacePartitionManager.reconcileOrphanPartitions(activeWorkspaceIds: string[])` 신규 — DB 에 없는 partition 식별 + cleanup. (2) main process boot 시점 (initServices 후) 호출. (3) workspaces 테이블 vs `session.getStoragePath()` 결과 비교.
 - **처리 예정 Sprint**: 016 종합 (T25) 또는 Phase 3 후속 hotfix
-- **상태**: `open`
+- **상태**: `closed` (Sprint 017 M2 T11 PR #231 `b04ec95`, 2026-05-22 — `WorkspacePartitionManager.reconcileOrphanPartitions(activeIds, listExistingPartitionIds)` 신규 + `services.reconcileWorkspacePartitions()` export (Session.getStoragePath() 로 partitions parent derive + fs.readdir + ws- prefix filter + ENOENT graceful → []) + main/index.ts initServices 후 fire-and-forget 호출 + activeIds 빈배열 시 skipped='empty_active_set' (DB 이상 신호 안전망) + listExistingPartitionIds throw graceful enumerationError. 회귀 +8. codex 사전 협의 019e4f65 권고 8건 + dual review 019e4f77 NEEDS_CHANGES 2 + NOTABLE 7 모두 본 PR 안 흡수 또는 정합 path.)
 
-### KI-022 [open] Workspace Import 후 vec_pages / vec_notes 재계산 (embedding_queue 재 enqueue) 후속
+### KI-022 [closed] Workspace Import 후 vec_pages / vec_notes 재계산 (embedding_queue 재 enqueue) 후속
 
 - **Severity**: LOW
 - **Phase**: 1
-- **Sprint**: 016 (M3 T17 KI-008 closed 시점 분리 등록)
+- **Sprint**: 016 (M3 T17 KI-008 closed 시점 분리 등록) → 017 M2 T12 closed
 - **Component**: `src/main/WorkspaceExportImportService.ts` (`importWorkspace` 후 embedding_queue insert 미박힘) + `src/storage/EmbeddingQueue.ts` (재 enqueue path)
 - **영향**: T17 Import 후 새 워크스페이스의 페이지/노트 본문이 모두 들어왔으나 **벡터 임베딩 (vec_pages / vec_notes) 은 export 대상 외** (derived data, model/dimension/sqlite-vec 버전 의존). 따라서 import 직후 시맨틱 검색 (검색바 Cmd+K) 이 import 된 페이지를 찾지 못함. 사용자 인지: 검색 결과 0건 + AutoIndex 미실행. 시나리오 4 (우연재발견) cover 감소.
 - **재현 절차**: ws A export → ws B import → import 된 page A1 의 본문 키워드로 검색 → 결과 0건 (vec0 row 부재)
 - **권고 해소 방향**: (1) `importWorkspace` 트랜잭션 안에서 모든 import 된 page/note 에 대해 `embeddingQueue.enqueue({type:'page', target_id: newPageId, workspace_id: newWorkspaceId, priority: 1})` 박음. (2) 또는 IPC handler 단에서 별도 step (보고: "임베딩 큐에 N 페이지 박음, 완료까지 약 N분"). (3) 사용자 동의 후 백그라운드 임베딩.
 - **처리 예정 Sprint**: 016 종합 (T25) 또는 Phase 3 후속 hotfix
-- **상태**: `open`
+- **상태**: `closed` (Sprint 017 M2 T12 PR #232 `9e23b73`, 2026-05-22 — `WorkspaceExportImportServiceOptions.embeddingQueue` optional 주입 + `importWorkspace` TX 안 page/note INSERT 직후 `EmbeddingQueue.enqueue` 자동 호출 (priority=1, content `trim().length > 0` 기준 — IndexingService/NoteService 정합) + `ImportResultSummary.embeddingJobs: { pages, notes }` 신규 + services.ts wiring + preload 타입 동기화 + dual review hotfix (whitespace-only skip + 실 EmbeddingQueue prepared statement TX 회귀 + enqueue mid-import throw rollback 회귀). 회귀 +8. codex 사전 협의 019e4faa 권고 6건 + dual review 019e4fb7 NEEDS_CHANGES 2 + NOTABLE 7 모두 본 PR `dc3034f` hotfix 흡수.)
 
 ### KI-023 [open] HighlightStore PDF viewer 내부 selection DOM Range 캡처 미지원
 
@@ -387,6 +387,18 @@
 - **처리 예정 Sprint**: 017 M0 후속 또는 M2
 - **상태**: `open`
 
+### KI-031 [closed] AutoTagger parseTagsResponse null path 호출자 책임 wording 부족
+
+- **Severity**: LOW
+- **Phase**: 1
+- **Sprint**: 017 (M2 T13 — Sprint 016 contract M5 T26 시점 "freeform fallback wording" 신규 KI 후보 박음. Sprint 017 contract L54 / L105 / L192 의 "KI-013 freeform fallback wording" 표기는 contract 자체 오류 — KI-013 은 검색 perf KI [closed] 라 재사용 불가, 본 KI-031 로 정식화)
+- **Component**: `src/ai/tagging/AutoTagger.ts` (parseTagsResponse JSDoc + tagContent freeform 분기 코멘트) + `tests/unit/ai/AutoTagger.test.ts` (parseTagsResponse null 매트릭스 직접 회귀 + caller path 회귀)
+- **영향**: 기존 parseTagsResponse docstring 은 "파싱 실패 시 null → 호출자가 freeform fallback 결정" 만 명시. 정확히 어떤 null path (raw empty / JSON parse error / non-object primitive / tags non-array / 모든 item invalid) 가 fallback trigger 인지, 호출자 (tagPage/tagNote) 가 어떤 freeform tag 박는지 (rawText 200자 truncate) wording 부족. 신규 contributor 가 null 의 의미를 "parse 실패" 로만 이해 → behavior 변경 PR 시 정책 (PRD §8.8.4 회귀 셋 태그 추출 성공률 ≥ 80% 정합) 의 의도 손상 위험.
+- **재현 절차**: (1) 신규 contributor 가 parseTagsResponse 의 "result.length > 0 ? result : null" path 본 후 "왜 빈 array 가 아닌 null?" 의문 → 호출자 책임 정책 명시 부재로 behavior 변경 가능. (2) tagContent 의 freeform fallback 분기 (`truncate(rawText, 200)`) 의 200자 근거 docstring 부재.
+- **권고 해소 방향**: (1) `parseTagsResponse` JSDoc 강화 — null 반환 매트릭스 5 path 명시 (raw empty / JSON parse error / non-object primitive / tags non-array / 모든 item invalid → 빈 array → null) + "호출자 책임의 fallback 신호" wording 명시 + PRD §8.8.4 회귀 셋 성공률 정합 근거 박음. (2) `tagContent` freeform 분기 코멘트 — `bounded storage/display/search safety` 명시 (PRD `docs/prd/08_indexing.md:238` 정합 — Tag.name 저장 길이 + 검색/UI 표시 안정성) + rawText 원본은 `AutoTagResult.rawText` 노출 정합. (3) 단위 회귀 — `parseTagsResponse` 직접 null 매트릭스 누락분 (non-object primitive 5 path + 정상 sanity 1) + tagContent caller path (모든 kind invalid → freeform fallback) end-to-end.
+- **처리 예정 Sprint**: 017 M2 T13
+- **상태**: `closed` (Sprint 017 M2 T13 PR #233 `2a56cc4`, 2026-05-22 — AutoTagger.ts docstring 강화 (parseTagsResponse null 5 path 매트릭스 + 호출자 책임 wording) + tagContent freeform 분기 코멘트 강화 (bounded safety + rawText 노출) + 회귀 +7 (parser 5 null path 보강 + sanity 1 + caller end-to-end 1). codex 사전 협의 019e4fdf 권고 6건 + dual review 019e4fe8 NEEDS_CHANGES 1 (G-018 매트릭스 +1 오차 → PR body 정정 흡수) + NOTABLE 6 모두 본 PR 흡수. behavior 변경 0.)
+
 ### KI-027 [closed] noteHandlers / NoteService / HighlightStore 의 pageId/visitId 빈 문자열 normalize 누락
 
 - **Severity**: LOW
@@ -416,25 +428,25 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 22 | **19** | **8** |
-| Phase 2 | — | — | 1 | — | 1 |
+| Phase 1 | 1 | 4 | 24 | **22** | **7** |
+| Phase 2 | — | — | 1 | 1 | 0 |
 | Phase 3 | — | — | 2 | — | 2 |
 
-**Phase 1 closed 19 내역** (Sprint 017 M1 T08 시점 — KI-024 closed 반영):
+**Phase 1 closed 22 내역** (Sprint 017 M2 4/4 종결 — T10/T12/T13 closed 반영):
 - **HIGH closed 1**: KI-003 (Sprint 015 M5-5 BYOK wiring 완료, Sprint 016 M5 T25 status 자가 전환)
 - **MEDIUM closed 1**: KI-007 (T03c #173)
-- **LOW closed 17**: KI-002 (T12 #202) / KI-005 (T21 #210) / KI-008 (T17 #208) / KI-009 (Sprint 017 M0 T03 — @testing-library/react + MemoryStatsPanel.test.tsx 10 케이스) / KI-010 (T05 #176) / KI-011~016 (T06 perf bench, T25 — 6건) / KI-017 (T03b #172) / KI-018 / KI-019 (T23 #217 산식 cover, T25) / **KI-024 (Sprint 017 M1 T08 PR #226 — `handleContextMenuHighlight` errorCode → `highlight:toast` broadcast graceful path)** / KI-026 (T24 §11.11 신설, T25) / KI-027 (Sprint 017 M0 T02 — `idNormalize.ts` 신규 + 3 site 방어선 적용)
+- **LOW closed 20**: KI-002 (T12 #202) / KI-005 (T21 #210) / KI-008 (T17 #208) / KI-009 (Sprint 017 M0 T03 — @testing-library/react + MemoryStatsPanel.test.tsx 10 케이스) / KI-010 (T05 #176) / KI-011~016 (T06 perf bench, T25 — 6건) / KI-017 (T03b #172) / KI-018 / KI-019 (T23 #217 산식 cover, T25) / KI-024 (Sprint 017 M1 T08 PR #226) / KI-026 (T24 §11.11 신설, T25) / KI-027 (Sprint 017 M0 T02) / **KI-020 (Sprint 017 M2 T10 PR #230 — SPA did-navigate-in-page hook + debounce + URL guard + hash-only skip + clearWhenEmpty)** / **KI-022 (Sprint 017 M2 T12 PR #232 — Import embedding_queue 자동 re-enqueue)** / **KI-031 (Sprint 017 M2 T13 PR #233 — AutoTagger parseTagsResponse null wording 정합)**
 
-**Phase 1 open 8 내역**:
+**Phase 1 open 7 내역**:
 - HIGH 0
 - MEDIUM 3 (1 in-progress): KI-001 (in-progress, macOS PoC 1차 + 2차 matrix carryover) / KI-004 (response_format API-level, Sprint 017 M3 또는 carryover) / KI-006 (abort 정책 carryover)
-- LOW 5: KI-020 (SPA did-navigate-in-page) / KI-022 (Import embedding_queue re-enqueue) / KI-023 (PDF viewer DOM range) / KI-025 (contentHash 폐기 보수성, Phase 3 R&D) / KI-028 (chatHandlers/ChatService nullable FK normalize 후속, Sprint 017 M0 T02 codex separate KI candidate)
+- LOW 4: KI-023 (PDF viewer DOM range) / KI-025 (contentHash 폐기 보수성, Phase 3 R&D) / KI-028 (chatHandlers/ChatService nullable FK normalize 후속, Sprint 017 M0 T02 codex separate KI candidate)
 
-**Phase 2 잔여 1**: KI-021 (partition cleanup reconcile, Sprint 017 M2 T11 박음)
+**Phase 2 잔여 0** (Sprint 017 M2 T11 KI-021 closed — partition cleanup reconcile 박힘)
 
-**Phase 3 잔여 2**: KI-029 (migrateV04ToV05 sentinel-only idempotency self-healing 부재, Sprint 017 M1 T07 codex 019e4e82 NOTABLE #3) / **KI-030 (App.tsx App-level 회귀 cover gap, Sprint 017 M1 T08 codex 019e4eda NOTABLE #7 — App.tsx hook 분해 후 단위 회귀 추가)**
+**Phase 3 잔여 2**: KI-029 (migrateV04ToV05 sentinel-only idempotency self-healing 부재, Sprint 017 M1 T07 codex 019e4e82 NOTABLE #3) / KI-030 (App.tsx App-level 회귀 cover gap, Sprint 017 M1 T08 codex 019e4eda NOTABLE #7 — App.tsx hook 분해 후 단위 회귀 추가)
 
-**총 잔여 11** (Phase 1 8 + Phase 2 1 + Phase 3 2). Sprint 017 진행 누적 closed: T02 KI-027 + T03 KI-009 + T08 KI-024 = **+3**. 신규 +3 (T02 KI-028 + T07 KI-029 + T08 KI-030).
+**총 잔여 9** (Phase 1 7 + Phase 2 0 + Phase 3 2). Sprint 017 M2 누적 closed: **T10 KI-020 + T11 KI-021 + T12 KI-022 + T13 KI-031 = +4**. Phase 2 잔여 0 도달.
 
 ---
 
