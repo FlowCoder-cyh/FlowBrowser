@@ -29,6 +29,10 @@ import {
   V05_LOG_FILE,
   V05_BACKUP_FILE
 } from '../../../../src/storage/migrations/v04_to_v05'
+// codex 019e4e82 NEEDS_CHANGES #2 hotfix — 실 v04 schema 적용하여 v04 → v05 transition 검증.
+//   본 PR 의 Database.ts 는 v05.sql import 라 fb.applySchema 가 v05 적용 → highlights 가 이미 박힘.
+//   따라서 v04 fixture 는 v04.sql 을 별도 exec 하여 highlights 부재 상태로 박음.
+import v04SchemaSQL from '../../../../src/storage/schema/v04.sql?raw'
 
 interface Fx {
   userDataDir: string
@@ -44,19 +48,30 @@ async function setupFresh(): Promise<Fx> {
 }
 
 /**
- * v04 DB 시뮬레이션 — schema_meta 테이블 + version=1 row 박힘.
- * 단순화 위해 v05.sql 의 applySchema 를 그대로 호출 후 sentinel `migration_v05_applied` 만 박지 않음.
- * (실 사용자 v04 DB 는 schema_meta.version=1 / `migration_v04_applied` 박힘 / highlights 테이블 미존재이나,
- *  v05.sql 의 idempotent IF NOT EXISTS DDL 이라 본 테스트 시뮬레이션이 정합 — schema_meta 존재 + sentinel 미박힘 path 검증.)
+ * 실 v04 DB 시뮬레이션 — v04.sql 직접 exec (highlights 미존재 + schema_meta.version='1').
+ *
+ * codex 019e4e82 NEEDS_CHANGES #2 — 본 PR 의 fb.applySchema() 는 v05 적용 → highlights 즉시 박힘.
+ *   따라서 진짜 v04 transition 검증 위해 v04.sql 직접 exec.
+ *
+ * 후속: v04 DB 의 highlights 테이블은 마이그레이션 후에만 생성되어야 함.
  */
 async function setupV04(): Promise<Fx> {
   const userDataDir = join(tmpdir(), `fb-migr-v05-${Date.now()}-${randomUUID().slice(0, 8)}`)
   await fs.mkdir(userDataDir, { recursive: true })
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
-  // v04 시뮬레이션 — schema_meta.version 을 명시적으로 '1' 로 박음 (applySchema 가 '2' 박았으므로 덮어쓰기).
+  // v04 schema 직접 exec — applySchema (v05) 호출 X. sqlite-vec 는 openInMemory 시점 이미 로드됨.
+  fb.getDb().exec(v04SchemaSQL)
   fb.setSchemaMeta('version', String(V04_SCHEMA_VERSION))
   return { userDataDir, fb }
+}
+
+/** v04 DB 에 highlights 테이블이 미존재함을 사실로 검증. */
+function highlightsTableExists(fb: FlowbrowserDatabase): boolean {
+  const row = fb
+    .getDb()
+    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='highlights'`)
+    .get() as { name?: string } | undefined
+  return Boolean(row?.name)
 }
 
 async function teardown(fx: Fx): Promise<void> {
@@ -100,9 +115,12 @@ describe('migrateV04ToV05 — 8 회귀 케이스', () => {
   })
 
   // 2. v04 DB → 백업 + applySchema + sentinel
-  it('case 2: v04 DB → migrated (backupFn 호출 + sentinel 박힘 + applied_version=2)', async () => {
+  it('case 2: v04 DB → migrated (highlights 마이그레이션 전 미존재 → 후 존재)', async () => {
     const fx = await setupV04()
     try {
+      // 마이그레이션 전 — v04 fixture 라 highlights 미존재
+      expect(highlightsTableExists(fx.fb)).toBe(false)
+
       let backupCalled = false
       let receivedDest: string | undefined
       const result = await migrateV04ToV05({
@@ -111,7 +129,6 @@ describe('migrateV04ToV05 — 8 회귀 케이스', () => {
         backupFn: async (_fb, dest) => {
           backupCalled = true
           receivedDest = dest
-          // 백업 destination 디렉토리에 빈 파일 박음 (실 fb.getDb().backup() 가 만들 결과 시뮬레이션)
           await fs.writeFile(dest, 'mock-backup', 'utf-8')
         }
       })
@@ -124,6 +141,9 @@ describe('migrateV04ToV05 — 8 회귀 케이스', () => {
       expect(result.applied_version).toBe(String(V05_SCHEMA_VERSION))
       expect(fx.fb.getSchemaMeta(MIGRATION_V05_SCHEMA_META_KEY)).not.toBeNull()
       expect(await exists(receivedDest!)).toBe(true)
+
+      // 마이그레이션 후 — highlights 테이블 생성됨 (실 v04 → v05 DDL 적용 정합)
+      expect(highlightsTableExists(fx.fb)).toBe(true)
     } finally {
       await teardown(fx)
     }
@@ -160,9 +180,12 @@ describe('migrateV04ToV05 — 8 회귀 케이스', () => {
   })
 
   // 4. dry-run only → 백업만, schema 미적용, sentinel 미박힘
-  it('case 4: dryRunOnly=true → dry_run_only 상태 (sentinel 미박힘, highlights 테이블은 적용 X)', async () => {
+  it('case 4: dryRunOnly=true → dry_run_only 상태 (sentinel 미박힘 + highlights 부재 보존)', async () => {
     const fx = await setupV04()
     try {
+      // 진입 전 — highlights 미존재 (v04 fixture)
+      expect(highlightsTableExists(fx.fb)).toBe(false)
+
       let backupCalled = false
       const result = await migrateV04ToV05({
         userDataDir: fx.userDataDir,
@@ -180,6 +203,8 @@ describe('migrateV04ToV05 — 8 회귀 케이스', () => {
       expect(fx.fb.getSchemaMeta(MIGRATION_V05_SCHEMA_META_KEY)).toBeNull()
       // schema_meta.version 변동 없음 — 여전히 v04
       expect(fx.fb.getSchemaMeta('version')?.value).toBe(String(V04_SCHEMA_VERSION))
+      // dry-run 후에도 highlights 미존재 — schema 변경 없음 강제 (codex 019e4e82 NEEDS_CHANGES #2 정합)
+      expect(highlightsTableExists(fx.fb)).toBe(false)
     } finally {
       await teardown(fx)
     }

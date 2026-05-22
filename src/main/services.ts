@@ -433,8 +433,9 @@ export async function initServices(): Promise<void> {
 
   // Sprint 017 M1 T07 — HighlightStore in-memory fallback (SQLite native 로드 실패 시 graceful path).
   //   bootstrap 성공 후 `new HighlightStore(flowbrowserDb)` 로 재할당 (영속 활성).
-  //   codex 019e4dd1 #4 정합 — 단독 instance 유지하여 IPC handler 미초기화 없이 graceful.
-  highlightStore = new HighlightStore()
+  //   codex 019e4dd1 #4 + 019e4e82 NOTABLE #5 정합 — 명시 factory `inMemoryForFallback()` 사용
+  //   (silent in-memory production footgun 차단 — `new HighlightStore()` no-arg 는 단위 테스트 한정).
+  highlightStore = HighlightStore.inMemoryForFallback()
 
   // Sprint 015 M5-3b → Sprint 017 M1 T07 — bootstrap 분해 (G-014 정합, codex 019e4dd1 BLOCKING).
   //   기존: `FlowbrowserDatabase.bootstrap({path})` (open + applySchema + ensureDefaultWorkspace 한 번에)

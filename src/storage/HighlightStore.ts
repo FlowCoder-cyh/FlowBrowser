@@ -175,10 +175,12 @@ export class HighlightStore {
    * Sprint 017 M1 T07 — `fb` optional 생성자.
    *
    * - fb 주입 시: SQLite-backed (`highlights` 테이블 prepared statements)
-   * - fb 미주입 시: in-memory Map fallback (Sprint 016 M4 T20 동작 정합)
+   * - fb 미주입 시: in-memory Map fallback (Sprint 016 M4 T20 동작 정합 + 단위 테스트 호환)
    *
-   * services.ts 는 `migrateV04ToV05` 완료 후 `new HighlightStore(fb)` 재할당.
-   * bootstrap 실패 시 no-arg path 로 fallback — IPC handler graceful 동작 (영속 부재 명시).
+   * 사용 정책 (codex 019e4e82 NOTABLE #5):
+   *   - Production main 진입점은 반드시 `new HighlightStore(flowbrowserDb)` (SQLite 영속) 또는
+   *     bootstrap 실패 시 `HighlightStore.inMemoryForFallback()` 명시 factory 사용.
+   *   - `new HighlightStore()` (no-arg) 는 단위 테스트 / silent in-memory 경로. production 권장 X.
    */
   constructor(fb?: FlowbrowserDatabase) {
     if (fb) {
@@ -188,6 +190,16 @@ export class HighlightStore {
       this.memoryMap = new Map()
       this.sqlite = null
     }
+  }
+
+  /**
+   * Sprint 017 M1 T07 (codex 019e4e82 NOTABLE #5) — bootstrap 실패 시 명시 fallback factory.
+   *
+   * services.ts 가 SQLite 인프라 미준비 (sqlite-vec native 로드 실패 등) 시 본 factory 호출.
+   * 호출자 의도를 코드 시점에 명시 — `new HighlightStore()` 의 production footgun 차단.
+   */
+  static inMemoryForFallback(): HighlightStore {
+    return new HighlightStore()
   }
 
   /**

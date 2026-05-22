@@ -988,6 +988,32 @@ describe('HighlightStore — SQLite-backed path (Sprint 017 M1 T07)', () => {
     expect(store.size()).toBe(0)
   })
 
+  it('inMemoryForFallback factory — codex 019e4e82 NOTABLE #5: production footgun 차단 명시 path', () => {
+    const fallback = HighlightStore.inMemoryForFallback()
+    // factory 결과는 in-memory (fb 미주입) — add 후 SQLite 영속 X.
+    expect(fallback.size()).toBe(0)
+    fallback.add({
+      noteId: 'fallback-n1',
+      url: 'https://a.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws-fb'
+    })
+    expect(fallback.size()).toBe(1)
+    // factory + 직접 new 둘 다 동일 in-memory 동작
+    const direct = new HighlightStore()
+    direct.add({
+      noteId: 'direct-n1',
+      url: 'https://b.com',
+      contentHash: 'h',
+      anchor: makeAnchor(),
+      workspaceId: 'ws-fb'
+    })
+    expect(direct.size()).toBe(1)
+    // 격리 — 별개 인스턴스
+    expect(fallback.listByNote('direct-n1')).toEqual([])
+  })
+
   it('SQLite-backed: pageId normalize ("  ws  " → trim "ws", "" → null) SQLite 영속 정합', () => {
     // page-trim 박힘 (FK 정합)
     fb.getDb()

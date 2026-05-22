@@ -186,15 +186,23 @@ CREATE TABLE IF NOT EXISTS highlights (
   created_at INTEGER NOT NULL
 );
 
--- 인덱스 — listByPage / listByNote / listByWorkspace query path 직접 매칭 (codex 019e4dd1 #7 보강 정합).
--- HighlightStore.listByPage 의 두 분기:
---   (a) pageId 명시 → workspace_id + page_id + ORDER BY created_at ASC
---   (b) url + content_hash → workspace_id + url + content_hash + ORDER BY created_at ASC
+-- 인덱스 — listByPage / listByNote / listByWorkspace query path 직접 매칭 (codex 019e4dd1 #7 + 019e4e82 NOTABLE #4 보강).
+-- HighlightStore 의 query path:
+--   listByPage(pageId)       → workspace_id + page_id + ORDER BY created_at ASC
+--   listByPage(url+contentHash) → workspace_id + url + content_hash + ORDER BY created_at ASC
+--   listByPage(url 단독)     → workspace_id + url + ORDER BY created_at ASC  ← codex NOTABLE #4
+--   listByNote               → note_id + ORDER BY created_at ASC              ← codex NOTABLE #4
+--   listByWorkspace          → workspace_id + ORDER BY created_at ASC
 CREATE INDEX IF NOT EXISTS idx_highlight_workspace_page_time
   ON highlights(workspace_id, page_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_highlight_workspace_url_hash_time
   ON highlights(workspace_id, url, content_hash, created_at);
-CREATE INDEX IF NOT EXISTS idx_highlight_note ON highlights(note_id);
+-- codex 019e4e82 NOTABLE #4 — url 단독 분기 (content_hash unbound) 의 ORDER BY 정합 인덱스.
+CREATE INDEX IF NOT EXISTS idx_highlight_workspace_url_time
+  ON highlights(workspace_id, url, created_at);
+-- codex 019e4e82 NOTABLE #4 — listByNote 의 ORDER BY created_at 정합 인덱스 (단순 (note_id) 만으로는 SQLite 가 추가 sort).
+CREATE INDEX IF NOT EXISTS idx_highlight_note_time
+  ON highlights(note_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_highlight_workspace_time
   ON highlights(workspace_id, created_at);
 
