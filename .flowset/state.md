@@ -5,17 +5,17 @@
 
 ## 메타
 
-- **Phase**: **3 진행 중 (Sprint 017 partial closure 박힘 → Sprint 018 진입 대기)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 + M1 4/4 + M2 4/4 + M3 3/4 + M4 1/4 + **M5 mini-milestone β D #244 머지 `7894636` 완료 + partial closure 박힘**). T19/T20/T21 + T17 + T22~T26 + Schema v06 + G-022 blocking = **Sprint 018 carryover 8 항목** (contract `.flowset/contracts/sprint-018.md` §2 정합).
-- **Sprint**: **017 partial closure 박힘 (2026-05-23) — 본 docs PR 진행 중** (codex 019e5161 1순위 권고 정합 — M5 박힌 후 carryover 명확히 박는 path). 누적 main first-parent S017 PR: **25 PR** (D #244 머지 후, 코드 17 + docs 8). 본 docs PR 머지 시 26 PR (코드 17 + docs 9). 다음 sprint = **Sprint 018 (carryover + Phase 3 종료 검토 + MVP 진입)**.
+- **Phase**: **3 진행 중 (Sprint 018 M0 T01 진행 중 — mini-milestone β PR B advisory hook)** (Sprint 017 partial closure 박힘 → **Sprint 018 진입 ← Sprint 017 partial closure docs #245 `06c4cc1` 머지 완료**). carryover 7 항목 잔여 (T17 + T19 + T20 + T21 + T22~T26 + Schema v06 + G-022 blocking + PRD v0.5.0 = 8 → 본 T01 머지 시 7).
+- **Sprint**: **018 M0 T01 진행 중 (2026-05-23) — codex 019e5183 1순위 권고 정합** (S018-T01 transcript source validation + advisory SessionStart hook, 사용자 결정 불요). 누적 S018 PR: 0 → 본 T01 머지 시 1.
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 018 M4 시점 v0.5.0 발행 예정 (carryover).
-- **최근 갱신 (Sprint 017 partial closure)**: 2026-05-23 (PR #240 G-021 + #241 close + #242 M4 docs + #243 G-022 + **#244 mini-milestone β D 머지 `7894636`** + 본 partial closure docs PR 진행 중). 단위 회귀 1709 → **1760** (+51). **KI 변동 0**. 잔여 9 유지 (Phase 1 7 + Phase 2 0 + Phase 3 2). 학습 #8 위반 **4건 모두 가드레일 본문 + 자동화 path 박힘** (G-021 + G-022 + mini-milestone β D). 자기 검증 루프 **53회차 진행 중** (partial closure 박는 본 docs PR — G-022 자기 적용 3번째 사례).
-- **다음 세션 진입점** (Sprint 018 진입 시 — contract `.flowset/contracts/sprint-018.md` §2 정합):
-  1. **mini-milestone β PR B** — transcript source validation + advisory SessionStart (S018-T01)
-  2. **mini-milestone β PR C** — G-022 blocking 전환 (S018-T02)
-  3. **T19 사용자 결정** — Notion Export 옵션 A/B/C/D 명시 선택 후 진입 (S018-T03, AskUserQuestion 박는 시점)
-  4. **Schema v06 spec 재진입 결정** — 사용자 명시 선택 후 진입 (S018-T04)
-  5. **Phase 3 종료 검토 + MVP 진입** — Sprint 018 M4~M5 종합 후 (S018-T10~T13)
+- **최근 갱신 (Sprint 018 M0 T01)**: 2026-05-23 (PR #245 Sprint 017 partial closure docs 머지 `06c4cc1` + **본 S018-T01 advisory hook PR 진행 중**). 단위 회귀 1760 → **1774** (+14 transcript-reader 회귀). **KI 변동 0**. 잔여 9 유지. G-022 자기 적용 4번째 사례 (사용자 발화 "코덱스랑 협의해서 진행해" → autonomous 위임 → codex 019e5183 1순위 권고 진입). 자기 검증 루프 **54회차 진행 중**.
+- **다음 세션 진입점** (S018-T01 머지 후):
+  1. **S018-T02** — mini-milestone β PR C (G-022 blocking 전환, advisory → blocking)
+  2. **T19 사용자 결정** — Notion Export 옵션 A/B/C/D 명시 선택 후 진입 (S018-T03)
+  3. **Schema v06 spec 재진입 결정** — 사용자 명시 선택 후 진입 (S018-T04)
+  4. **T17 / T20 / T21** — dependency 승인 / 학습 데이터셋 박힌 후 진입 (S018-T05~T07)
+  5. **PRD v0.5.0 + Phase 3 종료 검토 + Sprint 019 시안** (S018-T10~T13)
 
 ## 현재 작업
 
