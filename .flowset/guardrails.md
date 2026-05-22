@@ -200,10 +200,10 @@
 
 - **규칙**: PR body 의 `- [x] evaluator` / `- [x] codex` 체크박스 박음과 별개로, **실제 evaluator 서브에이전트 + codex (`/codex:adversarial-review` 또는 raw MCP `sandbox=read-only`) 병렬 호출 박힘 증거 명시 강제**. 코드 PR + docs PR 동일 강제 (예외 없음).
 
-**실 호출 증거 명시 패턴**:
-- evaluator: Pass / Partial / Fail 카운트 명시 (예: "evaluator: Pass 8 / Partial 0 / Fail 0")
-- codex: thread ID (`019eXXXX-XXXX-...` UUID v7 패턴) 또는 호출 결과 (BLOCKING / NEEDS_CHANGES / NOTABLE 카운트) 명시
-- 둘 다 PR body Dual Review 섹션 본문에 박음. 단순 체크박스 박음 + "이미 본문 PR 별 dual review 완료" 우회 시도 = G-021 위반.
+**실 호출 증거 명시 패턴 (codex 019e50c9 NEEDS_CHANGES #1 정합 — "또는" 모호성 제거, 둘 다 필수)**:
+- evaluator: **Pass / Partial / Fail 카운트 필수** 명시 (예: "evaluator: Pass 8 / Partial 0 / Fail 0")
+- codex: **thread ID full UUID 패턴 (`019eXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX`) + BLOCKING / NEEDS_CHANGES / NOTABLE 카운트 둘 다 필수** (예: "codex (threadId `019e50c9-57bb-7be1-80c2-52cfb734d68e`) — BLOCKING 1 / NEEDS_CHANGES 2 / NOTABLE 6")
+- 두 가지 모두 PR body Dual Review 섹션 본문에 박음. 단순 체크박스 박음 + "이미 본문 PR 별 dual review 완료" 우회 시도 = G-021 위반. thread ID 없이 카운트만 자가 기입도 위반 (실 호출 증거 부재).
 
 - **Why**: Sprint 017 본 세션 (2026-05-23~24) 학습 #8 위반 3건 반복 발견:
   - PR #234 (M2 closure docs) — docs PR 자체 evaluator + codex 호출 누락 + "코드 PR 별 dual review 완료" 우회 명시
@@ -224,7 +224,7 @@
     - [x] evaluator — **Pass N / Partial M / Fail K** → 머지 권고
     - [x] codex (threadId `019eXXXX-...`) — BLOCKING N / NEEDS_CHANGES M / NOTABLE K
     ```
-  - workflow 검증 강화 (후속 PR 후보): codex thread ID 패턴 (`019e[0-9a-f]{4}` 또는 UUID v7) 인용 grep 또는 evaluator 결과 카운트 검증
+  - workflow 검증 강화 (후속 PR 후보, codex 019e50c9 NEEDS_CHANGES #2 정합): codex thread ID **full UUID 패턴** (`019e[0-9a-f]{4}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) 인용 grep + evaluator 결과 카운트 (Pass/Partial/Fail) 검증. 8자리 prefix 만으로는 자가 위조 가능 — hyphen 포함 full UUID 정확 매칭 필수.
 
 - **출처**: 본 세션 학습 #8 위반 3건 회고 (2026-05-23~24, handoff 2026-05-24.md §7) + codex 019e50c2 권고 ("workflow 신규 확장이라기보다 G-021을 guardrail로 박고 docs PR 누락 재발 방지 문구/검증 케이스/회고 정합을 명시").
 
