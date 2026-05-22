@@ -27,6 +27,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Database as BetterDatabase } from 'better-sqlite3'
 import type { FlowbrowserDatabase, WorkspaceRow, LevelPreference } from '../storage/Database'
+import type { EmbeddingQueue } from '../storage/EmbeddingQueue'
 
 export const WORKSPACE_EXPORT_VERSION = 1 as const
 export const WORKSPACE_EXPORT_SCHEMA_VERSION = 'v05' as const
@@ -151,6 +152,17 @@ export interface ImportResultSummary {
   noteTags: number
   /** Sprint 017 M1 T09 — 실제 INSERT 된 highlights row 수 (입력 length 아닌 실수치). */
   highlights: number
+  /**
+   * Sprint 017 M2 T12 (KI-022) — import 후 vec_pages / vec_notes 재계산용 embedding_queue
+   * 자동 enqueue 결과. 미주입 시 0 (legacy 호출자 / 단위 테스트 path).
+   *
+   * codex 019e4faa Q7 — 실 enqueue 성공 count (입력 length 가 아닌 실수치). priority=1 디폴트.
+   * 일반 정상 payload 면 pages/notes 와 동일, content empty 등 skip 시 더 작을 수 있음.
+   */
+  embeddingJobs: {
+    pages: number
+    notes: number
+  }
 }
 
 export class WorkspaceExportImportError extends Error {
@@ -170,15 +182,24 @@ export class WorkspaceExportImportError extends Error {
 
 export interface WorkspaceExportImportServiceOptions {
   fb: FlowbrowserDatabase
+  /**
+   * Sprint 017 M2 T12 (KI-022) — Import 후 vec_pages / vec_notes 재계산용 EmbeddingQueue.
+   *
+   * 미주입 시 graceful — `importWorkspace` 가 enqueue skip + `embeddingJobs: { pages:0, notes:0 }` 반환.
+   * 단위 테스트 / legacy 호출자 호환 위해 optional 유지 (codex 019e4faa 권고).
+   */
+  embeddingQueue?: EmbeddingQueue
 }
 
 export class WorkspaceExportImportService {
   private readonly fb: FlowbrowserDatabase
   private readonly db: BetterDatabase
+  private readonly embeddingQueue: EmbeddingQueue | null
 
   constructor(opts: WorkspaceExportImportServiceOptions) {
     this.fb = opts.fb
     this.db = opts.fb.getDb()
+    this.embeddingQueue = opts.embeddingQueue ?? null
   }
 
   /**
@@ -341,6 +362,7 @@ export class WorkspaceExportImportService {
     )
 
     // codex NEEDS_CHANGES #1 hotfix — 실제 INSERT 된 row 카운트 (입력 length X)
+    // Sprint 017 M2 T12 (KI-022) — embeddingJobs 도 실 enqueue 성공 count.
     const counts = {
       pages: 0,
       visits: 0,
@@ -349,8 +371,11 @@ export class WorkspaceExportImportService {
       tags: 0,
       pageTags: 0,
       noteTags: 0,
-      highlights: 0
+      highlights: 0,
+      embeddingPageJobs: 0,
+      embeddingNoteJobs: 0
     }
+    const queue = this.embeddingQueue
 
     const tx = this.db.transaction((): ImportResultSummary => {
       insertWs.run(
@@ -362,8 +387,9 @@ export class WorkspaceExportImportService {
       )
 
       for (const p of data.pages) {
+        const newPageId = pageIdMap.get(p.id)!
         insertPage.run(
-          pageIdMap.get(p.id)!,
+          newPageId,
           newWorkspaceId,
           p.url,
           p.title,
@@ -375,6 +401,21 @@ export class WorkspaceExportImportService {
           p.updated_at
         )
         counts.pages++
+        // Sprint 017 M2 T12 (KI-022) — import 후 vec_pages 재계산용 embedding_queue 자동 enqueue.
+        //   atomic — 같은 TX 안에 INSERT (codex 019e4faa Q5 — rollback 시 자동 미박힘 정합).
+        //   content empty 면 enqueue skip — codex 019e4fb7 NEEDS_CHANGES #1 hotfix:
+        //     IndexingService.recordVisit / NoteService.createNote 가 `trim().length === 0` 기준으로
+        //     empty 판정 → import path 도 동일 기준 매칭 (whitespace-only 도 skip, runtime 정합).
+        //   priority=1 — bulk import 라 활성 탭 (priority=10) 보다 낮은 우선 (codex Q2 권고).
+        if (queue && typeof p.content === 'string' && p.content.trim().length > 0) {
+          queue.enqueue({
+            target_type: 'page',
+            target_id: newPageId,
+            workspace_id: newWorkspaceId,
+            priority: 1
+          })
+          counts.embeddingPageJobs++
+        }
       }
 
       for (const v of data.visits) {
@@ -404,6 +445,21 @@ export class WorkspaceExportImportService {
         )
         noteIdMap.set(n.id, newNoteId)
         counts.notes++
+        // Sprint 017 M2 T12 (KI-022) — import 후 vec_notes 재계산용 embedding_queue 자동 enqueue.
+        //   body 또는 selected_text 둘 다 empty 면 enqueue skip (의미 있는 임베딩 콘텐츠 부재).
+        //   codex 019e4fb7 NEEDS_CHANGES #1 hotfix — whitespace-only 도 skip (NoteService 정합).
+        const noteHasContent =
+          (typeof n.body === 'string' && n.body.trim().length > 0) ||
+          (typeof n.selected_text === 'string' && n.selected_text.trim().length > 0)
+        if (queue && noteHasContent) {
+          queue.enqueue({
+            target_type: 'note',
+            target_id: newNoteId,
+            workspace_id: newWorkspaceId,
+            priority: 1
+          })
+          counts.embeddingNoteJobs++
+        }
       }
 
       for (const c of data.aiChatHistory) {
@@ -509,7 +565,11 @@ export class WorkspaceExportImportService {
         tags: counts.tags,
         pageTags: counts.pageTags,
         noteTags: counts.noteTags,
-        highlights: counts.highlights
+        highlights: counts.highlights,
+        embeddingJobs: {
+          pages: counts.embeddingPageJobs,
+          notes: counts.embeddingNoteJobs
+        }
       }
     })
 
