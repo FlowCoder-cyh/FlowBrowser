@@ -11,11 +11,15 @@
  *   - 빈 list 시 "이 페이지에 저장된 하이라이트가 없습니다" placeholder
  *   - 무한 polling 아님 — workspaceId / url 변경 시점 또는 명시 refresh 시점에만 fetch
  *
- * T08 위임:
+ * T08 위임 (codex dual review 2026-05-22 확정):
  *   - 클릭 시 노트 패널 포커스 / 하이라이트 위치 scrollIntoView
  *   - toast fallback (CSS Highlight API 미지원 환경)
  *   - 다중 highlight 동일 페이지 시 z-index 정합
  *   - App.tsx mount 위치 (현재 export 만)
+ *   - **highlight remove 후 visual 즉시 제거** — codex Finding 5 (T08 위임). store/list 만 갱신
+ *     하고 page context `CSS.highlights` registry 는 그대로 — T08 이 active 탭에 inject script
+ *     로 `CSS.highlights.delete(prefix + __fbSanitizeId(id))` 호출 또는 전체 restore refresh.
+ *     sanitize 함수 이름 변환 정합 강제 (`buildHighlightCssForIds` / `__fbSanitizeId` 와 동일).
  *
  * 본 컴포넌트는 highlightApi 가 contextBridge 에 노출되어 있어야 동작 (Sprint 017 T06 preload index.ts).
  */

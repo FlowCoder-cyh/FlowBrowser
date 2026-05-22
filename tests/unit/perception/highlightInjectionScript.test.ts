@@ -106,6 +106,41 @@ describe('buildRestoreScript', () => {
     expect(code).toContain('__fbDeserializeAnchor')
     expect(code).toContain('context-fuzzy')
   })
+
+  // codex dual review Finding 3 흡수 — registry name 도 sanitize.
+  it('registry name 가 __fbSanitizeId 적용 (CSS rule name 정합)', () => {
+    const code = buildRestoreScript([])
+    expect(code).toContain('__fbSanitizeId(rec.id)')
+  })
+})
+
+// codex dual review Finding 2 흡수 — crypto.subtle 미지원 환경 fallback.
+describe('SHA-256 폴리필 (crypto.subtle 미지원 fallback)', () => {
+  it('crypto.subtle 사용 가능 시 우선 사용 + 미지원 시 폴리필 fallthrough', () => {
+    const code = buildSerializeScript()
+    // detect 분기 + try/catch 정합
+    expect(code).toContain("typeof crypto !== 'undefined'")
+    expect(code).toContain('crypto.subtle.digest')
+    expect(code).toContain('__fbSha256HexPolyfill')
+  })
+
+  it('폴리필이 RFC 6234 K 상수 + initial hash 박힘', () => {
+    const code = buildSerializeScript()
+    // K[0] = 0x428a2f98 (RFC 6234 정합)
+    expect(code).toContain('0x428a2f98')
+    // initial hash h0 = 0x6a09e667
+    expect(code).toContain('0x6a09e667')
+  })
+})
+
+// codex dual review Finding 3 흡수 — sanitize 공통화 (CSS / registry).
+describe('__fbSanitizeId — inject script 안의 sanitize 헬퍼', () => {
+  it('inject script 에 __fbSanitizeId 함수 박힘', () => {
+    const code = buildSerializeScript()
+    expect(code).toContain('function __fbSanitizeId(id)')
+    // 정규식이 buildHighlightCssForIds 와 동일 — [^a-zA-Z0-9_-] → '_'
+    expect(code).toContain('/[^a-zA-Z0-9_-]/g')
+  })
 })
 
 describe('buildHighlightCssForIds', () => {

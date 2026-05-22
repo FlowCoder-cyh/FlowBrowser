@@ -135,6 +135,32 @@ export async function handleHighlightCreate(
   let noteRow: NoteRow | null = null
   let resolvedNoteId: string
   if (args.noteId && args.noteId.trim().length > 0) {
+    // codex dual review Finding 4 흡수 — noteId 명시 분기에서 무결성 검증.
+    //   미존재 → errorCode='note_not_found' / cross-workspace → 동일 errorCode (격리 강제).
+    //   NoteService 미주입 시 검증 불가 → infra_unavailable (composite 분기와 동일 path).
+    const noteService = deps.getNoteService()
+    if (!noteService) {
+      return {
+        ok: false,
+        error: '노트 인프라가 아직 준비되지 않았습니다.',
+        errorCode: 'infra_unavailable'
+      }
+    }
+    const existing = noteService.getNote(args.noteId)
+    if (!existing) {
+      return {
+        ok: false,
+        error: `노트를 찾을 수 없습니다: ${args.noteId}`,
+        errorCode: 'note_not_found'
+      }
+    }
+    if (existing.workspace_id !== workspaceId) {
+      return {
+        ok: false,
+        error: '노트와 워크스페이스가 일치하지 않습니다.',
+        errorCode: 'note_not_found'
+      }
+    }
     resolvedNoteId = args.noteId
   } else {
     const noteService = deps.getNoteService()

@@ -158,6 +158,14 @@ export class NoteService {
     return this.noteStore.listByWorkspace(workspaceId)
   }
 
+  /**
+   * Sprint 017 M1 T06 codex dual review Finding 4 흡수 — noteId 무결성 검증용.
+   * highlight:create 의 명시 noteId 분기에서 호출. 미존재 또는 cross-workspace → null/false 반환.
+   */
+  getNote(id: string): NoteRow | null {
+    return this.noteStore.findById(id)
+  }
+
   deleteNote(id: string): boolean {
     return this.noteStore.delete(id)
   }

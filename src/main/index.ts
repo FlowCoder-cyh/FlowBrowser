@@ -592,10 +592,14 @@ function createTabView(
   view.webContents.on('did-finish-load', () => {
     void runPageIndexing(tabId, view)
     // Sprint 017 M1 T06 — Highlight 복원 trigger (CSS Highlight API 등록).
-    // workspaceId + url 매칭 anchor 들을 page 컨텍스트에 inject 후 시각 highlight 박음.
-    // graceful — webContents destroyed / 미지원 환경 / record 0 모두 silent no-op.
+    //   codex dual review Finding 1 흡수 — `getActiveWorkspaceId()` 대신 본 탭의 `workspace_id` 사용.
+    //   백그라운드 탭 로드 / 워크스페이스 전환 중 같은 url 인 cross-workspace highlight 시각 leak 차단.
+    //   runPageIndexing 의 patternf 정합 — tabManager.snapshotAll().tabs.find tabId 매칭.
+    //   tab 미존재 (close race) 또는 workspace_id null (backfill 전) → silent no-op (graceful).
+    const tab = tabManager.snapshotAll().tabs.find((t) => t.id === tabId)
+    const tabWorkspaceId = tab?.workspace_id ?? null
     void runHighlightRestore(
-      { workspaceId: getActiveWorkspaceId(), webContents: view.webContents },
+      { workspaceId: tabWorkspaceId, webContents: view.webContents },
       { getHighlightStore: () => getHighlightStore() }
     )
   })
@@ -648,10 +652,11 @@ function createTabView(
         },
         // Sprint 017 M1 T06 — 노트 + Highlight 저장. selection 을 page 컨텍스트에서 직렬화 후
         // HighlightStore.add + NoteService.createNote composite + 즉시 visual 복원.
+        //   codex Finding 1 흡수 — tabId 명시 전달 (탭 workspace_id 기반 격리, active ws 회피).
         {
           label: `노트로 저장 + 하이라이트: "${preview}"`,
           click: () => {
-            void handleContextMenuHighlight(view, selectionText)
+            void handleContextMenuHighlight(view, selectionText, tabId)
           }
         },
         { type: 'separator' },
@@ -976,10 +981,14 @@ async function handleContextMenuSummarize(
  *
  * graceful — page context throw / store null / workspaceId null 모두 silent no-op (T06 scope).
  * toast / 사용자 안내는 T08 위임.
+ *
+ * codex dual review Finding 1 흡수 — `getActiveWorkspaceId()` 가 아닌 본 탭의 `workspace_id` 사용.
+ * 사용자 선택 시점은 보통 active 탭이지만, ws 전환 race / 다중 창 시점 격리 강제.
  */
 async function handleContextMenuHighlight(
   view: WebContentsView,
-  selectionText: string
+  selectionText: string,
+  tabId: string
 ): Promise<void> {
   const wc = view.webContents
   if (wc.isDestroyed()) return
@@ -994,7 +1003,8 @@ async function handleContextMenuHighlight(
   }
   if (!serialized || !serialized.ok || !serialized.anchor) return
 
-  const workspaceId = getActiveWorkspaceId()
+  const tab = tabManager.snapshotAll().tabs.find((t) => t.id === tabId)
+  const workspaceId = tab?.workspace_id ?? null
   if (!workspaceId) return
 
   const response = await handleHighlightCreate(

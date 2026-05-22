@@ -173,6 +173,100 @@ describe('handleHighlightCreate — graceful error', () => {
   })
 })
 
+describe('handleHighlightCreate — codex Finding 4 (noteId 명시 분기 무결성)', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setup()
+  })
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  it('noteId 명시 + 미존재 → errorCode=note_not_found', async () => {
+    const r = await handleHighlightCreate(
+      {
+        noteId: 'nonexistent-id',
+        url: 'https://example.com',
+        contentHash: 'h',
+        anchor: makeAnchor()
+      },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getHighlightStore: () => fx.highlightStore,
+        getNoteService: () => fx.noteService
+      }
+    )
+    expect(r.ok).toBe(false)
+    expect(r.errorCode).toBe('note_not_found')
+  })
+
+  it('noteId 명시 + cross-workspace → errorCode=note_not_found (격리)', async () => {
+    // ws1 에서 노트 생성. ws2 활성 컨텍스트에서 ws1 노트 id 로 highlight 시도.
+    const otherNote = await fx.noteService.createNote({
+      workspaceId: fx.workspaceId,
+      selectedText: 'ws1 의 노트'
+    })
+    const r = await handleHighlightCreate(
+      {
+        workspaceId: 'ws2-different',
+        noteId: otherNote.note.id,
+        url: 'https://example.com',
+        contentHash: 'h',
+        anchor: makeAnchor()
+      },
+      {
+        getActiveWorkspaceId: () => 'ws2-different',
+        getHighlightStore: () => fx.highlightStore,
+        getNoteService: () => fx.noteService
+      }
+    )
+    expect(r.ok).toBe(false)
+    expect(r.errorCode).toBe('note_not_found')
+    expect(r.error).toMatch(/워크스페이스가 일치하지 않습니다/)
+  })
+
+  it('noteId 명시 + NoteService null → errorCode=infra_unavailable', async () => {
+    const r = await handleHighlightCreate(
+      {
+        noteId: 'any-id',
+        url: 'https://example.com',
+        contentHash: 'h',
+        anchor: makeAnchor()
+      },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getHighlightStore: () => fx.highlightStore,
+        getNoteService: () => null
+      }
+    )
+    expect(r.ok).toBe(false)
+    expect(r.errorCode).toBe('infra_unavailable')
+  })
+
+  it('noteId 명시 + 존재 + 동일 workspace → ok=true (regression)', async () => {
+    const existing = await fx.noteService.createNote({
+      workspaceId: fx.workspaceId,
+      selectedText: '기존 노트'
+    })
+    const r = await handleHighlightCreate(
+      {
+        noteId: existing.note.id,
+        url: 'https://example.com',
+        contentHash: 'h',
+        anchor: makeAnchor()
+      },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getHighlightStore: () => fx.highlightStore,
+        getNoteService: () => fx.noteService
+      }
+    )
+    expect(r.ok).toBe(true)
+    expect(r.highlight!.noteId).toBe(existing.note.id)
+    expect(r.note).toBeUndefined()
+  })
+})
+
 describe('handleHighlightCreate — 성공 path', () => {
   let fx: Fx
   beforeEach(() => {
