@@ -146,6 +146,7 @@ import { extractParagraphsScript } from '../perception/ParagraphExtractor'
 import {
   OpenAIApiKeyProvider,
   CodexLoginProvider,
+  OllamaProvider,
   DeviceCodeFlow,
   ProviderError,
   type ProviderAdapter,
@@ -155,6 +156,8 @@ import {
   type TokenBundle,
   type UserCodeResult
 } from '../ai'
+// Sprint 017 M3 T16 — Chat IPC provider 선택 helper (codex 019e502d 권고 — pure function 분리).
+import { selectChatProviderIds } from './chatProviderSelect'
 // Sprint 016 M2 T10a — selection 번역 흐름이 provider.chat() 호출로 통합 (provider.translate() 폐기 준비).
 //   buildSystemPrompt / buildUserPrompt 는 OpenAIApiKeyProvider 내부에서 export 된 helper.
 //   PRD §10.1 chat 파이프라인 + §15.2 Provider 패턴 정합.
@@ -661,6 +664,10 @@ export async function initServices(): Promise<void> {
     )
   }
 
+  // Sprint 017 M3 T16 — Ollama 로컬 provider registry 박음 (credential 무관, IPC 등록 전).
+  //   codex 019e502d Q2 — initServices 안에서 등록되어야 사용자가 defaultProviderId='local' 시 즉시 활용.
+  ensureLocalProvider()
+
   registerConsentIpc()
   registerCredentialIpc()
   registerPrivacyIpc()
@@ -979,8 +986,14 @@ function registerChatIpc(): void {
           // codex M5-6 PR #158 NEEDS_CHANGES N-001 정정 — provider 선택을 allowedProviders 기반으로.
           // 기존: providers.get('openai') 하드코딩 → Codex-only 사용자 채팅 전면 불능.
           // 정정: allowedProviders (호출자 명시) 또는 디폴트 ['openai'] 중 등록된 첫 provider 선택.
-          const candidates: ReadonlyArray<CredentialProviderType> =
-            (allowedProviders as ReadonlyArray<CredentialProviderType>) ?? ['openai']
+          //
+          // Sprint 017 M3 T16 (codex 019e502d) — `defaultProviderId='local'` 시점에 본 helper 가
+          //   `['local']` 단일 candidate 반환. KI-003 BYOK 디폴트 (`['openai']`) 는 그 외 보존.
+          const userDefault = userSettingStore?.getState().defaultProviderId ?? 'openai'
+          const candidates: ReadonlyArray<CredentialProviderType> = selectChatProviderIds(
+            allowedProviders as ReadonlyArray<CredentialProviderType> | undefined,
+            userDefault
+          )
           let selected: ProviderAdapter | undefined
           for (const t of candidates) {
             const p = providers.get(t)
@@ -1709,6 +1722,22 @@ function rebuildProvider(providerType: CredentialProviderType): void {
   if (providerType === 'codex') {
     providers.set('codex', new CodexLoginProvider({ tokenAccess: makeCodexTokenAccess() }))
   }
+  if (providerType === 'local') {
+    // Sprint 017 M3 T16 (codex 019e502d Q1) — Ollama 는 credential 무관 → ensureLocalProvider 위임.
+    ensureLocalProvider()
+  }
+}
+
+/**
+ * Sprint 017 M3 T16 — Ollama 로컬 provider registry 박음.
+ *
+ * codex 019e502d 권고:
+ *   - credential 무관 (secret 없음) → credentialsStore 호출 0
+ *   - initServices 와 rebuildProvider('local') 양쪽에서 호출 가능 (idempotent — Map.set)
+ *   - 사용자 OLLAMA_HOST 등 baseUrl override 는 후속 PR (본 PR 은 기본값 localhost:11434)
+ */
+function ensureLocalProvider(): void {
+  providers.set('local', new OllamaProvider())
 }
 
 /**
@@ -1867,6 +1896,9 @@ export function rebuildAllProviders(): void {
       rebuildProvider(rec.providerType)
     }
   }
+  // Sprint 017 M3 T16 (codex 019e502d Q2) — Ollama 는 credentialsStore 에 row 없으므로 본 path 안 탐.
+  //   credential 변동 무관하게 항상 박음 (사용자가 defaultProviderId='local' 시점에 대비).
+  ensureLocalProvider()
 }
 
 export function extractDomain(url: string): string {
