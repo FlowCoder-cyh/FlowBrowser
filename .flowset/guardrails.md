@@ -196,6 +196,38 @@
   - **`/codex:rescue` 는 별도 호출 (rescue/fix 의도 시) — dual review 본문에 박지 않음**
 - **출처**: 학습 #13 (PR #188 사건) + 학습 #16 (본 turn 도구 분류 정확화) + `/codex:adversarial-review.md` L45 본문 인용
 
+### G-021 [active] Docs PR dual review 실 호출 강제 + 위반 패턴 차단 (학습 #8 보강)
+
+- **규칙**: PR body 의 `- [x] evaluator` / `- [x] codex` 체크박스 박음과 별개로, **실제 evaluator 서브에이전트 + codex (`/codex:adversarial-review` 또는 raw MCP `sandbox=read-only`) 병렬 호출 박힘 증거 명시 강제**. 코드 PR + docs PR 동일 강제 (예외 없음).
+
+**실 호출 증거 명시 패턴 (codex 019e50c9 NEEDS_CHANGES #1 정합 — "또는" 모호성 제거, 둘 다 필수)**:
+- evaluator: **Pass / Partial / Fail 카운트 필수** 명시 (예: "evaluator: Pass 8 / Partial 0 / Fail 0")
+- codex: **thread ID full UUID 패턴 (`019eXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX`) + BLOCKING / NEEDS_CHANGES / NOTABLE 카운트 둘 다 필수** (예: "codex (threadId `019e50c9-57bb-7be1-80c2-52cfb734d68e`) — BLOCKING 1 / NEEDS_CHANGES 2 / NOTABLE 6")
+- 두 가지 모두 PR body Dual Review 섹션 본문에 박음. 단순 체크박스 박음 + "이미 본문 PR 별 dual review 완료" 우회 시도 = G-021 위반. thread ID 없이 카운트만 자가 기입도 위반 (실 호출 증거 부재).
+
+- **Why**: Sprint 017 본 세션 (2026-05-23~24) 학습 #8 위반 3건 반복 발견:
+  - PR #234 (M2 closure docs) — docs PR 자체 evaluator + codex 호출 누락 + "코드 PR 별 dual review 완료" 우회 명시
+  - PR #237 (M3 closure docs) — 동일 패턴 반복
+  - PR #239 (T18 closure docs) — 사용자 지적 후 정정 (codex 019e50aa BLOCKING 1 + NEEDS_CHANGES 3 흡수)
+
+  현 FlowSet Policy Check workflow (`.github/workflows/flowset-policy-check.yml` L41~67) 는 PR body 의 체크박스 박음 만 검증 — 실 호출 박힘은 검증 불가. 본 가드레일이 절차적 차단 (자가 강제) 박음.
+
+- **검출 path**:
+  - 사전 (자가 강제): PR body Dual Review 섹션 본문에 thread ID + Pass/Partial/Fail 카운트 + BLOCKING/NEEDS_CHANGES/NOTABLE 카운트 명시
+  - 사후 (회고): handoff §self-feedback 안에 위반 패턴 발견 시 즉시 박음 (PR # + 위반 내용 + 정정 시점). 학습 #18 26번째+ 확증 path 정합
+
+- **How to apply**:
+  - 코드 PR 머지 직후 docs PR 박을 때: evaluator + codex 병렬 호출 (Agent + mcp__codex__codex) → 결과 PR body 본문에 박음
+  - "docs only — 별도 호출 불요" / "본문 PR 별 dual review 완료" 같은 우회 표현 금지
+  - PR body Dual Review 섹션 본문 예시:
+    ```
+    - [x] evaluator — **Pass N / Partial M / Fail K** → 머지 권고
+    - [x] codex (threadId `019eXXXX-...`) — BLOCKING N / NEEDS_CHANGES M / NOTABLE K
+    ```
+  - workflow 검증 강화 (후속 PR 후보, codex 019e50c9 NEEDS_CHANGES #2 정합): codex thread ID **full UUID 패턴** (`019e[0-9a-f]{4}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) 인용 grep + evaluator 결과 카운트 (Pass/Partial/Fail) 검증. 8자리 prefix 만으로는 자가 위조 가능 — hyphen 포함 full UUID 정확 매칭 필수.
+
+- **출처**: 본 세션 학습 #8 위반 3건 회고 (2026-05-23~24, handoff 2026-05-24.md §7) + codex 019e50c2 권고 ("workflow 신규 확장이라기보다 G-021을 guardrail로 박고 docs PR 누락 재발 방지 문구/검증 케이스/회고 정합을 명시").
+
 ---
 
 ## 변경 이력
@@ -207,3 +239,4 @@
 - 2026-05-20 (PR #188 후속): G-016 신규 등록 — Dual review = read-only 강제 표준. 본 세션 §10 핸드오프 PR #188 시점에 `/codex:rescue` slash 가 dual review 표준으로 박혀 codex agent 가 백그라운드 write + commit + push 진행 사건 (force-with-lease 로 복구). slash command 분류 명문화 + 자동 강제 path (hooks + PR template + memory) 모두 정정.
 - 2026-05-20 (PR #189 후속): G-017 신규 등록 — PR 닫음/머지 후 원격 브랜치 즉시 정리 강제. 사용자 본질 지적 "원격에 보면 브렌치가 여러개있는데 왜 머지후에 브렌치정리가 안된건지 검토해" + 옵션 B/C 채택 — Stop hook G-017 점검 path 추가 + 가드레일 정식 등록.
 - 2026-05-20 (mini-milestone γ, PR #192): **G-016 본문 보강 (학습 #16, 도구 분류 정합)** — `/codex:adversarial-review` 1순위 정합 + `/codex:rescue` 정합 사용 시나리오 별도 명시 + 도구 자체 금지 어조 제거. **G-018 신규 등록** — PR 산출물 매트릭스 정확성 강제 (학습 #15 §13.3 #3 본인 직접 명시 후보 정식화). 사용자 본질 지적 "슬래쉬스킬과 다른게 뭔데? 슬래시가 더 정확한거아니냐" + "rescue 는 금지할게아니라 쓰기가 필요할떈 써야될거아냐 용도를 구분해놓고 뭔 금지야".
+- 2026-05-24 (Sprint 017 M5 진입): **G-021 신규 등록** — Docs PR dual review 실 호출 강제 + 위반 패턴 차단 (학습 #8 보강). 본 세션 학습 #8 위반 3건 (PR #234 M2 closure / #237 M3 closure / #239 T18 closure 모두 docs PR 자체 evaluator + codex 호출 누락 + "본문 PR 별 dual review 완료" 우회 명시) 회고. 사용자 본질 지적 "여태 듀얼검증 전부 안받았다며" + codex 019e50c2 권고 ("workflow 신규 확장이라기보다 G-021을 guardrail로 박고 docs PR 누락 재발 방지 문구/검증 케이스/회고 정합을 명시"). 실 호출 증거 명시 패턴 박음 — evaluator Pass/Partial/Fail 카운트 + codex thread ID (UUID v7 `019eXXXX-...` 패턴).

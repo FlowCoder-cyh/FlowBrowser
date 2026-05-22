@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **3 진행 중 (Sprint 017 M4 T18 단독 closure)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 + M1 4/4 + M2 4/4 + M3 3/4 + **M4 T18 머지** — T19/T20/T21 사용자 결정 후 진행). T17 + 잔여 M4 task Sprint 018+ 또는 후속 결정 위임.
-- **Sprint**: **017 M4 T18 단독 closure — T18 머지** (PR #238 `c35cfd5` Markdown Export). 누적 main first-parent S017 PR (codex 019e50aa BLOCKING 정정 후): M0 4 (T01 #219 / T02 #220 / T03 #221 / T04+T05 docs #222) + M1 7 (T06 #223 / T07 #224 / T07 docs #225 / T08 #226 / T08 docs #227 / T09 #228 / T09 docs #229) + M2 5 (T10 #230 / T11 #231 / T12 #232 / T13 #233 / M2 docs #234) + M3 3 (T14+T15 #235 / T16 #236 / M3 docs #237) + M4 1 (T18 #238) = **20 PR** (코드 14 + docs 6). 본 docs PR 머지 시 **21 PR** (코드 14 + docs 7). T19 (Notion Export) 사용자 결정 대기 — 외부 dep 옵션 매트릭스 (4 옵션). T20/T21 후속.
+- **Phase**: **3 진행 중 (Sprint 017 M5 진입 — G-021 정식화)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 + M1 4/4 + M2 4/4 + M3 3/4 + M4 T18 머지 + **M5 G-021 신규 가드레일 진행 중**). T19/T20/T21 + T17 잔여는 사용자 결정 또는 Sprint 018+ 위임.
+- **Sprint**: **017 M5 G-021 정식화 진행 중** (본 PR 신규 가드레일 — Docs PR dual review 실 호출 강제, 학습 #8 보강). 누적 main first-parent S017 PR (codex 019e50aa BLOCKING 정정 후): 21 PR (#239 머지 후, 코드 14 + docs 7). 본 PR 머지 시 22 PR (코드 15 + docs 7) — G-021 신규 가드레일 PR 은 코드 분류 (자가 강제 path 박는 산출물 정합).
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 017 M5 시점 v0.5.0 발행 예정.
-- **최근 갱신 (Sprint 017 M4 T18 머지)**: 2026-05-24 (T18 PR #238 `c35cfd5` 머지 + 본 docs PR #239 진행 중). 단위 **1673 → 1709** (+36, T18 본문 +29 + dual review hotfix +7). **KI 변동 0**. 잔여 9 유지 (Phase 1 7 + Phase 2 0 + Phase 3 2). 학습 #18 **26번째 확증** — T18 codex 사전 10 권고 + dual review 13 finding (BLOCKING 1 + NEEDS_CHANGES 3 + NOTABLE 9) = **23 항목** 모두 본 PR `c97a635` hotfix 흡수 또는 정합 path. 자기 검증 루프 **49회차 SUCCESS**.
-- **다음 세션 진입점**: **T19 사용자 결정** (4 옵션: @notionhq/client + BYOK / raw fetch + BYOK / spec only / skip + T20/T21 만). T19 결정 후 본격 M4 closure 또는 T19 skip 시 T20 (R3-B UserLevelEstimator 실 학습 — 학습 데이터셋 부재 시 spec only) + T21 (공유 설계 spec) 진행.
+- **최근 갱신 (Sprint 017 M5 G-021)**: 2026-05-24 (G-021 신규 가드레일 PR 진행 중). 단위 회귀 변동 0 (가드레일 명문화 only). **KI 변동 0**. 잔여 9 유지 (Phase 1 7 + Phase 2 0 + Phase 3 2). 학습 #8 위반 3건 회고 → G-021 정식화 박음. codex 019e50c2 사전 협의 (E 변형 권고) + 019e50c9 dual review (BLOCKING 1 + NEEDS_CHANGES 2 + NOTABLE 6) 모두 본 PR 내 hotfix 흡수. 자기 검증 루프 **50회차 SUCCESS** (G-021 자기 적용).
+- **다음 세션 진입점**: **G-021 머지 후** — codex 권고 순서 (1) G-021 정식화 종결 → (2) G Schema v06 spec PR (T17 진입 조건 박음) → (3) C T19 spec + T20 spec + T21 spec (사용자 명시 선택 보류 정합). T19 코드 진입 (A/B) 은 사용자 명시 선택 후만.
 
 ## 현재 작업
 
