@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **3 진입 (Sprint 017 M0 진행 중)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 T01~T03 코드 PR 머지 + T04/T05 audit 본 docs PR). Phase 3 후속 — M1 (Highlight UI overlay + SQLite swap) / M2 (Sprint 016 신규 KI batch) / M3 (로컬 LLM spike) / M4 (Notion Export 등) / M5 (종합).
-- **Sprint**: **017 M0 진행 중** — T01 drainUntil helper (#219) / T02 pageId/visitId normalize + KI-027 closed + KI-028 신규 (#220) / T03 MemoryStatsPanel React 단위 + KI-009 closed (#221) / T04 KI-018/019 audit + T05 KI-011~016 perf bench 재측정 (본 docs PR). M0 5/5 종결 후 M1 진입.
+- **Phase**: **3 진행 중 (Sprint 017 M1 T07 머지)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 종결 / M1 T06+T07 머지). Phase 3 후속 — M1 잔여 (T08 overlay UX / T09 Export/Import) / M2 신규 KI batch / M3 로컬 LLM spike / M4 Notion Export 등 / M5 종합.
+- **Sprint**: **017 M1 진행 중 — T07 머지** (PR #224 `c22b2e7`). 후속 T08 → T09 시퀀스 권고. M0 5/5 종결 (T01 #219 / T02 #220 / T03 #221 / T04+T05 #222) + M1 T06 (#223) + T07 (#224).
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 017 M5 시점 v0.5.0 발행 예정.
-- **최근 갱신 (Sprint 017 M0 T01~T05 진행 + 본 docs PR)**: 2026-05-22 (T01 #219 / T02 #220 / T03 #221 3 코드 PR 머지 + 본 T04/T05 audit docs PR). 단위 **1436 → 1482** (+46, T01 +17 / T02 +19 / T03 +10). **KI 변동**: Sprint 017 M0 진행 누적 closed +2 (KI-009 T03 / KI-027 T02) + 신규 +1 (KI-028 codex separate candidate, open) / **잔여 10** (Phase 1 9 + Phase 2 1). 통계 정합화 (T03 codex Finding 1 흡수 — Sprint 016 M5 carryover stale 1건 정정). 학습 #18 13~15번째 확증 (T01~T03 매 PR codex Minor/Finding 모두 본 PR 흡수).
-- **다음 세션 진입점**: **Sprint 017 M1 진입** (T06 NoteHighlight renderer UI overlay / T07 Highlight schema v05 + SQLite swap + V4→V5 마이그레이션 dry-run + 자동 백업 / T08 renderer overlay UX / T09 Highlight Export/Import). codex 사전 협의 후 T06 → T07 → T08 → T09 시퀀스 권고. M1 진입 전 본 T04/T05 audit docs PR 머지 + M0 5/5 종결 선언.
+- **최근 갱신 (Sprint 017 M1 T07 머지)**: 2026-05-22 (T07 #224 머지). 단위 **1544 → 1562** (+18, T07 본문 +16 + dual review hotfix +2). **KI 변동 +1** (KI-029 신규 — sentinel self-healing, Phase 3 LOW). 학습 #18 **17번째 확증** (T07 codex 사전 BLOCKING 1 + 권고 6 + dual review NEEDS_CHANGES 2 + NOTABLE 3 = 11 finding 중 10 본 PR 내 흡수 + 1 KI-029 위임). 자기 검증 루프 **40회차 SUCCESS**.
+- **다음 세션 진입점**: **Sprint 017 M1 T08 진입** (renderer overlay UX — toast fallback + highlight 클릭 → 노트 패널 포커스 + 다중 highlight z-index 정합 + NoteHighlight App.tsx mount). KI-024 Shadow DOM cross-boundary graceful fallback 동반. T06+T07 의존 충족 (영속 + IPC 모두 박힘). T08 머지 후 T09 (Export/Import — AC-2 4항 closure).
 
 ## 현재 작업
 
