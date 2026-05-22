@@ -49,7 +49,8 @@ export {
   FlowbrowserDatabase,
   DEFAULT_WORKSPACE_NAME,
   DEFAULT_WORKSPACE_ICON,
-  V04_SCHEMA_VERSION
+  V04_SCHEMA_VERSION,
+  V05_SCHEMA_VERSION
 } from './Database'
 export type {
   WorkspaceRow,
@@ -114,6 +115,21 @@ export type {
   MigrationCounts,
   MigrationResult
 } from './migrations/v03_to_v04'
+
+// Sprint 017 M1 T07 — v04 → v05 마이그레이션 (G-014 dry-run + `<userDataDir>/backup/v04/<ISO_ts>/flowbrowser.db` 백업).
+//   highlights 테이블 + 4종 인덱스 추가. HighlightStore SQLite swap 동반.
+export {
+  migrateV04ToV05,
+  MIGRATION_V05_SCHEMA_META_KEY,
+  V05_LOG_FILE,
+  V05_BACKUP_ROOT,
+  V05_BACKUP_FILE
+} from './migrations/v04_to_v05'
+export type {
+  MigrateV05Options,
+  MigrateV05Status,
+  MigrateV05Result
+} from './migrations/v04_to_v05'
 
 export {
   GlossaryStore,

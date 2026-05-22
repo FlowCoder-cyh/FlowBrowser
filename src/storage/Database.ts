@@ -37,7 +37,11 @@ import Database, { Database as BetterDatabase } from 'better-sqlite3'
 import * as sqliteVec from 'sqlite-vec'
 import { randomUUID } from 'node:crypto'
 
-import schemaSQL from './schema/v04.sql?raw'
+// Sprint 017 M1 T07 — v05 canonical full schema (v04 + highlights).
+//   bootstrap() / applySchema() 호출 시 v05.sql 이 적용 — fresh install + v04 idempotent 둘 다 안전.
+//   v04 DB 가 있는 사용자 경로 (services.ts) 는 `open` + `migrateV04ToV05` (백업 + schema 적용 + sentinel) +
+//   `ensureDefaultWorkspace` 로 분해하여 G-014 정합 (codex 019e4dd1 BLOCKING).
+import schemaSQL from './schema/v05.sql?raw'
 
 /**
  * 기본 워크스페이스 메타. PRD §02 시나리오 + A3 §A4 정합.
@@ -46,9 +50,15 @@ export const DEFAULT_WORKSPACE_NAME = '기본'
 export const DEFAULT_WORKSPACE_ICON = '📥'
 
 /**
- * v0.4 schema 버전. 본 PR 진입 시 1. M3-6 마이그레이션 시점에 schema_meta.version 으로 박힘.
+ * v0.4 schema 버전. Sprint 015 M3 마이그레이션 시점에 schema_meta.version 으로 박힘.
  */
 export const V04_SCHEMA_VERSION = 1
+
+/**
+ * Sprint 017 M1 T07 — v0.5 schema 버전. applySchema 가 schema_meta.version 으로 박음.
+ * v04 → v05 transition: highlights 테이블 + 4종 인덱스 추가 (PRD §11.2.1 노트 anchor 영속).
+ */
+export const V05_SCHEMA_VERSION = 2
 
 export type LevelPreference = 'novice' | 'intermediate' | 'advanced' | null
 
@@ -147,7 +157,7 @@ export class FlowbrowserDatabase {
       INSERT INTO schema_meta(key, value, updated_at) VALUES (?, ?, ?)
       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
     `)
-    stmt.run('version', String(V04_SCHEMA_VERSION), now)
+    stmt.run('version', String(V05_SCHEMA_VERSION), now)
   }
 
   /**

@@ -1,9 +1,10 @@
 /**
- * Sprint 016 M4 T20 — HighlightStore (in-memory).
+ * Sprint 017 M1 T07 — HighlightStore SQLite swap (Sprint 016 M4 T20 in-memory 후속).
  *
  * PRD §11.2.1 highlights — 노트 선택 영역 anchor 메타데이터 영속.
  *
- * G-013 1단계 (옵션 A) — schema 변경 회피. SQLite swap (옵션 B) 은 후속 PR.
+ * G-013 2단계 → 3단계 — Sprint 017 M1 T06 (renderer UI overlay 박힘) 직후 SQLite backend swap.
+ *   T06 IPC handler / NoteHighlight 컴포넌트는 본 swap 무관 (동일 interface 유지).
  *
  * 책임:
  *   1. add(input) — 신규 highlight 등록 (id 자체 발급)
@@ -14,25 +15,34 @@
  *   6. remove(id) — 삭제
  *   7. clear() — 단위 테스트 reset
  *
- * codex 사전 협의 (2026-05-21, threadId 019e4a06):
+ * codex 사전 협의 019e4dd1 정합:
+ *   - 생성자 `fb?: FlowbrowserDatabase` optional — fb 주입 시 SQLite-backed, 미주입 시 in-memory Map fallback
+ *   - services.ts 는 bootstrap 성공 후 `new HighlightStore(fb)` 재할당 (영속 누락 차단)
+ *   - bootstrap 실패 (인프라 미준비) 시 단독 instance — IPC handler graceful 동작
+ *
+ * codex 사전 협의 (Sprint 016 M4 T20, threadId 019e4a06):
  *   - id 는 highlight 자체 id (noteId 1:1 강제 X — 한 노트가 여러 highlight 가능)
  *   - listByPage 는 workspaceId + (pageId 또는 url+contentHash) 필터 — cross-page 노출 차단
  *   - contentHash 단독 list 금지 (collision 위험)
  *
- * 본 store 는 in-memory — 프로세스 종료 시 휘발. 후속 SQLite swap 시 동일 interface 유지.
+ * Sprint 017 T02 정합 — storage 경계에서 `pageId='' or whitespace-only` 는 `null` 로 정규화.
  */
 
 import { randomUUID } from 'node:crypto'
 
+import type BetterSqliteNamespace from 'better-sqlite3'
 import type { HighlightAnchor } from '../perception/highlightAnchor'
+import type { FlowbrowserDatabase } from './Database'
 import { normalizeOptionalId } from './idNormalize'
+
+type Stmt<R = unknown> = BetterSqliteNamespace.Statement<unknown[], R>
 
 export interface HighlightRecord {
   /** highlight 자체 id (noteId 와 별개 — 한 노트가 여러 highlight 가능). */
   id: string
   /** 연결된 노트 id (필수 — highlight 는 항상 노트의 선택 영역 표현). */
   noteId: string
-  /** 페이지 id (pages 테이블 FK 후보 — 현 in-memory 단계는 plain string). nullable 허용 (PDF 등 pageId 미발급 시). */
+  /** 페이지 id (pages 테이블 FK 후보). nullable 허용 (PDF 등 pageId 미발급 시). */
   pageId: string | null
   /** 페이지 URL (drift fallback 시 page 식별용). */
   url: string
@@ -67,8 +77,118 @@ export interface ListByPageFilter {
   contentHash?: string
 }
 
+/** SQLite row → HighlightRecord. anchor JSON 파싱. */
+interface HighlightRowRaw {
+  id: string
+  note_id: string
+  workspace_id: string
+  page_id: string | null
+  url: string
+  content_hash: string
+  anchor: string
+  created_at: number
+}
+
+function rawToRecord(raw: HighlightRowRaw): HighlightRecord {
+  return {
+    id: raw.id,
+    noteId: raw.note_id,
+    pageId: raw.page_id,
+    url: raw.url,
+    contentHash: raw.content_hash,
+    anchor: JSON.parse(raw.anchor) as HighlightAnchor,
+    workspaceId: raw.workspace_id,
+    createdAt: raw.created_at
+  }
+}
+
+/**
+ * Sprint 017 M1 T07 — SQLite-backed prepared statement 집합. 본 인스턴스가 fb 와 1:1.
+ */
+interface SqlitePrepared {
+  insert: Stmt
+  findById: Stmt<HighlightRowRaw>
+  listByPageId: Stmt<HighlightRowRaw>
+  listByUrl: Stmt<HighlightRowRaw>
+  listByUrlAndHash: Stmt<HighlightRowRaw>
+  listByNote: Stmt<HighlightRowRaw>
+  listByWorkspace: Stmt<HighlightRowRaw>
+  remove: Stmt
+  clear: Stmt
+  size: Stmt<{ c: number }>
+}
+
+function prepare(fb: FlowbrowserDatabase): SqlitePrepared {
+  const db = fb.getDb()
+  return {
+    insert: db.prepare(
+      `INSERT INTO highlights(id, note_id, workspace_id, page_id, url, content_hash, anchor, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ),
+    findById: db.prepare(
+      `SELECT id, note_id, workspace_id, page_id, url, content_hash, anchor, created_at
+       FROM highlights WHERE id = ?`
+    ),
+    // listByPage — pageId 분기 (workspace_id + page_id, ORDER BY created_at ASC)
+    //   `idx_highlight_workspace_page_time` 인덱스 직접 매칭.
+    listByPageId: db.prepare(
+      `SELECT id, note_id, workspace_id, page_id, url, content_hash, anchor, created_at
+       FROM highlights WHERE workspace_id = ? AND page_id = ?
+       ORDER BY created_at ASC`
+    ),
+    // listByPage — url 분기 (contentHash 미명시), workspace_id + url
+    listByUrl: db.prepare(
+      `SELECT id, note_id, workspace_id, page_id, url, content_hash, anchor, created_at
+       FROM highlights WHERE workspace_id = ? AND url = ?
+       ORDER BY created_at ASC`
+    ),
+    // listByPage — url+contentHash 분기 — `idx_highlight_workspace_url_hash_time` 인덱스 직접 매칭.
+    listByUrlAndHash: db.prepare(
+      `SELECT id, note_id, workspace_id, page_id, url, content_hash, anchor, created_at
+       FROM highlights WHERE workspace_id = ? AND url = ? AND content_hash = ?
+       ORDER BY created_at ASC`
+    ),
+    // listByNote — `idx_highlight_note` 인덱스 매칭.
+    listByNote: db.prepare(
+      `SELECT id, note_id, workspace_id, page_id, url, content_hash, anchor, created_at
+       FROM highlights WHERE note_id = ?
+       ORDER BY created_at ASC`
+    ),
+    // listByWorkspace — `idx_highlight_workspace_time` 인덱스 매칭.
+    listByWorkspace: db.prepare(
+      `SELECT id, note_id, workspace_id, page_id, url, content_hash, anchor, created_at
+       FROM highlights WHERE workspace_id = ?
+       ORDER BY created_at ASC`
+    ),
+    remove: db.prepare('DELETE FROM highlights WHERE id = ?'),
+    clear: db.prepare('DELETE FROM highlights'),
+    size: db.prepare('SELECT COUNT(*) AS c FROM highlights')
+  }
+}
+
 export class HighlightStore {
-  private readonly byId = new Map<string, HighlightRecord>()
+  /** in-memory fallback (fb 미주입 시). codex 019e4dd1 #4: SQLite native 로드 실패 시 graceful. */
+  private readonly memoryMap: Map<string, HighlightRecord> | null
+  private readonly sqlite: SqlitePrepared | null
+
+  /**
+   * Sprint 017 M1 T07 — `fb` optional 생성자.
+   *
+   * - fb 주입 시: SQLite-backed (`highlights` 테이블 prepared statements)
+   * - fb 미주입 시: in-memory Map fallback (Sprint 016 M4 T20 동작 정합)
+   *
+   * services.ts 는 `migrateV04ToV05` 완료 후 `new HighlightStore(fb)` 재할당.
+   * bootstrap 실패 시 no-arg path 로 fallback — IPC handler graceful 동작 (영속 부재 명시).
+   */
+  constructor(fb?: FlowbrowserDatabase) {
+    if (fb) {
+      this.memoryMap = null
+      this.sqlite = prepare(fb)
+    } else {
+      this.memoryMap = new Map()
+      this.sqlite = null
+    }
+  }
 
   /**
    * 신규 highlight 등록. workspaceId / noteId / url / anchor / contentHash 필수.
@@ -92,30 +212,51 @@ export class HighlightStore {
       workspaceId: input.workspaceId,
       createdAt: input.createdAt ?? Date.now()
     }
-    if (this.byId.has(record.id)) {
+
+    if (this.sqlite) {
+      // duplicate id 검사 — SQLite UNIQUE constraint 가 throw 하지만 명시적 메시지로 통일.
+      const exists = this.sqlite.findById.get(record.id)
+      if (exists) {
+        throw new Error(`HighlightStore.add: duplicate id=${record.id}`)
+      }
+      this.sqlite.insert.run(
+        record.id,
+        record.noteId,
+        record.workspaceId,
+        record.pageId,
+        record.url,
+        record.contentHash,
+        JSON.stringify(record.anchor),
+        record.createdAt
+      )
+      return record
+    }
+
+    // in-memory fallback
+    if (this.memoryMap!.has(record.id)) {
       throw new Error(`HighlightStore.add: duplicate id=${record.id}`)
     }
-    this.byId.set(record.id, record)
+    this.memoryMap!.set(record.id, record)
     return record
   }
 
   /** 단일 조회. 없으면 null. */
   get(id: string): HighlightRecord | null {
-    return this.byId.get(id) ?? null
+    if (this.sqlite) {
+      const raw = this.sqlite.findById.get(id)
+      return raw ? rawToRecord(raw) : null
+    }
+    return this.memoryMap!.get(id) ?? null
   }
 
   /**
    * 페이지 재방문 시 복원용 — workspaceId 강제 + (실 pageId 또는 url+contentHash) 필터.
    *
-   * 필터 우선순위:
+   * 필터 우선순위 (Sprint 016 M4 T20 codex 019e4a16 hotfix 정합):
    *   1. 실 pageId 지정 (string + non-null): workspaceId + record.pageId === filter.pageId 일치
    *   2. pageId 가 null 또는 undefined: url 분기 — workspaceId + record.url === filter.url 일치
    *      (contentHash 지정 시 동반 일치 강제)
    *   3. pageId 가 null/undefined 인데 url 도 없으면: throw (cross-page 노출 차단)
-   *
-   * codex 사전 dual review hotfix (threadId 019e4a16) 흡수 — `pageId: null` 을
-   * "pageId 없는 모든 record 매칭" 으로 해석하던 이전 버전은 cross-URL 노출 위험.
-   * 본 hotfix 후 `pageId: null` 은 "pageId identity 미지정" 으로 해석 → url 분기 강제.
    *
    * 결과는 createdAt 오름차순 정렬.
    */
@@ -124,16 +265,28 @@ export class HighlightStore {
       throw new Error('HighlightStore.listByPage: workspaceId required')
     }
     // filter normalize — `''` 또는 whitespace-only 는 "pageId 미지정" 으로 강제 (Sprint 017 T02).
-    // 이전 `!= null` 만으로는 `''` 통과 → cross-URL 노출 가능 (record.pageId=null 인 다른 페이지의 highlight 매칭 X 이나
-    // record.pageId=''(legacy) 데이터와 match 위험).
     const normalizedPageId = normalizeOptionalId(filter.pageId)
     const hasRealPageId = normalizedPageId !== null
     if (!hasRealPageId && !filter.url) {
       throw new Error('HighlightStore.listByPage: pageId or url required')
     }
 
+    if (this.sqlite) {
+      if (hasRealPageId) {
+        return this.sqlite.listByPageId.all(filter.workspaceId, normalizedPageId).map(rawToRecord)
+      }
+      // url 분기
+      if (filter.contentHash) {
+        return this.sqlite.listByUrlAndHash
+          .all(filter.workspaceId, filter.url!, filter.contentHash)
+          .map(rawToRecord)
+      }
+      return this.sqlite.listByUrl.all(filter.workspaceId, filter.url!).map(rawToRecord)
+    }
+
+    // in-memory fallback (Sprint 016 M4 T20 동작 정합)
     const result: HighlightRecord[] = []
-    for (const record of this.byId.values()) {
+    for (const record of this.memoryMap!.values()) {
       if (record.workspaceId !== filter.workspaceId) continue
       if (hasRealPageId) {
         if (record.pageId !== normalizedPageId) continue
@@ -149,8 +302,11 @@ export class HighlightStore {
 
   /** 노트 패널 표시용 — 한 노트의 모든 highlight (1:N). createdAt 오름차순. */
   listByNote(noteId: string): HighlightRecord[] {
+    if (this.sqlite) {
+      return this.sqlite.listByNote.all(noteId).map(rawToRecord)
+    }
     const result: HighlightRecord[] = []
-    for (const record of this.byId.values()) {
+    for (const record of this.memoryMap!.values()) {
       if (record.noteId === noteId) result.push(record)
     }
     result.sort((a, b) => a.createdAt - b.createdAt)
@@ -159,8 +315,11 @@ export class HighlightStore {
 
   /** 워크스페이스 격리 확인 — 전체 list. createdAt 오름차순. */
   listByWorkspace(workspaceId: string): HighlightRecord[] {
+    if (this.sqlite) {
+      return this.sqlite.listByWorkspace.all(workspaceId).map(rawToRecord)
+    }
     const result: HighlightRecord[] = []
-    for (const record of this.byId.values()) {
+    for (const record of this.memoryMap!.values()) {
       if (record.workspaceId === workspaceId) result.push(record)
     }
     result.sort((a, b) => a.createdAt - b.createdAt)
@@ -169,16 +328,26 @@ export class HighlightStore {
 
   /** 삭제. 존재 시 true, 없으면 false. */
   remove(id: string): boolean {
-    return this.byId.delete(id)
+    if (this.sqlite) {
+      return this.sqlite.remove.run(id).changes > 0
+    }
+    return this.memoryMap!.delete(id)
   }
 
   /** 단위 테스트 reset. 운영 사용 금지. */
   clear(): void {
-    this.byId.clear()
+    if (this.sqlite) {
+      this.sqlite.clear.run()
+      return
+    }
+    this.memoryMap!.clear()
   }
 
   /** 단위 테스트용 — 현 보관 row 수. */
   size(): number {
-    return this.byId.size
+    if (this.sqlite) {
+      return this.sqlite.size.get()!.c
+    }
+    return this.memoryMap!.size
   }
 }
