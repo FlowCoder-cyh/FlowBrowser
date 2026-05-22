@@ -403,9 +403,11 @@ export class WorkspaceExportImportService {
         counts.pages++
         // Sprint 017 M2 T12 (KI-022) — import 후 vec_pages 재계산용 embedding_queue 자동 enqueue.
         //   atomic — 같은 TX 안에 INSERT (codex 019e4faa Q5 — rollback 시 자동 미박힘 정합).
-        //   content empty 면 enqueue skip (EmbeddingQueue worker 의 'empty_content' skip 과 정합화).
+        //   content empty 면 enqueue skip — codex 019e4fb7 NEEDS_CHANGES #1 hotfix:
+        //     IndexingService.recordVisit / NoteService.createNote 가 `trim().length === 0` 기준으로
+        //     empty 판정 → import path 도 동일 기준 매칭 (whitespace-only 도 skip, runtime 정합).
         //   priority=1 — bulk import 라 활성 탭 (priority=10) 보다 낮은 우선 (codex Q2 권고).
-        if (queue && p.content && p.content.length > 0) {
+        if (queue && typeof p.content === 'string' && p.content.trim().length > 0) {
           queue.enqueue({
             target_type: 'page',
             target_id: newPageId,
@@ -445,9 +447,10 @@ export class WorkspaceExportImportService {
         counts.notes++
         // Sprint 017 M2 T12 (KI-022) — import 후 vec_notes 재계산용 embedding_queue 자동 enqueue.
         //   body 또는 selected_text 둘 다 empty 면 enqueue skip (의미 있는 임베딩 콘텐츠 부재).
+        //   codex 019e4fb7 NEEDS_CHANGES #1 hotfix — whitespace-only 도 skip (NoteService 정합).
         const noteHasContent =
-          (typeof n.body === 'string' && n.body.length > 0) ||
-          (typeof n.selected_text === 'string' && n.selected_text.length > 0)
+          (typeof n.body === 'string' && n.body.trim().length > 0) ||
+          (typeof n.selected_text === 'string' && n.selected_text.trim().length > 0)
         if (queue && noteHasContent) {
           queue.enqueue({
             target_type: 'note',

@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 
 import { FlowbrowserDatabase } from '../../../src/storage/Database'
+import { EmbeddingQueue } from '../../../src/storage/EmbeddingQueue'
 import {
   WorkspaceExportImportService,
   WorkspaceExportImportError,
@@ -1054,6 +1055,98 @@ describe('WorkspaceExportImportService', () => {
         svc.importWorkspace({ version: 999, schemaVersion: 'v05', workspace: { name: 'x', icon: '📚' } })
       ).toThrow(/invalid_version/)
       expect(enqueueSpy).not.toHaveBeenCalled()
+    })
+
+    it('codex 019e4fb7 NEEDS_CHANGES #1 — whitespace-only content/note 도 enqueue skip (trim 정합)', () => {
+      const wsId = h.defaultId
+      const db = h.fb.getDb()
+      const now = Date.now()
+      // page 1: whitespace-only content
+      const pageWs = randomUUID()
+      db.prepare(
+        `INSERT INTO pages(id, workspace_id, url, title, content, content_hash, lang, visited_count, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(pageWs, wsId, 'https://ws-page.com', 'WS', '   \n  \t  ', null, null, 1, now, now)
+      // note 1: whitespace-only body + selected_text
+      const noteWs = randomUUID()
+      db.prepare(
+        `INSERT INTO notes(id, page_id, visit_id, workspace_id, selected_text, body, ai_tags, created_at, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(noteWs, pageWs, null, wsId, '   ', '\t\t', null, now, 'user')
+
+      const exported = h.svc.exportWorkspace(wsId)
+      const enqueueSpy = vi.fn()
+      const svc = new WorkspaceExportImportService({
+        fb: h.fb,
+
+        embeddingQueue: { enqueue: enqueueSpy } as any
+      })
+      const summary = svc.importWorkspace(exported)
+      // pages/notes 는 정상 INSERT (whitespace-only 도 row 자체는 박힘)
+      expect(summary.pages).toBe(1)
+      expect(summary.notes).toBe(1)
+      // 그러나 embeddingJobs 둘 다 0 — trim 정합 skip
+      expect(summary.embeddingJobs).toEqual({ pages: 0, notes: 0 })
+      expect(enqueueSpy).not.toHaveBeenCalled()
+    })
+
+    it('codex 019e4fb7 NEEDS_CHANGES #2 — 실 EmbeddingQueue 주입 시 page+note row 박힘 (prepared statement TX 정합)', () => {
+      seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const realQueue = new EmbeddingQueue(h.fb)
+      const svc = new WorkspaceExportImportService({
+        fb: h.fb,
+        embeddingQueue: realQueue
+      })
+      const summary = svc.importWorkspace(exported)
+      // 실 큐로 page=1 + note=1 박힘
+      expect(summary.embeddingJobs).toEqual({ pages: 1, notes: 1 })
+      // 실 DB 에 embedding_queue row 2 개 박힘 — pending 상태
+      const stats = realQueue.stats()
+      expect(stats.pending).toBe(2)
+      // workspace_id 매칭 — 새 import 된 workspaceId 로
+      const rows = h.fb
+        .getDb()
+        .prepare(
+          `SELECT target_type, workspace_id, priority FROM embedding_queue WHERE workspace_id = ? ORDER BY target_type ASC`
+        )
+        .all(summary.workspaceId) as Array<{
+        target_type: string
+        workspace_id: string
+        priority: number
+      }>
+      expect(rows).toHaveLength(2)
+      expect(rows.map((r) => r.target_type).sort()).toEqual(['note', 'page'])
+      expect(rows.every((r) => r.priority === 1)).toBe(true)
+      // claim 도 정상 동작 (재시도 가능 path)
+      const claimed = realQueue.claimNext()
+      expect(claimed).not.toBeNull()
+    })
+
+    it('codex 019e4fb7 NEEDS_CHANGES #2 — enqueue mid-import throw 시 page/note INSERT 모두 rollback', () => {
+      seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      // 첫 호출에 throw — TX 진입 후 page INSERT 후 enqueue 시점에서 throw
+      const enqueueSpy = vi.fn(() => {
+        throw new Error('enqueue boom')
+      })
+      const svc = new WorkspaceExportImportService({
+        fb: h.fb,
+
+        embeddingQueue: { enqueue: enqueueSpy } as any
+      })
+      const before = h.fb.getDb().prepare(`SELECT COUNT(*) AS c FROM pages`).get() as { c: number }
+      expect(() => svc.importWorkspace(exported)).toThrow(/enqueue boom/)
+      // rollback 정합 — pages row 변동 0
+      const after = h.fb.getDb().prepare(`SELECT COUNT(*) AS c FROM pages`).get() as { c: number }
+      expect(after.c).toBe(before.c)
+      // 새 workspace 도 INSERT 안 박힘 (TX atomicity)
+      const wsRows = h.fb
+        .getDb()
+        .prepare(`SELECT COUNT(*) AS c FROM workspaces WHERE name = ?`)
+        .get(exported.workspace.name) as { c: number }
+      // 기존 default workspace 1 개만 — 새 import 한 거 안 박힘
+      expect(wsRows.c).toBe(1)
     })
   })
 })
