@@ -84,6 +84,21 @@ import {
   type NoteDeleteArgs,
   type NoteDeleteResponse
 } from './noteHandlers'
+// Sprint 017 M1 T06 — HighlightStore wiring + IPC handler 4종.
+import { HighlightStore } from '../storage'
+import {
+  handleHighlightCreate,
+  handleHighlightListByPage,
+  handleHighlightListByNote,
+  handleHighlightRemove,
+  type HighlightCreateArgs,
+  type HighlightCreateResponse,
+  type HighlightListByPageArgs,
+  type HighlightListByNoteArgs,
+  type HighlightListResponse,
+  type HighlightRemoveArgs,
+  type HighlightRemoveResponse
+} from './highlightHandlers'
 import { WorkspaceService } from './WorkspaceService'
 import { WorkspacePartitionManager } from './WorkspacePartitionManager'
 import { WorkspaceExportImportService } from './WorkspaceExportImportService'
@@ -187,6 +202,11 @@ let workspacePartitionManager: WorkspacePartitionManager | null = null
 // workspace:export-json / workspace:import-json IPC 가 사용.
 let workspaceExportImportService: WorkspaceExportImportService | null = null
 let memoryService: MemoryService | null = null
+// Sprint 017 M1 T06 — HighlightStore (in-memory) main wiring 진입.
+//   Sprint 016 M4 T20 박힌 store class 의 IPC 노출은 본 PR 부터.
+//   Sprint 017 M1 T07 SQLite swap 후에도 동일 lazy slot 유지 (동일 interface).
+//   bootstrap 실패 (인프라 미주입) 와 무관하게 단독 동작 가능 (HighlightStore 는 SQLite 의존 0).
+let highlightStore: HighlightStore | null = null
 // Sprint 016 M0 T05 (KI-010) — IndexingGate + IndexingService wiring.
 // did-finish-load hook 호출 (main/index.ts) 시점에 indexingService.indexPage(...) 진입.
 // onStatusChange 콜백이 status='indexed' 인 경우 broadcastMemoryInvalidated(workspaceId) 호출.
@@ -344,6 +364,36 @@ export function getIndexingServiceForTest(): IndexingService | null {
   return indexingService
 }
 
+/**
+ * Sprint 017 M1 T06 — HighlightStore 접근자.
+ *
+ * main/index.ts 의 did-finish-load hook 및 highlightHandlers 가 사용.
+ * 본 store 는 in-memory — bootstrap 실패와 무관하게 instance 보장 (SQLite 의존 0).
+ * T07 SQLite swap 시점에 동일 함수 signature 유지하며 backend 만 교체.
+ */
+export function getHighlightStore(): HighlightStore | null {
+  return highlightStore
+}
+
+/**
+ * Sprint 017 M1 T06 — main/index.ts context-menu 하이라이트 path 가 사용.
+ * handleHighlightCreate 의 composite (신규 노트 + highlight) 분기에 NoteService 전달.
+ * 인프라 미초기화 시 null — handler 가 graceful error 반환.
+ */
+export function getNoteServiceForHighlight(): NoteService | null {
+  return noteService
+}
+
+/**
+ * Sprint 017 M1 T06 — 외부 호출자 (main/index.ts) 가 신규 노트 + highlight 저장 후
+ * MemoryStatsPanel refresh 트리거할 수 있도록 broadcast helper 노출.
+ *
+ * BrowserWindow.getAllWindows()[0] 미존재 시 (테스트 / headless) no-op.
+ */
+export function broadcastMemoryInvalidatedExternal(workspaceId: string | null): void {
+  broadcastMemoryInvalidated(workspaceId)
+}
+
 let consentStatePath!: string
 let domainPolicyPath!: string
 
@@ -378,6 +428,11 @@ export async function initServices(): Promise<void> {
 
   shortcutStore = new ShortcutStore(defaultShortcutPath(userDataDir))
   await shortcutStore.load()
+
+  // Sprint 017 M1 T06 — HighlightStore (in-memory) bootstrap.
+  //   SQLite 의존 0 — bootstrap 실패와 무관하게 단독 instance.
+  //   T07 SQLite swap 시점에 본 라인이 SQLite-backed 인스턴스로 교체.
+  highlightStore = new HighlightStore()
 
   // Sprint 015 M5-3b — v0.4 SQLite 인프라 (FlowbrowserDatabase + VectorIndex + IndexedPageStoreSqlite + NoteStore + SearchService).
   // bootstrap 실패 (sqlite-vec native 로드 실패 등) 시 검색만 graceful disable — 다른 IPC 는 정상 동작.
@@ -483,8 +538,67 @@ export async function initServices(): Promise<void> {
   registerSearchIpc()
   registerChatIpc()
   registerNoteIpc()
+  registerHighlightIpc()
   registerWorkspaceIpc()
   registerMemoryIpc()
+}
+
+/**
+ * Sprint 017 M1 T06 — highlight IPC.
+ * `highlight:create` — HighlightStore.add (+ NoteService.createNote composite, noteId 미명시 시)
+ * `highlight:list-by-page` — workspaceId + (pageId 또는 url+contentHash) 필터
+ * `highlight:list-by-note` — 단일 노트의 1:N highlight
+ * `highlight:remove` — id 로 삭제
+ *
+ * 인프라 (HighlightStore) 미초기화 시 handler 가 graceful empty / error.
+ * NoteService 미초기화 + noteId 미명시 시 invalid_input — 호출자가 명시 noteId 지정 path.
+ */
+function registerHighlightIpc(): void {
+  ipcMain.handle(
+    'highlight:create',
+    async (_event, args: HighlightCreateArgs): Promise<HighlightCreateResponse> => {
+      const response = await handleHighlightCreate(args, {
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
+        getHighlightStore: () => highlightStore,
+        getNoteService: () => noteService
+      })
+      // 신규 노트 동반 생성 분기 시 MemoryStatsPanel 즉시 refresh.
+      if (response.ok && response.note) {
+        broadcastMemoryInvalidated(response.note.workspaceId)
+      }
+      return response
+    }
+  )
+  ipcMain.handle(
+    'highlight:list-by-page',
+    (_event, args: HighlightListByPageArgs): HighlightListResponse => {
+      return handleHighlightListByPage(args, {
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
+        getHighlightStore: () => highlightStore,
+        getNoteService: () => noteService
+      })
+    }
+  )
+  ipcMain.handle(
+    'highlight:list-by-note',
+    (_event, args: HighlightListByNoteArgs): HighlightListResponse => {
+      return handleHighlightListByNote(args, {
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
+        getHighlightStore: () => highlightStore,
+        getNoteService: () => noteService
+      })
+    }
+  )
+  ipcMain.handle(
+    'highlight:remove',
+    (_event, args: HighlightRemoveArgs): HighlightRemoveResponse => {
+      return handleHighlightRemove(args, {
+        getActiveWorkspaceId: () => getActiveWorkspaceId(),
+        getHighlightStore: () => highlightStore,
+        getNoteService: () => noteService
+      })
+    }
+  )
 }
 
 /**

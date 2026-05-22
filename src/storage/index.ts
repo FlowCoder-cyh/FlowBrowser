@@ -149,3 +149,13 @@ export {
   acceleratorsEqual
 } from './ShortcutStore'
 export type { ShortcutBinding, ShortcutBindingId } from './ShortcutStore'
+
+// Sprint 017 M1 T06 — HighlightStore (in-memory) main wiring 진입.
+//   Sprint 016 M4 T20 박힌 store 의 IPC 노출은 본 PR (T06) 부터.
+//   Sprint 017 M1 T07 SQLite swap 시점에도 본 export 동일 유지 (동일 interface).
+export { HighlightStore } from './HighlightStore'
+export type {
+  HighlightRecord,
+  CreateHighlightInput,
+  ListByPageFilter
+} from './HighlightStore'

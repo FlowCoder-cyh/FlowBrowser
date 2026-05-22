@@ -465,6 +465,72 @@ const noteApi = {
     ipcRenderer.invoke('note:delete', { id })
 }
 
+// Sprint 017 M1 T06 — highlight IPC (HighlightStore + composite create).
+interface HighlightAnchorPayload {
+  rootSelector: string
+  startPath: number[]
+  endPath: number[]
+  startOffset: number
+  endOffset: number
+  selectedText: string
+  prefix: string
+  suffix: string
+  contentHash: string
+  contextHash: string
+}
+
+interface SerializedHighlightRecordPayload {
+  id: string
+  noteId: string
+  pageId: string | null
+  url: string
+  contentHash: string
+  anchor: HighlightAnchorPayload
+  workspaceId: string
+  createdAt: number
+}
+
+interface HighlightCreateArgsPayload {
+  workspaceId?: string
+  noteId?: string
+  selectedText?: string
+  pageId?: string | null
+  url: string
+  contentHash: string
+  anchor: HighlightAnchorPayload
+  body?: string | null
+}
+
+interface HighlightCreateResponsePayload {
+  ok: boolean
+  highlight?: SerializedHighlightRecordPayload
+  note?: SerializedNoteRowPayload
+  error?: string
+  errorCode?: 'invalid_input' | 'infra_unavailable' | 'note_not_found' | 'duplicate_id'
+}
+
+interface HighlightListByPageArgsPayload {
+  workspaceId?: string
+  pageId?: string | null
+  url?: string
+  contentHash?: string
+}
+
+interface HighlightListResponsePayload {
+  highlights: SerializedHighlightRecordPayload[]
+}
+
+const highlightApi = {
+  create: (args: HighlightCreateArgsPayload): Promise<HighlightCreateResponsePayload> =>
+    ipcRenderer.invoke('highlight:create', args),
+  listByPage: (args: HighlightListByPageArgsPayload): Promise<HighlightListResponsePayload> =>
+    ipcRenderer.invoke('highlight:list-by-page', args),
+  listByNote: (noteId: string): Promise<HighlightListResponsePayload> =>
+    ipcRenderer.invoke('highlight:list-by-note', { noteId }),
+  remove: (id: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('highlight:remove', { id })
+}
+
 const shortcutApi = {
   getBindings: (): Promise<ShortcutBindingPayload[]> =>
     ipcRenderer.invoke('shortcut:get-bindings'),
@@ -624,6 +690,7 @@ const memoryApi = {
 contextBridge.exposeInMainWorld('searchApi', searchApi)
 contextBridge.exposeInMainWorld('chatApi', chatApi)
 contextBridge.exposeInMainWorld('noteApi', noteApi)
+contextBridge.exposeInMainWorld('highlightApi', highlightApi)
 contextBridge.exposeInMainWorld('shortcutApi', shortcutApi)
 contextBridge.exposeInMainWorld('workspaceApi', workspaceApi)
 contextBridge.exposeInMainWorld('memoryApi', memoryApi)
@@ -653,6 +720,7 @@ export type PopupApi = typeof popupApi
 export type SearchApi = typeof searchApi
 export type ChatApi = typeof chatApi
 export type NoteApi = typeof noteApi
+export type HighlightApi = typeof highlightApi
 export type ShortcutApi = typeof shortcutApi
 export type WorkspaceApi = typeof workspaceApi
 export type MemoryApi = typeof memoryApi
