@@ -1,9 +1,11 @@
 # Sprint 017 — Phase 3 진입 + Sprint 016 residual + 후속 위임 처리
 
-> **상태: 시안 (2026-05-21 — Sprint 016 M5 T26 작성)**
+> **상태: partial closure (2026-05-23 — Sprint 017 M5 mini-milestone β D PR #244 머지 후)**
 > Phase: 3 (Phase 2 종결 + Phase 3 진입)
-> 시작 예정: Sprint 016 M5 종료 PR 머지 직후 (2026-05-22+ 후보, 사용자 승인 후 정식화)
-> 목표 기간: **3~4주 (18~25일)** — codex 사전 협의 (threadId 019e4a52) 권고 정합 — 앞 M0~M2 구체화 + 뒤 M3~M5 헤더+진입조건 위주
+> 시작: 2026-05-21 (Sprint 016 M5 종료 후 정식화)
+> partial closure: 2026-05-23 (M5 G-021 + G-022 + mini-milestone β advisory hook 박힌 후 사용자 결정 대기 항목 Sprint 018 carryover)
+> 목표 기간: **3~4주 (18~25일)** — 실 진행 ~3일 (M0~M4 부분 + M5 가드레일 박힘)
+> 종결 권고: codex 019e5161 (read-only) "M5 G-021 + G-022 + mini-milestone β 박힌 후 carryover 명확히 박는 게 흐름상 안전. T19/Schema v06 = 사용자 결정 대기, G-022 blocking = transcript source 안정성 검증 선행 필요."
 
 ## 0. 사전 조건
 
@@ -195,6 +197,62 @@ M3 (T14~T17) 는 spike 위주 — 산출물 보고서 정합성 가중 (dependen
   - sentence-transformers: https://huggingface.co/sentence-transformers + ONNX runtime
   - Notion API: https://developers.notion.com/
 
+## 10. Partial Closure 보고 (2026-05-23)
+
+### 10.1 진행 상태 매트릭스
+
+| M | 작업 | 상태 | 비고 |
+|---|---|---|---|
+| **M0** | T01~T05 (residual + KI 정리) | ✅ 머지 5/5 | PR #219~#222 |
+| **M1** | T06~T09 (T20 후속 renderer overlay + Highlight SQLite swap) | ✅ 머지 4/4 | PR #223~#229 |
+| **M2** | T10~T13 (Sprint 016 신규 KI batch) | ✅ 머지 4/4 | PR #230~#234 |
+| **M3** | T14~T17 (로컬 LLM / 임베딩 spike) | ⚠️ 부분 머지 3/4 | T14/T15/T16 머지 (PR #235~#237) — **T17 carryover** |
+| **M4** | T18~T21 (Notion / Markdown Export / 공유 설계) | ⚠️ 부분 머지 1/4 | T18 머지 (PR #238) — **T19/T20/T21 carryover** |
+| **M5** | T22~T26 (종합 + PRD v0.5.0 + Sprint 018 시안) | ⚠️ 대체 진행 0/5 → mini-milestone β 박음 | T22~T26 carryover. M5 대체 산출물: G-021 (PR #240) + G-022 (PR #243) + mini-milestone β D (PR #244) |
+
+### 10.2 M5 대체 산출물 (가드레일 + 자동화 박음)
+
+본 Sprint 017 M5 = contract 시안의 T22~T26 (단위 테스트 + PRD v0.5.0 + 핸드오프 + Sprint 018 시안 + Phase 3 종료 검토) 대신 학습 #8 4번째 위반 회고 → 가드레일 + hook 자동화 박는 path 로 대체:
+
+- **PR #240 G-021** (`64978a1`) — Docs PR dual review 실 호출 강제 + 위반 패턴 차단 (학습 #8 보강). PR #234/#237/#239 위반 3건 회고.
+- **PR #243 G-022** (`90cc14f`) — 사용자 마무리 의도 후 작업 진입 차단 (메타 학습). PR #239 머지 후 G-021/Schema v06 임의 진입 (PR #241 close) 회고. codex 019e5119 1순위 권고 정합.
+- **PR #244 mini-milestone β D** (`7894636`) — G-018 자동 대조 (verify-pr-body.mjs) + G-021 증거 regex (UUID v7 RFC 9562) + G-022 advisory helper (check-finalization-intent.mjs). codex 019e5136 1순위 권고 정합. 회귀 1709 → 1760 (+51).
+- **PR #241 Schema v06 spec** — close (사용자 마무리 의도 위반 회고, +269 산출물 carryover 결정 대기)
+
+### 10.3 carryover 매트릭스 (Sprint 018 위임)
+
+| # | carryover 항목 | 사유 | Sprint 018 진입 조건 |
+|---|---|---|---|
+| **CO-1** | **T17** 로컬 임베딩 통합 (IndexingService) | T15 spike 후 dependency 승인 필요 | T15 spike 결과 + 사용자 dependency 승인 |
+| **CO-2** | **T19** Notion Export | 옵션 A/B/C/D 사용자 명시 선택 필요 — codex 019e5119 §3 권고: 선택 전 C (spec only) / 선택 후 B (raw fetch) | 사용자 명시 선택 |
+| **CO-3** | **T20** R3-B UserLevelEstimator 실 학습 | 학습 데이터 셋 부재 | 학습 데이터 셋 박힌 후 |
+| **CO-4** | **T21** 워크스페이스 공유 설계 시안 | T18 + T20 후속 | T20 carryover 박힌 후 |
+| **CO-5** | **T22~T26** 종합 + PRD v0.5.0 + Sprint 018 시안 + Phase 3 종료 검토 | M5 대체 진행으로 단독 마일스톤 미박음 | Sprint 018 종합 evaluator 시점 |
+| **CO-6** | **Schema v06 spec 재진입** | PR #241 close 된 산출물 (+269, B3+B2 결정 + sketch + T17a~e 분해) — 사용자 결정 필요 (왜 close 됐는지 의도) | 사용자 명시 선택 (복원 / 재작성 / 폐기) |
+| **CO-7** | **mini-milestone β G-022 blocking PR** | transcript source `~/.claude/projects/<project>/conversations/*.jsonl` 안정성 검증 필요 — codex 019e5161 §1 권고 정합 path: source validation + advisory SessionStart → blocking 전환 | transcript source validation PR (별도) 박힌 후 |
+| **CO-8** | **PRD v0.5.0 발행** | Phase 3 진입 + 로컬 LLM + Notion Export 메타 박힘 필요 | T17 + T19 + T20 carryover 박힌 후 |
+
+### 10.4 종결 시점 누적
+
+- 누적 main first-parent S017 PR: **25** (코드 17 + docs 8) — M4 docs #242 + G-021 #240 + G-022 #243 + mini-milestone β D #244 포함
+- close PR: 1 (PR #241 Schema v06 spec)
+- 단위 회귀: 1374 (Sprint 016 종료) → **1760** (Sprint 017 partial closure) — +386 누적
+- 자기 검증 루프: 35 (Sprint 016 종료) → **53** (Sprint 017 M5 partial closure docs PR) — +18 누적 (D 진입 50/G-021 / 51/G-022 / 52/D / 53/partial closure)
+- 학습 #8 위반 누적: 4건 모두 가드레일 본문 (G-021 + G-022) + 자동화 (mini-milestone β D) path 박힘
+- KI 잔여: 9 (Phase 1 7 + Phase 2 0 + Phase 3 2) — 변동 0
+- 가드레일 신규: G-021 (Docs PR dual review 실 호출) + G-022 (사용자 마무리 의도 후 진입 차단). G-019/G-020 시안은 carryover (T22~T23 박힌 후 정식화).
+
+### 10.5 partial closure 권고 정합 path (codex 019e5161)
+
+본 partial closure docs PR = codex 019e5161 §1 권고 (1순위) 정합 진입:
+> "M5 G-021 + G-022 + mini-milestone β 박힌 후 carryover 명확히 박는 게 흐름상 안전. T19/Schema v06 = 사용자 결정 대기, G-022 blocking = transcript source 안정성 검증 선행 필요."
+
+권고 처리 path (codex 019e5161 §4):
+1. PR A: Sprint 017 partial closure docs/meta (**본 PR**)
+2. PR B: G-022 transcript source validation + advisory SessionStart (Sprint 018 진입 후)
+3. PR C: 검증 후 blocking 전환 (Sprint 018 진입 후)
+
 ## 변경 이력
 
 - 2026-05-21: Sprint 017 contract 시안 작성 (Sprint 016 M5 T26 시점). Phase 2 종결 + Phase 3 진입 + Sprint 016 후속 위임 + R&D 진입. T01~T26 26 작업, 6 마일스톤. AC-1~AC-6 6 수용 기준. G-019/G-020 신규 가드레일 후보. codex 사전 협의 (threadId 019e4a52) 권고 정합 — 앞 M0~M2 구체화 + 뒤 M3~M5 헤더+진입조건 + dependency 추가 별도 승인.
+- 2026-05-23: **partial closure** 박음 (Sprint 017 M5 mini-milestone β D PR #244 머지 후). 헤더 상태 정정 + §10 신규 (Partial Closure 보고 — 10.1~10.5). M3 T17 + M4 T19/T20/T21 + M5 T22~T26 + Schema v06 + G-022 blocking 8 항목 Sprint 018 carryover 매트릭스 박음. M5 대체 산출물 (G-021 + G-022 + mini-milestone β D) 정합 명시. codex 019e5161 권고 path (PR A docs/meta → PR B source validation → PR C blocking) 박음.
