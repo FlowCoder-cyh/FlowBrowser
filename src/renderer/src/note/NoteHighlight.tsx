@@ -1,30 +1,25 @@
 /**
- * Sprint 017 M1 T06 — NoteHighlight panel (renderer).
+ * Sprint 017 M1 T06 → T08 — NoteHighlight panel (renderer).
  *
- * 책임: 활성 워크스페이스 + 현재 페이지 URL 매칭 highlight 들을 list 로 표시 + 개별 remove.
- * 시각 visual highlight 본체는 WebContentsView 페이지 내부 CSS Highlight API 가 처리 —
- * 본 컴포넌트는 노트 패널 측 "어떤 텍스트를 표시했는가" 목록 + 관리 UI.
+ * 책임: 활성 워크스페이스 + 현재 페이지 URL 매칭 highlight 들을 list 로 표시 + 클릭 시 페이지
+ * scrollIntoView + 개별 remove (page context 시각 highlight 동반 제거).
  *
- * Sprint 017 M1 T06 scope (codex 협의 정합, threadId 019e4b75):
+ * T06 scope (codex 협의 정합, threadId 019e4b75):
  *   - workspaceId + url 변경 시 highlightApi.listByPage 호출 + 표시
- *   - 개별 remove 버튼 (highlightApi.remove 호출 + 즉시 list 재로드)
  *   - 빈 list 시 "이 페이지에 저장된 하이라이트가 없습니다" placeholder
- *   - 무한 polling 아님 — workspaceId / url 변경 시점 또는 명시 refresh 시점에만 fetch
  *
- * T08 위임 (codex dual review 2026-05-22 확정):
- *   - 클릭 시 노트 패널 포커스 / 하이라이트 위치 scrollIntoView
- *   - toast fallback (CSS Highlight API 미지원 환경)
- *   - 다중 highlight 동일 페이지 시 z-index 정합
- *   - App.tsx mount 위치 (현재 export 만)
- *   - **highlight remove 후 visual 즉시 제거** — codex Finding 5 (T08 위임). store/list 만 갱신
- *     하고 page context `CSS.highlights` registry 는 그대로 — T08 이 active 탭에 inject script
- *     로 `CSS.highlights.delete(prefix + __fbSanitizeId(id))` 호출 또는 전체 restore refresh.
- *     sanitize 함수 이름 변환 정합 강제 (`buildHighlightCssForIds` / `__fbSanitizeId` 와 동일).
+ * T08 추가 (codex 협의 019e4ec8):
+ *   - 클릭 시 active page scrollIntoView (`highlightApi.scrollTo(id)`)
+ *   - 선택 state — list item 시각 강조 (`note-highlight__item--selected`)
+ *   - remove 후 visual 즉시 제거 — `highlight:remove` IPC 핸들러가 main 측에서 `runHighlightRemoveVisual` 호출
+ *     (NoteHighlight 자체는 store remove + list 갱신만)
+ *   - toast — error 시 `pushToast({kind:'error', ...})` (예: scrollTo 실패 / API 미지원)
  *
- * 본 컴포넌트는 highlightApi 가 contextBridge 에 노출되어 있어야 동작 (Sprint 017 T06 preload index.ts).
+ * 본 컴포넌트는 highlightApi 가 contextBridge 에 노출되어 있어야 동작.
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { pushToast } from '../common/ToastHost'
 
 interface HighlightAnchorPayload {
   rootSelector: string
@@ -69,7 +64,42 @@ export default function NoteHighlight({
   const [items, setItems] = useState<HighlightRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
+  // codex 019e4eda BLOCKING #1 hotfix — async listByPage 응답 race guard.
+  //   workspaceId/url 변경 후 이전 응답이 늦게 도착해 새 props 의 list 를 덮어쓰는 위험 차단.
+  //   cleanup flag 패턴 — useEffect 의 cleanup 이 cancelled=true 박으면 setState skip.
+  useEffect(() => {
+    let cancelled = false
+    if (!workspaceId || !url) {
+      setItems([])
+      // codex 019e4eda NOTABLE #5 — workspaceId/url 변경 시 selectedId cleanup.
+      setSelectedId(null)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    // codex 019e4eda NOTABLE #5 — workspaceId/url 변경 시 selectedId cleanup (새 페이지로 navigate).
+    setSelectedId(null)
+    void (async () => {
+      try {
+        const response = await window.highlightApi.listByPage({ workspaceId, url })
+        if (cancelled) return
+        setItems(response.highlights ?? [])
+      } catch (err) {
+        if (cancelled) return
+        setError(err instanceof Error ? err.message : String(err))
+        setItems([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [workspaceId, url, refreshKey])
+
+  // 명시 새로고침 (refresh 버튼) — 동일 race guard 패턴.
   const reload = useCallback(async () => {
     if (!workspaceId || !url) {
       setItems([])
@@ -78,10 +108,7 @@ export default function NoteHighlight({
     setLoading(true)
     setError(null)
     try {
-      const response = await window.highlightApi.listByPage({
-        workspaceId,
-        url
-      })
+      const response = await window.highlightApi.listByPage({ workspaceId, url })
       setItems(response.highlights ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -91,18 +118,49 @@ export default function NoteHighlight({
     }
   }, [workspaceId, url])
 
-  useEffect(() => {
-    void reload()
-  }, [reload, refreshKey])
-
-  async function handleRemove(id: string): Promise<void> {
+  // codex 019e4eda NEEDS_CHANGES #3 hotfix — IPC payload 에 expectedUrl 동반.
+  //   tab switch / navigate race 발생 시 main 측 active WebContents.getURL() 과 mismatch → graceful no-op.
+  //   renderer 측 NoteHighlight 의 current url props 가 사용자 관측 시점 — 본 값을 payload 에 박음.
+  async function handleClick(id: string): Promise<void> {
+    setSelectedId(id)
     try {
-      const result = await window.highlightApi.remove(id)
+      const result = await window.highlightApi.scrollTo(id, url ?? undefined)
+      if (!result.ok) {
+        pushToast({ kind: 'error', message: '하이라이트 위치로 이동할 수 없습니다.' })
+        return
+      }
+      if (!result.scrolled) {
+        pushToast({
+          kind: 'info',
+          message: '페이지가 아직 로드 중입니다. 잠시 후 다시 시도하세요.'
+        })
+      }
+    } catch (err) {
+      pushToast({
+        kind: 'error',
+        message: `이동 실패: ${err instanceof Error ? err.message : String(err)}`
+      })
+    }
+  }
+
+  async function handleRemove(id: string, evt: React.MouseEvent): Promise<void> {
+    evt.stopPropagation()
+    try {
+      // codex 019e4eda NEEDS_CHANGES #3 — expectedUrl payload 동반.
+      const result = await window.highlightApi.remove(id, url ?? undefined)
       if (result.ok) {
         setItems((prev) => prev.filter((h) => h.id !== id))
+        if (selectedId === id) setSelectedId(null)
+        pushToast({ kind: 'success', message: '하이라이트를 삭제했습니다.' })
+      } else {
+        pushToast({ kind: 'error', message: '하이라이트 삭제에 실패했습니다.' })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
+      pushToast({
+        kind: 'error',
+        message: `삭제 실패: ${err instanceof Error ? err.message : String(err)}`
+      })
     }
   }
 
@@ -137,19 +195,34 @@ export default function NoteHighlight({
         <p className="note-highlight__placeholder">이 페이지에 저장된 하이라이트가 없습니다.</p>
       )}
       <ul className="note-highlight__list">
-        {items.map((item) => (
-          <li key={item.id} className="note-highlight__item" data-highlight-id={item.id}>
-            <p className="note-highlight__text">{item.anchor.selectedText}</p>
-            <button
-              type="button"
-              className="note-highlight__remove"
-              onClick={() => void handleRemove(item.id)}
-              aria-label={`하이라이트 삭제: ${item.anchor.selectedText.slice(0, 20)}`}
+        {items.map((item) => {
+          const isSelected = selectedId === item.id
+          return (
+            <li
+              key={item.id}
+              className={`note-highlight__item${isSelected ? ' note-highlight__item--selected' : ''}`}
+              data-highlight-id={item.id}
             >
-              삭제
-            </button>
-          </li>
-        ))}
+              <button
+                type="button"
+                className="note-highlight__text-button"
+                onClick={() => void handleClick(item.id)}
+                aria-label={`하이라이트 위치로 이동: ${item.anchor.selectedText.slice(0, 40)}`}
+                aria-pressed={isSelected}
+              >
+                <span className="note-highlight__text">{item.anchor.selectedText}</span>
+              </button>
+              <button
+                type="button"
+                className="note-highlight__remove"
+                onClick={(evt) => void handleRemove(item.id, evt)}
+                aria-label={`하이라이트 삭제: ${item.anchor.selectedText.slice(0, 20)}`}
+              >
+                삭제
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

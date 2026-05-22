@@ -468,3 +468,94 @@ const RESTORE_HELPERS_SOURCE = `
       : { range: null, strategy: 'failed', contentHashMatch: contentHashMatch };
   }
 `
+
+/**
+ * Sprint 017 M1 T08 — page-context CSS Highlight registry 의 단일 entry delete.
+ *
+ * `highlight:remove` IPC 핸들러가 store DELETE 성공 시 active WebContentsView 에 본 스크립트 inject.
+ * `CSS.highlights.delete(prefix + sanitize(id))` 로 시각 highlight 즉시 제거.
+ *
+ * codex 사전 협의 (019e4ec8 #2) — store remove 후 별도 visual delete 가 필요한 이유:
+ *   - DB row 와 page context `CSS.highlights` registry 는 별도 상태.
+ *   - `runHighlightRestore` 재호출은 records 0개 early return 라 마지막 highlight 삭제 시 visual 잔존.
+ *   - 본 helper 는 단일 entry 만 delete — race / 다른 highlight 영향 없음.
+ *
+ * 결과:
+ *   - { ok: true, deleted: true } — 성공
+ *   - { ok: true, deleted: false } — registry name 미존재 (already gone / API 미지원)
+ *   - { ok: false } — page context throw (graceful)
+ */
+export interface RemoveVisualResult {
+  ok: boolean
+  deleted: boolean
+  apiSupported: boolean
+}
+
+export function buildRemoveVisualScript(id: string): string {
+  return `(() => {
+${SHARED_HELPERS_SOURCE}
+  const result = { ok: true, deleted: false, apiSupported: false };
+  try {
+    const highlightsApi = (typeof CSS !== 'undefined' && CSS && CSS.highlights) || null;
+    if (!highlightsApi) return result;
+    result.apiSupported = true;
+    const safeName = ${JSON.stringify(HIGHLIGHT_NAME_PREFIX)} + __fbSanitizeId(${JSON.stringify(id)});
+    if (highlightsApi.has(safeName)) {
+      highlightsApi.delete(safeName);
+      result.deleted = true;
+    }
+    return result;
+  } catch (_e) {
+    return { ok: false, deleted: false, apiSupported: result.apiSupported };
+  }
+})()`
+}
+
+/**
+ * Sprint 017 M1 T08 — page-context highlight scrollIntoView.
+ *
+ * `highlight:scroll-to` IPC 핸들러가 NoteHighlight click event 받아 active WebContentsView 에 inject.
+ *
+ * codex 사전 협의 (019e4ec8 #3) — `getRanges()` API 호환 위험 → `Array.from(highlight)[0]` 안전.
+ *   - `Highlight` 는 set-like (iterable) 사양 — `Array.from(hl)` 로 Range[] 추출.
+ *   - first range 의 `startContainer.parentElement.scrollIntoView({behavior:'smooth', block:'center'})`.
+ *
+ * 결과:
+ *   - { ok: true, scrolled: true } — 성공
+ *   - { ok: true, scrolled: false } — registry name 미존재 / range 0개 / element 미존재 (graceful)
+ *   - { ok: false } — page context throw (graceful)
+ */
+export interface ScrollToResult {
+  ok: boolean
+  scrolled: boolean
+  apiSupported: boolean
+}
+
+export function buildScrollToScript(id: string): string {
+  return `(() => {
+${SHARED_HELPERS_SOURCE}
+  const result = { ok: true, scrolled: false, apiSupported: false };
+  try {
+    const highlightsApi = (typeof CSS !== 'undefined' && CSS && CSS.highlights) || null;
+    if (!highlightsApi) return result;
+    result.apiSupported = true;
+    const safeName = ${JSON.stringify(HIGHLIGHT_NAME_PREFIX)} + __fbSanitizeId(${JSON.stringify(id)});
+    const hl = highlightsApi.get(safeName);
+    if (!hl) return result;
+    // codex 019e4ec8 #3 — Highlight 는 set-like (iterable). Array.from(hl) 로 Range[] 안전 추출.
+    const ranges = Array.from(hl);
+    if (ranges.length === 0) return result;
+    const range = ranges[0];
+    if (!range || !range.startContainer) return result;
+    const node = range.startContainer.nodeType === 1
+      ? range.startContainer
+      : range.startContainer.parentElement;
+    if (!node || typeof node.scrollIntoView !== 'function') return result;
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    result.scrolled = true;
+    return result;
+  } catch (_e) {
+    return { ok: false, scrolled: false, apiSupported: result.apiSupported };
+  }
+})()`
+}

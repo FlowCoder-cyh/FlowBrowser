@@ -13,6 +13,7 @@ import {
   getActiveWorkspaceId,
   getWorkspacePartitionName,
   setWorkspaceSwitchHook,
+  setActiveWebContentsGetter,
   setWorkspaceDeleteHook,
   tryIndexPage,
   getParagraphsExtractScript,
@@ -231,6 +232,14 @@ async function createMainWindow(): Promise<void> {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('workspace:switched', { workspaceId })
     }
+  })
+
+  // Sprint 017 M1 T08 — `highlight:remove` / `highlight:scroll-to` IPC 가 호출하는 active WebContents getter.
+  //   tabManager 가 main/index.ts 안에 있어 services.ts 에서 직접 접근 불가 → hook 패턴 (workspaceSwitchHook 와 동일).
+  //   getActiveTabView 의 WebContents 노출. 미존재 시 null → services.ts IPC handler graceful no-op.
+  setActiveWebContentsGetter(() => {
+    const view = getActiveTabView()
+    return view?.webContents ?? null
   })
 
   // Sprint 016 M3 T16 (G-015, codex BLOCKING #1) — 워크스페이스 삭제 직후 live 탭/view cleanup.
@@ -1001,7 +1010,26 @@ async function handleContextMenuHighlight(
   } catch {
     return
   }
-  if (!serialized || !serialized.ok || !serialized.anchor) return
+  if (!serialized || !serialized.ok || !serialized.anchor) {
+    // Sprint 017 M1 T08 (codex 019e4ec8 #6, KI-024 graceful) — serialize 실패 시 사용자 toast.
+    //   특히 'unsupported_selection' (iframe / Shadow DOM cross-boundary) 은 silent 차단으로 인한
+    //   "왜 안 되는지" 모름 위험. main → renderer 'highlight:toast' broadcast.
+    if (mainWindow && !mainWindow.isDestroyed() && serialized?.errorCode) {
+      const messages: Record<string, string> = {
+        no_selection: '선택된 텍스트가 없습니다.',
+        unsupported_selection:
+          '이 영역(iframe / Shadow DOM)의 텍스트는 아직 하이라이트할 수 없습니다.',
+        serialize_failed: '하이라이트 위치 계산에 실패했습니다.'
+      }
+      const message = messages[serialized.errorCode] ?? '하이라이트 저장에 실패했습니다.'
+      mainWindow.webContents.send('highlight:toast', {
+        kind: 'error',
+        message,
+        errorCode: serialized.errorCode
+      })
+    }
+    return
+  }
 
   const tab = tabManager.snapshotAll().tabs.find((t) => t.id === tabId)
   const workspaceId = tab?.workspace_id ?? null

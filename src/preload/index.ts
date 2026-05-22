@@ -520,6 +520,13 @@ interface HighlightListResponsePayload {
   highlights: SerializedHighlightRecordPayload[]
 }
 
+/** Sprint 017 M1 T08 — main → renderer toast 신호 (highlight error / Shadow DOM graceful). */
+export interface HighlightToastPayload {
+  kind: 'error' | 'info' | 'success'
+  message: string
+  errorCode?: string
+}
+
 const highlightApi = {
   create: (args: HighlightCreateArgsPayload): Promise<HighlightCreateResponsePayload> =>
     ipcRenderer.invoke('highlight:create', args),
@@ -527,8 +534,26 @@ const highlightApi = {
     ipcRenderer.invoke('highlight:list-by-page', args),
   listByNote: (noteId: string): Promise<HighlightListResponsePayload> =>
     ipcRenderer.invoke('highlight:list-by-note', { noteId }),
-  remove: (id: string): Promise<{ ok: boolean }> =>
-    ipcRenderer.invoke('highlight:remove', { id })
+  /**
+   * Sprint 017 M1 T08 (codex 019e4eda NEEDS_CHANGES #3 hotfix) — expectedUrl 동반.
+   *   renderer 측 사용자 관측 url 을 payload 에 박음. main IPC handler 가 active WebContents URL 과
+   *   mismatch 시 graceful no-op (visual delete skip / store remove 도 skip).
+   *   undefined / 빈 문자열 시 검증 skip (backward-compat).
+   */
+  remove: (id: string, expectedUrl?: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('highlight:remove', { id, expectedUrl }),
+  /**
+   * Sprint 017 M1 T08 — 활성 페이지에서 highlight first range scrollIntoView.
+   *   codex 019e4eda NEEDS_CHANGES #3 — expectedUrl 동반.
+   */
+  scrollTo: (id: string, expectedUrl?: string): Promise<{ ok: boolean; scrolled: boolean }> =>
+    ipcRenderer.invoke('highlight:scroll-to', { id, expectedUrl }),
+  /** Sprint 017 M1 T08 — main 측 'highlight:toast' broadcast 구독. unsubscribe 함수 반환. */
+  onToast: (handler: (payload: HighlightToastPayload) => void): (() => void) => {
+    const listener = (_: unknown, payload: HighlightToastPayload): void => handler(payload)
+    ipcRenderer.on('highlight:toast', listener)
+    return () => ipcRenderer.off('highlight:toast', listener)
+  }
 }
 
 const shortcutApi = {

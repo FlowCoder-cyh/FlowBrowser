@@ -32,7 +32,11 @@ import type { HighlightStore } from '../storage/HighlightStore'
 import {
   buildRestoreScript,
   buildHighlightCssForIds,
-  type RestoreResult
+  buildRemoveVisualScript,
+  buildScrollToScript,
+  type RestoreResult,
+  type RemoveVisualResult,
+  type ScrollToResult
 } from '../perception/highlightInjectionScript'
 
 export interface RunHighlightRestoreInput {
@@ -99,6 +103,52 @@ export async function runHighlightRestore(
     return result ?? null
   } catch {
     // executeJavaScript 실패 (about:blank navigate 등) — 다음 did-finish-load 재시도.
+    return null
+  }
+}
+
+/**
+ * Sprint 017 M1 T08 — `highlight:remove` 성공 직후 page context visual delete.
+ *
+ * codex 019e4ec8 #2 — DB row 와 `CSS.highlights` registry 분리 상태. store DELETE 직후 본 helper 호출
+ * 강제하여 시각 highlight 즉시 제거. 모든 throw graceful.
+ */
+export async function runHighlightRemoveVisual(
+  webContents: WebContents,
+  highlightId: string
+): Promise<RemoveVisualResult | null> {
+  if (webContents.isDestroyed()) return null
+  const url = webContents.getURL()
+  if (!url) return null
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return null
+  try {
+    const script = buildRemoveVisualScript(highlightId)
+    const result = (await webContents.executeJavaScript(script, true)) as RemoveVisualResult
+    return result ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Sprint 017 M1 T08 — `highlight:scroll-to` page context scrollIntoView.
+ *
+ * NoteHighlight list item click event → IPC → 본 helper. 활성 WebContentsView 에서 해당 highlight
+ * 의 first range 위치로 smooth scroll. 모든 throw graceful.
+ */
+export async function runHighlightScrollTo(
+  webContents: WebContents,
+  highlightId: string
+): Promise<ScrollToResult | null> {
+  if (webContents.isDestroyed()) return null
+  const url = webContents.getURL()
+  if (!url) return null
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return null
+  try {
+    const script = buildScrollToScript(highlightId)
+    const result = (await webContents.executeJavaScript(script, true)) as ScrollToResult
+    return result ?? null
+  } catch {
     return null
   }
 }

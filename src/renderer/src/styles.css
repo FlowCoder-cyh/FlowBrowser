@@ -49,6 +49,229 @@ body {
   /* ChatPanel 내부 가 .chat-panel 클래스 height:100% 활용 */
 }
 
+/* Sprint 017 M1 T08 — Chat/Notes 탭 토글 (codex 019e4ec8 #1).
+   panelOpen 공유 — 탭으로 ChatPanel ↔ NoteHighlight 전환. */
+.side-panel__tabs {
+  display: flex;
+  background: #141414;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.side-panel__tab {
+  flex: 1;
+  padding: 10px 16px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: #9a9a9a;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.side-panel__tab:hover {
+  color: #d0d0d0;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.side-panel__tab--active {
+  color: #ffffff;
+  border-bottom-color: #4a9eff;
+  background: rgba(74, 158, 255, 0.06);
+}
+
+.side-panel__body {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sprint 017 M1 T08 — NoteHighlight list + selected + remove button. */
+.note-highlight {
+  padding: 12px 16px;
+  color: #e0e0e0;
+}
+
+.note-highlight__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.note-highlight__title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: #ffffff;
+}
+
+.note-highlight__refresh {
+  background: #2a2a2a;
+  border: 0;
+  color: #d0d0d0;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.note-highlight__refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.note-highlight__placeholder {
+  color: #888;
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 8px;
+}
+
+.note-highlight__error {
+  color: #ff6b6b;
+  font-size: 12px;
+  background: rgba(255, 107, 107, 0.08);
+  padding: 8px 10px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.note-highlight__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note-highlight__item {
+  display: flex;
+  align-items: stretch;
+  background: #1f1f1f;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  overflow: hidden;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.note-highlight__item:hover {
+  border-color: #3a3a3a;
+}
+
+.note-highlight__item--selected {
+  border-color: #4a9eff;
+  background: rgba(74, 158, 255, 0.06);
+}
+
+.note-highlight__text-button {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: #e0e0e0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.note-highlight__text-button:hover {
+  background: rgba(255, 235, 59, 0.04);
+}
+
+.note-highlight__text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.note-highlight__remove {
+  background: transparent;
+  border: 0;
+  border-left: 1px solid #2a2a2a;
+  color: #888;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.note-highlight__remove:hover {
+  background: rgba(255, 107, 107, 0.08);
+  color: #ff8a8a;
+}
+
+/* Sprint 017 M1 T08 — 전역 Toast (top-right fixed stack).
+   codex 019e4eda NEEDS_CHANGES #4 hotfix — WebContentsView 가 native layer (y=96 부터) 라
+   renderer z-index 로 가릴 수 없음. toast 영역을 header (TabBar 36 + UrlBar 60 = 96) 안에 제한.
+   다중 stack 시 max-height + overflow:hidden 강제. */
+.toast-host {
+  position: fixed;
+  top: 6px;
+  right: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  max-height: 84px; /* header 96 - top 6 - 안전 마진 6 */
+  overflow: hidden;
+}
+
+.toast {
+  pointer-events: auto;
+  max-width: 360px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #2a2a2a;
+  color: #f0f0f0;
+  font-size: 12px;
+  line-height: 1.35;
+  border: 1px solid #3a3a3a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  text-align: left;
+  animation: toast-in 200ms ease-out;
+  /* WebContentsView 위로 안전 영역 — 최대 2줄까지만 표시. 긴 메시지는 truncate. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.toast--error {
+  background: rgba(220, 60, 60, 0.16);
+  border-color: rgba(220, 60, 60, 0.4);
+  color: #ffb0b0;
+}
+
+.toast--success {
+  background: rgba(60, 180, 100, 0.14);
+  border-color: rgba(60, 180, 100, 0.4);
+  color: #b8e6c8;
+}
+
+.toast--info {
+  background: rgba(74, 158, 255, 0.12);
+  border-color: rgba(74, 158, 255, 0.4);
+  color: #c0d8ff;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .tab-bar {
   display: flex;
   align-items: stretch;

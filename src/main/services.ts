@@ -86,8 +86,10 @@ import {
 } from './noteHandlers'
 // Sprint 017 M1 T06 — HighlightStore wiring + IPC handler 4종.
 //   Sprint 017 M1 T07 — `migrateV04ToV05` 동반 import (G-014 정합 자동 백업 + applySchema + sentinel).
+//   Sprint 017 M1 T08 — `runHighlightRemoveVisual` + `runHighlightScrollTo` page context inject (visual UX).
 import { HighlightStore } from '../storage'
 import { migrateV04ToV05 } from '../storage'
+import { runHighlightRemoveVisual, runHighlightScrollTo } from './highlightRestore'
 import {
   handleHighlightCreate,
   handleHighlightListByPage,
@@ -284,6 +286,22 @@ export function setWorkspaceDeleteHook(
   hook: ((workspaceId: string, newActiveId: string) => void) | null
 ): void {
   workspaceDeleteHook = hook
+}
+
+/**
+ * Sprint 017 M1 T08 — `highlight:remove` / `highlight:scroll-to` IPC 가 active WebContentsView 의
+ * WebContents 에 inject script 실행 위해 호출하는 hook. main/index.ts 가 등록.
+ *
+ * 미등록 시 (테스트 / fresh install) no-op — IPC 자체는 store 동작은 보장 (visual 만 미적용).
+ *
+ * codex 019e4ec8 #2 정합 — store remove 와 page context CSS.highlights registry 별도 상태.
+ */
+let activeWebContentsGetter: (() => Electron.WebContents | null) | null = null
+
+export function setActiveWebContentsGetter(
+  getter: (() => Electron.WebContents | null) | null
+): void {
+  activeWebContentsGetter = getter
 }
 
 /**
@@ -609,12 +627,74 @@ function registerHighlightIpc(): void {
   )
   ipcMain.handle(
     'highlight:remove',
-    (_event, args: HighlightRemoveArgs): HighlightRemoveResponse => {
-      return handleHighlightRemove(args, {
+    async (
+      _event,
+      args: HighlightRemoveArgs & { expectedUrl?: string }
+    ): Promise<HighlightRemoveResponse> => {
+      // codex 019e4eda NEEDS_CHANGES #3 — expectedUrl 가 명시되면 active WebContents URL 과 매칭 강제.
+      //   tab switch / navigate race 시 잘못된 highlight 삭제 차단. 매칭 mismatch 시 ok:false (store 도 skip).
+      if (args.expectedUrl && activeWebContentsGetter) {
+        const wc = activeWebContentsGetter()
+        if (wc && !wc.isDestroyed() && wc.getURL() !== args.expectedUrl) {
+          console.warn(
+            '[highlight:remove] expectedUrl mismatch — graceful skip',
+            JSON.stringify({ expected: args.expectedUrl, actual: wc.getURL() })
+          )
+          return { ok: false }
+        }
+      }
+      const response = handleHighlightRemove(args, {
         getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getHighlightStore: () => highlightStore,
         getNoteService: () => noteService
       })
+      // Sprint 017 M1 T08 (codex 019e4ec8 #2) — store DELETE 성공 시 active page context visual delete.
+      if (response.ok && args.id && activeWebContentsGetter) {
+        try {
+          const wc = activeWebContentsGetter()
+          if (wc && !wc.isDestroyed()) {
+            await runHighlightRemoveVisual(wc, args.id)
+          }
+        } catch (err) {
+          console.warn(
+            '[highlight:remove] visual delete graceful fail —',
+            err instanceof Error ? err.message : String(err)
+          )
+        }
+      }
+      return response
+    }
+  )
+  // Sprint 017 M1 T08 — `highlight:scroll-to` IPC 신규 (NoteHighlight list item 클릭 시).
+  //   active WebContents 미주입 / non-http(s) / API 미지원 시 graceful no-op.
+  //   codex 019e4eda NEEDS_CHANGES #3 — expectedUrl mismatch 시 graceful no-op (잘못된 탭에 scroll 방지).
+  ipcMain.handle(
+    'highlight:scroll-to',
+    async (
+      _event,
+      args: { id: string; expectedUrl?: string }
+    ): Promise<{ ok: boolean; scrolled: boolean }> => {
+      if (!args?.id) return { ok: false, scrolled: false }
+      if (!activeWebContentsGetter) return { ok: true, scrolled: false }
+      try {
+        const wc = activeWebContentsGetter()
+        if (!wc || wc.isDestroyed()) return { ok: true, scrolled: false }
+        if (args.expectedUrl && wc.getURL() !== args.expectedUrl) {
+          console.warn(
+            '[highlight:scroll-to] expectedUrl mismatch — graceful skip',
+            JSON.stringify({ expected: args.expectedUrl, actual: wc.getURL() })
+          )
+          return { ok: true, scrolled: false }
+        }
+        const result = await runHighlightScrollTo(wc, args.id)
+        return { ok: result?.ok ?? true, scrolled: result?.scrolled ?? false }
+      } catch (err) {
+        console.warn(
+          '[highlight:scroll-to] graceful fail —',
+          err instanceof Error ? err.message : String(err)
+        )
+        return { ok: false, scrolled: false }
+      }
     }
   )
 }
