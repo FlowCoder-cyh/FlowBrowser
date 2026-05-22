@@ -8,7 +8,7 @@
  *   - schema version 상수 정합
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 
 import { FlowbrowserDatabase } from '../../../src/storage/Database'
@@ -933,6 +933,127 @@ describe('WorkspaceExportImportService', () => {
       expect(reExported.highlights).toHaveLength(1)
       expect(reExported.highlights[0].url).toBe('https://valid.com')
       expect(ids.noteId).toBeTruthy()
+    })
+  })
+
+  describe('Sprint 017 M2 T12 (KI-022) — embedding_queue 자동 re-enqueue', () => {
+    it('embeddingQueue 미주입 (기존 path) → summary.embeddingJobs = { pages:0, notes:0 }', () => {
+      seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exported)
+      expect(summary.embeddingJobs).toEqual({ pages: 0, notes: 0 })
+    })
+
+    it('embeddingQueue 주입 — page/note 각각 enqueue (priority=1) + summary.embeddingJobs 정확', () => {
+      seedWorkspaceData(h, h.defaultId) // 1 page (content='body') + 1 note (body='body text')
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const enqueueSpy = vi.fn().mockReturnValue({
+        id: 'job',
+        target_type: 'page',
+        target_id: 'x',
+        workspace_id: 'ws',
+        priority: 1,
+        status: 'pending',
+        attempts: 0,
+        last_error: null,
+        created_at: 0,
+        updated_at: 0
+      })
+      const queue = { enqueue: enqueueSpy }
+
+      const svc = new WorkspaceExportImportService({
+        fb: h.fb,
+
+        embeddingQueue: queue as any
+      })
+      const summary = svc.importWorkspace(exported)
+      expect(enqueueSpy).toHaveBeenCalledTimes(2)
+      const [pageCall] = enqueueSpy.mock.calls.find(
+        (c) => (c[0] as { target_type: string }).target_type === 'page'
+      )!
+      expect(pageCall).toMatchObject({
+        target_type: 'page',
+        workspace_id: summary.workspaceId,
+        priority: 1
+      })
+      const [noteCall] = enqueueSpy.mock.calls.find(
+        (c) => (c[0] as { target_type: string }).target_type === 'note'
+      )!
+      expect(noteCall).toMatchObject({
+        target_type: 'note',
+        workspace_id: summary.workspaceId,
+        priority: 1
+      })
+      expect(summary.embeddingJobs).toEqual({ pages: 1, notes: 1 })
+    })
+
+    it('content empty page → enqueue skip (page count 변동 0, embeddingJobs.pages=0)', () => {
+      // pages 1개 + content='' 박힘 (직접 INSERT)
+      const wsId = h.defaultId
+      const db = h.fb.getDb()
+      const pageId = randomUUID()
+      const now = Date.now()
+      db.prepare(
+        `INSERT INTO pages(id, workspace_id, url, title, content, content_hash, lang, visited_count, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(pageId, wsId, 'https://empty.com', 'Empty', '', null, null, 1, now, now)
+
+      const exported = h.svc.exportWorkspace(wsId)
+      const enqueueSpy = vi.fn()
+      const svc = new WorkspaceExportImportService({
+        fb: h.fb,
+
+        embeddingQueue: { enqueue: enqueueSpy } as any
+      })
+      const summary = svc.importWorkspace(exported)
+      expect(summary.pages).toBe(1) // INSERT 됨
+      expect(summary.embeddingJobs.pages).toBe(0) // enqueue 안 됨
+      expect(enqueueSpy).not.toHaveBeenCalled()
+    })
+
+    it('body+selected_text 둘 다 empty note → enqueue skip', () => {
+      const wsId = h.defaultId
+      const db = h.fb.getDb()
+      const pageId = randomUUID()
+      const noteId = randomUUID()
+      const now = Date.now()
+      db.prepare(
+        `INSERT INTO pages(id, workspace_id, url, title, content, content_hash, lang, visited_count, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(pageId, wsId, 'https://x.com', 'X', 'page-body', 'h', 'en', 1, now, now)
+      db.prepare(
+        `INSERT INTO notes(id, page_id, visit_id, workspace_id, selected_text, body, ai_tags, created_at, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(noteId, pageId, null, wsId, '', null, null, now, 'user')
+
+      const exported = h.svc.exportWorkspace(wsId)
+      const enqueueSpy = vi.fn()
+      const svc = new WorkspaceExportImportService({
+        fb: h.fb,
+
+        embeddingQueue: { enqueue: enqueueSpy } as any
+      })
+      const summary = svc.importWorkspace(exported)
+      expect(summary.notes).toBe(1)
+      expect(summary.embeddingJobs).toEqual({ pages: 1, notes: 0 })
+      // enqueue 는 page 1회만 (note skip)
+      expect(enqueueSpy).toHaveBeenCalledTimes(1)
+      expect(enqueueSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ target_type: 'page' })
+      )
+    })
+
+    it('import error (invalid schema) → enqueue 호출 0 (TX rollback 정합)', () => {
+      const enqueueSpy = vi.fn()
+      const svc = new WorkspaceExportImportService({
+        fb: h.fb,
+
+        embeddingQueue: { enqueue: enqueueSpy } as any
+      })
+      expect(() =>
+        svc.importWorkspace({ version: 999, schemaVersion: 'v05', workspace: { name: 'x', icon: '📚' } })
+      ).toThrow(/invalid_version/)
+      expect(enqueueSpy).not.toHaveBeenCalled()
     })
   })
 })

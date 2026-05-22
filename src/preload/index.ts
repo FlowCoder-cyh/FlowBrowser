@@ -636,6 +636,14 @@ interface WorkspaceImportResponsePayload {
     noteTags: number
     /** Sprint 017 M1 T09 — highlights INSERT 수 (실수치). v04 payload import 시 항상 0. */
     highlights: number
+    /**
+     * Sprint 017 M2 T12 (KI-022) — import 후 vec_pages / vec_notes 재계산용 embedding_queue
+     * 실 enqueue 성공 count. embeddingQueue 미주입 (인프라 bootstrap 실패 fallback) 시 0/0.
+     */
+    embeddingJobs: {
+      pages: number
+      notes: number
+    }
   }
   error?: string
   errorCode?:

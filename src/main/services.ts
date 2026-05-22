@@ -600,7 +600,12 @@ export async function initServices(): Promise<void> {
       factory: { fromPartition: (name: string) => session.fromPartition(name) }
     })
     // Sprint 016 M3 T17 (KI-008) — Workspace JSON Export/Import 서비스.
-    workspaceExportImportService = new WorkspaceExportImportService({ fb: flowbrowserDb })
+    // Sprint 017 M2 T12 (KI-022) — Import 후 vec_pages/vec_notes 재계산용 embeddingQueue 주입.
+    //   미주입 시 graceful skip + `embeddingJobs: { pages:0, notes:0 }` (codex 019e4faa 권고).
+    workspaceExportImportService = new WorkspaceExportImportService({
+      fb: flowbrowserDb,
+      embeddingQueue: embeddingQueue ?? undefined
+    })
     const persistedActive = (userSettingStore.getState() as { activeWorkspaceId?: string | null })
       .activeWorkspaceId
     if (!persistedActive) {
