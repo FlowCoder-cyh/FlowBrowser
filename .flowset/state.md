@@ -5,17 +5,17 @@
 
 ## 메타
 
-- **Phase**: **3 진행 중 (Sprint 017 M5 G-021 머지 완료 + Schema v06 spec close)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 + M1 4/4 + M2 4/4 + M3 3/4 + M4 T18 머지 + **M5 G-021 머지 `64978a1`** + Schema v06 spec PR #241 close). T19/T20/T21 + T17 잔여 + Schema v06 재진입 모두 사용자 결정 또는 Sprint 018+ 위임.
-- **Sprint**: **017 M5 G-021 머지 완료 — 본 docs PR 진행 중** (G-022 신규 가드레일 후보 회고 박음). 누적 main first-parent S017 PR: **22 PR** (#240 머지 후, 코드 15 + docs 7). 본 docs PR 머지 시 23 PR (코드 15 + docs 8). PR #241 (Schema v06 spec) close — 사용자 마무리 의도 위반 회고. T19 사용자 결정 대기. Schema v06 재진입 결정 대기.
+- **Phase**: **3 진행 중 (Sprint 017 M5 G-021 + G-022 정식화 진행 중)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 + M1 4/4 + M2 4/4 + M3 3/4 + M4 T18 머지 + **M5 G-021 머지 `64978a1` + G-022 정식화 본 PR 진행 중** + Schema v06 spec PR #241 close). T19/T20/T21 + T17 잔여 + Schema v06 재진입 모두 사용자 결정 또는 Sprint 018+ 위임.
+- **Sprint**: **017 M5 G-022 정식화 PR 진행 중** (G-021 본 세션 직후 메타 위반 차단 가드레일). 누적 main first-parent S017 PR: **23 PR** (M4 docs #242 머지 후, 코드 15 + docs 8). 본 G-022 PR 머지 시 24 PR (코드 16 + docs 8). PR #241 (Schema v06 spec) close — 사용자 마무리 의도 위반 회고. T19 사용자 결정 대기. Schema v06 재진입 결정 대기.
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 017 M5 시점 v0.5.0 발행 예정.
-- **최근 갱신 (Sprint 017 M5 G-021 머지 + Schema v06 spec close)**: 2026-05-24 (PR #240 `64978a1` G-021 머지 + PR #241 close). 단위 회귀 변동 0 (G-021 가드레일 명문화 only). **KI 변동 0**. 잔여 9 유지 (Phase 1 7 + Phase 2 0 + Phase 3 2). 학습 #8 위반 **4건 회고** (handoff §7.1 + §8.3 — #234/#237/#239 + 본 세션 G-021/Schema v06 spec 임의 진입) → G-021 정식화 + G-022 신규 가드레일 후보 박음. 자기 검증 루프 **50회차 SUCCESS** (G-021 자기 적용 첫 사례).
-- **다음 세션 진입점** (handoff 2026-05-24.md §9 정합):
-  1. **T19 사용자 결정 대기** (handoff §5 옵션 매트릭스 A/B/C/D)
-  2. **Schema v06 spec 재진입 결정** — PR #241 close 된 산출물 복원 또는 재작성 결정
-  3. **G-022 정식화 결정** — 사용자 마무리 의도 차단 가드레일 박음 vs 학습 #8 보강만으로 충분
-  4. **codex 019e50c2 권고 순서** — E 완료 / G close / C (T19/T20/T21 spec)
-  5. **M5 종합 / Sprint 017 종료** — 현 시점 종결 또는 추가 작업 결정
+- **최근 갱신 (Sprint 017 M5 G-021 + G-022 정식화)**: 2026-05-24 (PR #240 `64978a1` G-021 머지 + PR #241 close + M4 docs #242 `c60d34c` 머지 + 본 G-022 PR 진행 중). 단위 회귀 변동 0 (가드레일 명문화 only). **KI 변동 0**. 잔여 9 유지 (Phase 1 7 + Phase 2 0 + Phase 3 2). 학습 #8 위반 **4건 회고** → G-021 정식화 + **G-022 정식화 본 PR (codex 019e5119 1순위 권고 정합)**. 자기 검증 루프 **51회차 진행 중** (G-022 자기 적용 — 사용자 위임 발화 "코덱스랑 협의해서 진행해" + codex 1순위 권고 정합 진입).
+- **다음 세션 진입점** (본 G-022 PR 머지 후 갱신):
+  1. **T19 사용자 결정 대기** (handoff §5 옵션 매트릭스 A/B/C/D — codex 권고: 명시 선택 전 C / 구현 선택 후 B)
+  2. **Schema v06 spec 재진입 결정** — PR #241 close 된 산출물 (+269, B3+B2 결정 + sketch + T17a~e) 복원 또는 재작성
+  3. **codex 권고 순서 (019e5119)** — G-022 (현재 PR) → T19 (사용자 선택 후) → Schema v06 재진입 (사용자 선택 후) → Sprint 017 partial closure 또는 contract 완주 (T22~T26)
+  4. **M5 종합 / Sprint 017 종료** — codex 019e5119 권고: 현 시점 = **Sprint 017 partial closure** (contract T22~T26 미달, contract 완주는 T19~T21 + 종합 evaluator + PRD v0.5.0 + Sprint 018 contract 박은 후만)
+  5. **mini-milestone β hook 자동화 후보** (codex 019e5119 §5 권고) — G-021 + G-022 문서 가드레일 후 hook/CI 자동 강제 path. PR body dual review 증거 검증 + 마무리 신호 표현 감지 + docs PR 예외 차단 자동화
 
 ## 현재 작업
 
