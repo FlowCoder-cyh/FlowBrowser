@@ -15,6 +15,10 @@ export type {
 } from './types'
 export { OpenAIApiKeyProvider, CodexLoginProvider } from './providers'
 export type { CodexTokenAccess } from './providers'
+// Sprint 017 M3 T14 — Ollama 로컬 LLM provider (Phase 3 spike). codex 019e5017 NEEDS_CHANGES #1 hotfix —
+// top-level barrel re-export 정합 (기존 OpenAI/Codex 패턴 동일).
+export { OllamaProvider, OLLAMA_DEFAULT_BASE_URL } from './providers'
+export type { OllamaProviderOptions } from './providers'
 export {
   DeviceCodeFlow,
   DEFAULT_CODEX_ISSUER,
