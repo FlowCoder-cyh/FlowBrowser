@@ -16,7 +16,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   createSpaNavScheduler,
-  SPA_INDEX_DEBOUNCE_MS
+  isHashOnlyNavigation,
+  SPA_INDEX_DEBOUNCE_MS,
+  urlPathAndSearch
 } from '../../../src/main/spaNavIndexingScheduler'
 
 describe('spaNavIndexingScheduler', () => {
@@ -175,6 +177,35 @@ describe('spaNavIndexingScheduler', () => {
     await vi.advanceTimersByTimeAsync(100)
     expect(runIndex).toHaveBeenCalledTimes(1)
     expect(runIndex).toHaveBeenCalledWith('https://x.com/new')
+  })
+
+  it('codex 019e4f51 hotfix — urlPathAndSearch — origin+pathname+search (hash 제외)', () => {
+    expect(urlPathAndSearch('https://x.com/page')).toBe('https://x.com/page')
+    expect(urlPathAndSearch('https://x.com/page#section')).toBe('https://x.com/page')
+    expect(urlPathAndSearch('https://x.com/page?tab=2')).toBe('https://x.com/page?tab=2')
+    expect(urlPathAndSearch('https://x.com/page?tab=2#sec')).toBe('https://x.com/page?tab=2')
+    // 파싱 실패 — trim 반환 (graceful)
+    expect(urlPathAndSearch('not-a-valid-url')).toBe('not-a-valid-url')
+    expect(urlPathAndSearch('')).toBe('')
+    expect(urlPathAndSearch('   ')).toBe('')
+  })
+
+  it('codex 019e4f51 hotfix — isHashOnlyNavigation — hash 만 다르면 true', () => {
+    // 첫 호출 (lastPath null) — false (schedule 진행)
+    expect(isHashOnlyNavigation('https://x.com/page', null)).toBe(false)
+    // hash 만 변경 — true (skip)
+    expect(isHashOnlyNavigation('https://x.com/page#a', 'https://x.com/page')).toBe(true)
+    expect(isHashOnlyNavigation('https://x.com/page#b', 'https://x.com/page')).toBe(true)
+    // pathname 변경 — false (schedule)
+    expect(isHashOnlyNavigation('https://x.com/page2', 'https://x.com/page')).toBe(false)
+    // search 변경 — false (schedule)
+    expect(
+      isHashOnlyNavigation('https://x.com/page?tab=2', 'https://x.com/page')
+    ).toBe(false)
+    // search 동일 + hash 만 변경 — true
+    expect(
+      isHashOnlyNavigation('https://x.com/page?tab=2#sec', 'https://x.com/page?tab=2')
+    ).toBe(true)
   })
 
   it('주입된 setTimeout / clearTimeout 사용', () => {

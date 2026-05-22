@@ -44,6 +44,39 @@ export interface SpaNavSchedulerOptions {
   clearTimeout?: (handle: ReturnType<typeof setTimeout>) => void
 }
 
+/**
+ * SPA navigation URL 비교용 정규화 — origin + pathname + search (hash 제외).
+ *
+ * codex 019e4f51 dual review BLOCKING #2 hotfix —
+ *   hash-only `did-navigate-in-page` (e.g. `#section1` → `#section2`) 시점은 같은 페이지의
+ *   anchor 점프일 뿐. 인덱싱 / highlight 양쪽 모두 무관 (같은 콘텐츠). 이 경우 schedule 자체 skip
+ *   하여 `runHighlightRestore` 의 stale clear (records=[] + clearWhenEmpty=true) 차단.
+ *
+ * search 만 변경 (e.g. `?tab=2`) 은 다른 데이터 — schedule 정상 진행 (별도 후속 KI 로 highlight URL
+ * 매칭 정책 개선 위임 예정).
+ *
+ * 파싱 실패 시 원본 trim 반환 (graceful, 비교 시 미스매치 → schedule 진행).
+ */
+export function urlPathAndSearch(url: string): string {
+  if (!url) return ''
+  try {
+    const u = new URL(url)
+    return `${u.origin}${u.pathname}${u.search}`
+  } catch {
+    return url.trim()
+  }
+}
+
+/**
+ * 직전 SPA 인덱싱 path 와 현재 URL 비교 — hash 만 바뀐 경우 true.
+ *
+ * lastPath 가 null (첫 호출) 이면 false — schedule 진행.
+ */
+export function isHashOnlyNavigation(currentUrl: string, lastPath: string | null): boolean {
+  if (lastPath === null) return false
+  return urlPathAndSearch(currentUrl) === lastPath
+}
+
 export function createSpaNavScheduler(opts: SpaNavSchedulerOptions = {}): SpaNavScheduler {
   const debounceMs = opts.debounceMs ?? SPA_INDEX_DEBOUNCE_MS
   const _setTimeout =
