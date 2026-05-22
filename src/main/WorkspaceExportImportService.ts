@@ -466,6 +466,15 @@ export class WorkspaceExportImportService {
       //     → 새 randomUUID 발급 (다른 row 와 정책 정합, 동일 payload 두 번 import 시 id 충돌 차단).
       const seenHighlightIds = new Set<string>()
       for (const h of data.highlights) {
+        // codex 019e4f19 NEEDS_CHANGES #2 hotfix — per-row 방어 검증.
+        //   validatePayload 가 unknown 배열을 cast 만 하므로, NOT NULL 컬럼 (id/url/content_hash/created_at)
+        //   missing 시 SQLite/better-sqlite3 예외가 transaction 전체를 rollback 시킬 위험.
+        //   per-row typeof 검증 후 invalid 면 skip 으로 graceful 박음 (note_id skip 정책 정합).
+        if (typeof h.id !== 'string' || h.id.length === 0) continue
+        if (typeof h.note_id !== 'string') continue
+        if (typeof h.url !== 'string' || h.url.length === 0) continue
+        if (typeof h.content_hash !== 'string' || h.content_hash.length === 0) continue
+        if (typeof h.created_at !== 'number' || !Number.isFinite(h.created_at)) continue
         if (seenHighlightIds.has(h.id)) continue // corrupt payload — 동일 source id 두 번 등장
         seenHighlightIds.add(h.id)
         const newNoteId = noteIdMap.get(h.note_id)
@@ -558,7 +567,13 @@ export class WorkspaceExportImportService {
       tags: (Array.isArray(obj.tags) ? obj.tags : []) as ExportedTag[],
       pageTags: (Array.isArray(obj.pageTags) ? obj.pageTags : []) as ExportedPageTag[],
       noteTags: (Array.isArray(obj.noteTags) ? obj.noteTags : []) as ExportedNoteTag[],
-      highlights: (Array.isArray(obj.highlights) ? obj.highlights : []) as ExportedHighlight[]
+      // codex 019e4f19 NEEDS_CHANGES #1 hotfix — v04 payload 는 highlights 필드가 있어도 무시 (forward-compat 위배 차단).
+      //   v04 가 highlights 를 박았다는 것은 corrupt payload (Sprint 016 M3 T17 산출물은 highlights 키 자체 없음).
+      //   v05 일 때만 highlights 를 읽어 INSERT 대상으로.
+      highlights:
+        obj.schemaVersion === 'v05' && Array.isArray(obj.highlights)
+          ? (obj.highlights as ExportedHighlight[])
+          : []
     }
     return data
   }

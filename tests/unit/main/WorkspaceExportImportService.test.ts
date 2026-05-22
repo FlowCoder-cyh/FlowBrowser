@@ -839,5 +839,100 @@ describe('WorkspaceExportImportService', () => {
       expect(reExported.highlights[0].url).toBe('https://h.com')
       expect(reExported.highlights[0].note_id).toBe(reExported.notes[0].id)
     })
+
+    // codex 019e4f19 NEEDS_CHANGES #1 hotfix — v04 payload 는 highlights 필드가 있어도 무시.
+    it('v04 payload + highlights[] 포함 시 무시 (forward-compat 위배 차단)', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      // v04 모사 — schemaVersion 'v04' + highlights 박음 (corrupt payload)
+      const corrupt = {
+        ...exported,
+        schemaVersion: 'v04' as const,
+        highlights: [
+          {
+            id: 'should-be-ignored',
+            note_id: exported.notes[0].id,
+            page_id: exported.pages[0].id,
+            url: 'https://ignored.com',
+            content_hash: 'h-ignored',
+            anchor: sampleAnchor,
+            created_at: 1
+          }
+        ]
+      }
+      const summary = h.svc.importWorkspace(corrupt)
+      expect(summary.highlights).toBe(0) // v04 면 highlights 무시
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights).toHaveLength(0)
+      expect(ids.noteId).toBeTruthy()
+    })
+
+    // codex 019e4f19 NEEDS_CHANGES #2 hotfix — NOT NULL 컬럼 missing 시 per-row skip (transaction rollback 차단).
+    it('missing NOT NULL 필드 (url / content_hash / created_at / id) per-row skip — transaction rollback 차단', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const exported: WorkspaceExportV1 = h.svc.exportWorkspace(h.defaultId)
+      const validNoteId = exported.notes[0].id
+      const validPageId = exported.pages[0].id
+      // 각각 필드 missing 한 corrupt row + 마지막에 valid row 박음
+      // valid row 가 INSERT 되어야 transaction 전체 rollback 차단 확인 가능.
+      exported.highlights = [
+        // 1. id missing → skip
+        {
+          note_id: validNoteId,
+          page_id: validPageId,
+          url: 'https://1.com',
+          content_hash: 'h1',
+          anchor: sampleAnchor,
+          created_at: 1
+        } as unknown as ExportedHighlight,
+        // 2. url missing → skip (NOT NULL)
+        {
+          id: randomUUID(),
+          note_id: validNoteId,
+          page_id: validPageId,
+          content_hash: 'h2',
+          anchor: sampleAnchor,
+          created_at: 2
+        } as unknown as ExportedHighlight,
+        // 3. content_hash missing → skip (NOT NULL)
+        {
+          id: randomUUID(),
+          note_id: validNoteId,
+          page_id: validPageId,
+          url: 'https://3.com',
+          anchor: sampleAnchor,
+          created_at: 3
+        } as unknown as ExportedHighlight,
+        // 4. created_at missing → skip (NOT NULL)
+        {
+          id: randomUUID(),
+          note_id: validNoteId,
+          page_id: validPageId,
+          url: 'https://4.com',
+          content_hash: 'h4',
+          anchor: sampleAnchor
+        } as unknown as ExportedHighlight,
+        // 5. valid row → INSERT
+        {
+          id: randomUUID(),
+          note_id: validNoteId,
+          page_id: validPageId,
+          url: 'https://valid.com',
+          content_hash: 'h-valid',
+          anchor: sampleAnchor,
+          created_at: 99
+        }
+      ]
+      const summary = h.svc.importWorkspace(exported)
+      // 4 skip + 1 INSERT = 1
+      expect(summary.highlights).toBe(1)
+      // 다른 child 도 정상 INSERT (transaction 전체 rollback 차단 확인)
+      expect(summary.pages).toBe(1)
+      expect(summary.notes).toBe(1)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights).toHaveLength(1)
+      expect(reExported.highlights[0].url).toBe('https://valid.com')
+      expect(ids.noteId).toBeTruthy()
+    })
   })
 })
