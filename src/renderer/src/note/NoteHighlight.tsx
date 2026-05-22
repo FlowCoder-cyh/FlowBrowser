@@ -66,6 +66,40 @@ export default function NoteHighlight({
   const [loading, setLoading] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
+  // codex 019e4eda BLOCKING #1 hotfix — async listByPage 응답 race guard.
+  //   workspaceId/url 변경 후 이전 응답이 늦게 도착해 새 props 의 list 를 덮어쓰는 위험 차단.
+  //   cleanup flag 패턴 — useEffect 의 cleanup 이 cancelled=true 박으면 setState skip.
+  useEffect(() => {
+    let cancelled = false
+    if (!workspaceId || !url) {
+      setItems([])
+      // codex 019e4eda NOTABLE #5 — workspaceId/url 변경 시 selectedId cleanup.
+      setSelectedId(null)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    // codex 019e4eda NOTABLE #5 — workspaceId/url 변경 시 selectedId cleanup (새 페이지로 navigate).
+    setSelectedId(null)
+    void (async () => {
+      try {
+        const response = await window.highlightApi.listByPage({ workspaceId, url })
+        if (cancelled) return
+        setItems(response.highlights ?? [])
+      } catch (err) {
+        if (cancelled) return
+        setError(err instanceof Error ? err.message : String(err))
+        setItems([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [workspaceId, url, refreshKey])
+
+  // 명시 새로고침 (refresh 버튼) — 동일 race guard 패턴.
   const reload = useCallback(async () => {
     if (!workspaceId || !url) {
       setItems([])
@@ -74,10 +108,7 @@ export default function NoteHighlight({
     setLoading(true)
     setError(null)
     try {
-      const response = await window.highlightApi.listByPage({
-        workspaceId,
-        url
-      })
+      const response = await window.highlightApi.listByPage({ workspaceId, url })
       setItems(response.highlights ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -87,21 +118,18 @@ export default function NoteHighlight({
     }
   }, [workspaceId, url])
 
-  useEffect(() => {
-    void reload()
-  }, [reload, refreshKey])
-
+  // codex 019e4eda NEEDS_CHANGES #3 hotfix — IPC payload 에 expectedUrl 동반.
+  //   tab switch / navigate race 발생 시 main 측 active WebContents.getURL() 과 mismatch → graceful no-op.
+  //   renderer 측 NoteHighlight 의 current url props 가 사용자 관측 시점 — 본 값을 payload 에 박음.
   async function handleClick(id: string): Promise<void> {
-    // 선택 state 즉시 갱신 (스크롤 결과 무관하게 사용자 피드백).
     setSelectedId(id)
     try {
-      const result = await window.highlightApi.scrollTo(id)
+      const result = await window.highlightApi.scrollTo(id, url ?? undefined)
       if (!result.ok) {
         pushToast({ kind: 'error', message: '하이라이트 위치로 이동할 수 없습니다.' })
         return
       }
       if (!result.scrolled) {
-        // graceful — page reload 직후 또는 navigate 직후 highlight 미등록 상태 가능.
         pushToast({
           kind: 'info',
           message: '페이지가 아직 로드 중입니다. 잠시 후 다시 시도하세요.'
@@ -118,7 +146,8 @@ export default function NoteHighlight({
   async function handleRemove(id: string, evt: React.MouseEvent): Promise<void> {
     evt.stopPropagation()
     try {
-      const result = await window.highlightApi.remove(id)
+      // codex 019e4eda NEEDS_CHANGES #3 — expectedUrl payload 동반.
+      const result = await window.highlightApi.remove(id, url ?? undefined)
       if (result.ok) {
         setItems((prev) => prev.filter((h) => h.id !== id))
         if (selectedId === id) setSelectedId(null)

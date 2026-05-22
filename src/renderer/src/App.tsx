@@ -70,20 +70,31 @@ export default function App(): JSX.Element {
 
   // Sprint 017 M1 T08 — browser:navigated 구독해서 활성 페이지 URL 추적. NoteHighlight 의 listByPage 입력.
   //   초기 url 은 boot 단계에서 getCurrentUrl 로 1회 fetch + 그 후 onNavigated 로 갱신.
+  //   codex 019e4eda NEEDS_CHANGES #2 hotfix — getCurrentUrl async race guard.
+  //     초기 IPC 응답이 늦게 도착해 새 onNavigated payload 덮어쓰는 위험 차단.
+  //     navigatedSinceMount flag — onNavigated 가 1번이라도 fire 후 getCurrentUrl 응답 무시.
   useEffect(() => {
     if (stage !== 'browser') return
+    let cancelled = false
+    let navigatedSinceMount = false
     void (async () => {
       try {
         const u = await window.browserApi.getCurrentUrl()
+        // codex hotfix — onNavigated 가 이미 fire 했으면 stale getCurrentUrl 응답 무시.
+        if (cancelled || navigatedSinceMount) return
         setActiveUrl(u || null)
       } catch {
-        setActiveUrl(null)
+        if (!cancelled && !navigatedSinceMount) setActiveUrl(null)
       }
     })()
     const unsubscribe = window.browserApi.onNavigated((payload) => {
+      navigatedSinceMount = true
       setActiveUrl(payload.url || null)
     })
-    return () => unsubscribe()
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [stage])
 
   // Sprint 017 M1 T08 (codex 019e4ec8 #4, KI-024 graceful) — main 측 highlight:toast broadcast 구독.

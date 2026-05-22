@@ -97,7 +97,15 @@ export default function ToastHost(): JSX.Element {
   )
 }
 
-/** 단위 테스트 reset — 운영 사용 금지. */
+/**
+ * Sprint 017 M1 T08 (codex 019e4eda NOTABLE #6) — 단위 테스트 reset.
+ *
+ * **운영 사용 절대 금지**. 본 함수 호출 시 `listeners.clear()` 가 mounted ToastHost / 다른 컴포넌트의
+ * useToast subscription 까지 모두 disconnect — runtime 호출 시 toast 영구 미표시 위험.
+ *
+ * 함수명 prefix `__` 는 의도된 private 표시. 단위 회귀 (`__resetToastsForTest()`) 외 import 금지.
+ * production code 의 lint 또는 review 단계에서 import 발견 시 즉시 제거.
+ */
 export function __resetToastsForTest(): void {
   activeToasts = []
   listeners.clear()

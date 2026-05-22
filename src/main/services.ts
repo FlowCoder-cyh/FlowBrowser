@@ -627,14 +627,28 @@ function registerHighlightIpc(): void {
   )
   ipcMain.handle(
     'highlight:remove',
-    async (_event, args: HighlightRemoveArgs): Promise<HighlightRemoveResponse> => {
+    async (
+      _event,
+      args: HighlightRemoveArgs & { expectedUrl?: string }
+    ): Promise<HighlightRemoveResponse> => {
+      // codex 019e4eda NEEDS_CHANGES #3 — expectedUrl 가 명시되면 active WebContents URL 과 매칭 강제.
+      //   tab switch / navigate race 시 잘못된 highlight 삭제 차단. 매칭 mismatch 시 ok:false (store 도 skip).
+      if (args.expectedUrl && activeWebContentsGetter) {
+        const wc = activeWebContentsGetter()
+        if (wc && !wc.isDestroyed() && wc.getURL() !== args.expectedUrl) {
+          console.warn(
+            '[highlight:remove] expectedUrl mismatch — graceful skip',
+            JSON.stringify({ expected: args.expectedUrl, actual: wc.getURL() })
+          )
+          return { ok: false }
+        }
+      }
       const response = handleHighlightRemove(args, {
         getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getHighlightStore: () => highlightStore,
         getNoteService: () => noteService
       })
       // Sprint 017 M1 T08 (codex 019e4ec8 #2) — store DELETE 성공 시 active page context visual delete.
-      //   DB row 와 page `CSS.highlights` registry 가 별도 상태이므로 명시 호출 강제.
       if (response.ok && args.id && activeWebContentsGetter) {
         try {
           const wc = activeWebContentsGetter()
@@ -652,16 +666,26 @@ function registerHighlightIpc(): void {
     }
   )
   // Sprint 017 M1 T08 — `highlight:scroll-to` IPC 신규 (NoteHighlight list item 클릭 시).
-  //   페이지 컨텍스트에서 highlight first range 의 element scrollIntoView smooth/center.
-  //   active WebContents 미주입 / non-http(s) / API 미지원 시 graceful no-op (UI 측 자체 fallback).
+  //   active WebContents 미주입 / non-http(s) / API 미지원 시 graceful no-op.
+  //   codex 019e4eda NEEDS_CHANGES #3 — expectedUrl mismatch 시 graceful no-op (잘못된 탭에 scroll 방지).
   ipcMain.handle(
     'highlight:scroll-to',
-    async (_event, args: { id: string }): Promise<{ ok: boolean; scrolled: boolean }> => {
+    async (
+      _event,
+      args: { id: string; expectedUrl?: string }
+    ): Promise<{ ok: boolean; scrolled: boolean }> => {
       if (!args?.id) return { ok: false, scrolled: false }
       if (!activeWebContentsGetter) return { ok: true, scrolled: false }
       try {
         const wc = activeWebContentsGetter()
         if (!wc || wc.isDestroyed()) return { ok: true, scrolled: false }
+        if (args.expectedUrl && wc.getURL() !== args.expectedUrl) {
+          console.warn(
+            '[highlight:scroll-to] expectedUrl mismatch — graceful skip',
+            JSON.stringify({ expected: args.expectedUrl, actual: wc.getURL() })
+          )
+          return { ok: true, scrolled: false }
+        }
         const result = await runHighlightScrollTo(wc, args.id)
         return { ok: result?.ok ?? true, scrolled: result?.scrolled ?? false }
       } catch (err) {

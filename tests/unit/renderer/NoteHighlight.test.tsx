@@ -203,7 +203,8 @@ describe('NoteHighlight — remove + 재로드', () => {
     const btn = screen.getByLabelText(/하이라이트 삭제: 삭제대상/)
     fireEvent.click(btn)
     await flush()
-    expect(fx.removeSpy).toHaveBeenCalledWith('h-1')
+    // codex 019e4eda NEEDS_CHANGES #3 — expectedUrl 동반 payload (두 번째 인자).
+    expect(fx.removeSpy).toHaveBeenCalledWith('h-1', 'https://example.com')
     expect(screen.queryByText('삭제대상')).toBeNull()
   })
 
@@ -263,7 +264,7 @@ describe('NoteHighlight — Sprint 017 M1 T08 클릭/포커스/scrollTo', () => 
     const btn = screen.getByLabelText(/이동:.*TARGET/)
     fireEvent.click(btn)
     await flush()
-    expect(fx.scrollToSpy).toHaveBeenCalledWith('h-target')
+    expect(fx.scrollToSpy).toHaveBeenCalledWith('h-target', 'https://example.com')
   })
 
   it('클릭 후 selected state — aria-pressed=true + selected class', async () => {
@@ -306,7 +307,7 @@ describe('NoteHighlight — Sprint 017 M1 T08 클릭/포커스/scrollTo', () => 
     await flush()
     fireEvent.click(screen.getByLabelText(/하이라이트 삭제: STOP/))
     await flush()
-    expect(fx.removeSpy).toHaveBeenCalledWith('h-stop')
+    expect(fx.removeSpy).toHaveBeenCalledWith('h-stop', 'https://example.com')
     expect(fx.scrollToSpy).not.toHaveBeenCalled()
   })
 
@@ -320,7 +321,7 @@ describe('NoteHighlight — Sprint 017 M1 T08 클릭/포커스/scrollTo', () => 
     // throw 없이 정상 진행
     fireEvent.click(screen.getByLabelText(/이동:.*G/))
     await flush()
-    expect(fx.scrollToSpy).toHaveBeenCalledWith('h-graceful')
+    expect(fx.scrollToSpy).toHaveBeenCalledWith('h-graceful', 'https://example.com')
   })
 
   it('selected state 미선택 시 default — aria-pressed=false', async () => {
@@ -331,5 +332,111 @@ describe('NoteHighlight — Sprint 017 M1 T08 클릭/포커스/scrollTo', () => 
     await flush()
     const btn = screen.getByLabelText(/이동:.*A/)
     expect(btn.getAttribute('aria-pressed')).toBe('false')
+  })
+})
+
+/**
+ * Sprint 017 M1 T08 dual review hotfix (codex 019e4eda) — race guard + selectedId cleanup + expectedUrl payload.
+ *
+ * cover:
+ *   1. workspaceId / url 변경 시 selectedId null cleanup (NOTABLE #5)
+ *   2. scrollTo / remove 호출 시 expectedUrl payload 동반 (NEEDS_CHANGES #3)
+ *   3. 사용자 클릭 후 URL 변경 발생해도 stale selectedId 가 stale page 의 잘못된 id 와 매칭되지 않음
+ */
+describe('NoteHighlight — Sprint 017 M1 T08 dual review hotfix (codex 019e4eda)', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setupFx()
+  })
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  it('NOTABLE #5 — workspaceId 변경 시 selectedId null cleanup', async () => {
+    fx.listSpy.mockResolvedValue({
+      highlights: [makeRecord({ id: 'h-sel', anchor: { ...makeRecord().anchor, selectedText: 'SEL' } })]
+    })
+    const { rerender } = render(<NoteHighlight workspaceId={'ws-1'} url={'https://a.com'} />)
+    await flush()
+    // 클릭 → selected
+    fireEvent.click(screen.getByLabelText(/이동:.*SEL/))
+    await flush()
+    expect(screen.getByLabelText(/이동:.*SEL/).getAttribute('aria-pressed')).toBe('true')
+    // ws 변경 → selectedId cleanup
+    rerender(<NoteHighlight workspaceId={'ws-2'} url={'https://a.com'} />)
+    await flush()
+    // 새 list 응답 (ws-2) 받은 후 — 동일 selectedText 'SEL' 가 있으면 aria-pressed false 여야 함
+    const btn = screen.queryByLabelText(/이동:.*SEL/)
+    if (btn) expect(btn.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('NOTABLE #5 — url 변경 시 selectedId null cleanup', async () => {
+    fx.listSpy.mockResolvedValue({
+      highlights: [makeRecord({ id: 'h-sel', anchor: { ...makeRecord().anchor, selectedText: 'SEL' } })]
+    })
+    const { rerender } = render(<NoteHighlight workspaceId={'ws-1'} url={'https://a.com'} />)
+    await flush()
+    fireEvent.click(screen.getByLabelText(/이동:.*SEL/))
+    await flush()
+    expect(screen.getByLabelText(/이동:.*SEL/).getAttribute('aria-pressed')).toBe('true')
+    rerender(<NoteHighlight workspaceId={'ws-1'} url={'https://b.com'} />)
+    await flush()
+    const btn = screen.queryByLabelText(/이동:.*SEL/)
+    if (btn) expect(btn.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('NEEDS_CHANGES #3 — scrollTo 호출 시 expectedUrl payload 동반', async () => {
+    fx.listSpy.mockResolvedValue({
+      highlights: [makeRecord({ id: 'h-1', anchor: { ...makeRecord().anchor, selectedText: 'TARGET' } })]
+    })
+    render(<NoteHighlight workspaceId={'ws-1'} url={'https://specific.com/path'} />)
+    await flush()
+    fireEvent.click(screen.getByLabelText(/이동:.*TARGET/))
+    await flush()
+    // expectedUrl 가 payload 에 박힘 (두 번째 인자)
+    expect(fx.scrollToSpy).toHaveBeenCalledWith('h-1', 'https://specific.com/path')
+  })
+
+  it('NEEDS_CHANGES #3 — remove 호출 시 expectedUrl payload 동반', async () => {
+    fx.listSpy.mockResolvedValue({
+      highlights: [makeRecord({ id: 'h-1', anchor: { ...makeRecord().anchor, selectedText: 'RM' } })]
+    })
+    fx.removeSpy.mockResolvedValue({ ok: true })
+    render(<NoteHighlight workspaceId={'ws-1'} url={'https://specific.com/path'} />)
+    await flush()
+    fireEvent.click(screen.getByLabelText(/하이라이트 삭제: RM/))
+    await flush()
+    expect(fx.removeSpy).toHaveBeenCalledWith('h-1', 'https://specific.com/path')
+  })
+
+  it('BLOCKING #1 — stale listByPage 응답 race guard (cleanup flag)', async () => {
+    // 1차 응답 — 늦게 resolve. 2차 응답 — 먼저 resolve.
+    let resolveFirst: (v: { highlights: unknown[] }) => void = () => {}
+    const firstPromise = new Promise<{ highlights: unknown[] }>((res) => {
+      resolveFirst = res
+    })
+    fx.listSpy.mockReturnValueOnce(firstPromise)
+    fx.listSpy.mockResolvedValueOnce({
+      highlights: [makeRecord({ id: 'h-new', anchor: { ...makeRecord().anchor, selectedText: 'NEW' } })]
+    })
+
+    const { rerender } = render(<NoteHighlight workspaceId={'ws-1'} url={'https://a.com'} />)
+    // 첫 fetch 시작 (firstPromise pending)
+    await flush()
+
+    // url 변경 → 2차 fetch (즉시 resolve)
+    rerender(<NoteHighlight workspaceId={'ws-1'} url={'https://b.com'} />)
+    await flush()
+    expect(screen.getByText('NEW')).toBeTruthy()
+
+    // 1차 응답 늦게 도착 — stale 이라 setState 무시 (cleanup flag) → 'OLD' 표시 안 됨
+    resolveFirst({
+      highlights: [makeRecord({ id: 'h-old', anchor: { ...makeRecord().anchor, selectedText: 'OLD' } })]
+    })
+    await flush()
+    // 2차 응답 NEW 가 그대로 표시
+    expect(screen.queryByText('OLD')).toBeNull()
+    expect(screen.getByText('NEW')).toBeTruthy()
   })
 })
