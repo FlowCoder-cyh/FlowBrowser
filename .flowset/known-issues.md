@@ -327,17 +327,17 @@
 - **처리 예정 Sprint**: Phase 3 후속 R&D 또는 별도 PDF spike
 - **상태**: `open`
 
-### KI-024 [open] HighlightStore Shadow DOM cross-boundary range graceful fallback 부재
+### KI-024 [closed] HighlightStore Shadow DOM cross-boundary range graceful fallback 부재
 
 - **Severity**: LOW
-- **Phase**: 1
-- **Sprint**: 016 (M4 T20 PR #215 evaluator KI 후보 2)
-- **Component**: `src/perception/highlightAnchor.ts` (`assertWithinRoot` L226-231 throw path)
+- **Phase**: 1 → Sprint 017 M1 T08 closed
+- **Sprint**: 016 (M4 T20 PR #215 evaluator KI 후보 2) → 017 M1 T08 PR #226 closed
+- **Component**: `src/perception/highlightAnchor.ts` (`assertWithinRoot` L226-231 throw path) + `src/main/index.ts` (`handleContextMenuHighlight` errorCode broadcast) + `src/renderer/src/App.tsx` (`highlightApi.onToast` 구독)
 - **영향**: Shadow DOM 안 (open / closed shadow root) 의 text 선택 시 Range.startContainer 가 root.contains() 외부 → `serializeRange` throw. 사용자 인지: 일부 사이트 (Notion / Slack web / 일부 SPA) 에서 하이라이트 미동작 + graceful fallback 없음. 본 PR throw 정책 정합이나 호출자 (renderer overlay) 가 사용자에게 안내 메시지 미전달 시 silent 실패.
 - **재현 절차**: Shadow DOM 컴포넌트 (예: Notion 노트 본문) 안 텍스트 선택 → 하이라이트 trigger → console error 만, UI 무반응.
 - **권고 해소 방향**: (1) renderer overlay 후속 PR 에서 try/catch + 사용자 toast "이 영역의 하이라이트는 미지원 — Shadow DOM" 표시. (2) Phase 3 후속 — open Shadow DOM 진입 path (root.shadowRoot.contains(node) 검사) + closed Shadow DOM 명시 미지원. (3) selection event listener 에서 사전 검사 + 버튼 비활성.
 - **처리 예정 Sprint**: 016 후속 (renderer overlay PR) 또는 Phase 3
-- **상태**: `open`
+- **상태**: `closed` (Sprint 017 M1 T08 PR #226 `db1d18f` — `handleContextMenuHighlight` 의 `serialized.errorCode` (`no_selection` / `unsupported_selection` / `serialize_failed`) 시 `mainWindow.send('highlight:toast', {kind, message, errorCode})` broadcast + renderer `App.tsx` 의 `highlightApi.onToast` 구독 → `pushToast` 전역 ToastHost 표시. Shadow DOM 영역 시 한글 메시지 "이 영역(iframe / Shadow DOM)의 텍스트는 아직 하이라이트할 수 없습니다." 노출. **실제 open/closed Shadow DOM anchor 지원** 자체는 별도 후속 KI 추적, 본 KI 는 graceful toast 정합 closure.)
 
 ### KI-025 [open] HighlightStore contentHash 미일치 시 path 폐기 보수성 (사용자 데이터 회복률 영향)
 
@@ -349,6 +349,18 @@
 - **재현 절차**: ws A 에서 페이지 X 의 "quick brown fox" 선택 → 하이라이트 생성 → 페이지 X 다음 방문 시 새 광고 div 1개 추가 (contentHash 변경) → fuzzy 매칭 성공 시 OK, prefix/suffix 가 짧고 collision 시 실패.
 - **권고 해소 방향**: (1) Phase 3 후속 — confidence score 노출 (high: contentHash + path / medium: path + selectedText / low: fuzzy / dropped: ambiguous). UI 에서 low/dropped 시 사용자에게 "위치 추정 — 검증 필요" 안내. (2) contentHash mismatch + path text 매칭 시 low-confidence 후보 유지 옵션. (3) codex NB-3 — element container path 의 canonicalize (start/end 모두 text node 우선) 가능. (4) codex NB-5 — `computeContextHash` delimiter U+241F 대신 `JSON.stringify([prefix, selectedText, suffix])` 또는 length-prefix 사용 시 collision 완전 차단.
 - **처리 예정 Sprint**: Phase 3 후속 R&D
+- **상태**: `open`
+
+### KI-030 [open] App.tsx App-level 회귀 cover gap (onNavigated / Chat/Notes 탭 / getCurrentUrl race / activeWebContentsGetter cycle)
+
+- **Severity**: LOW
+- **Phase**: 3
+- **Sprint**: 017 (M1 T08 dual review codex 019e4eda NOTABLE #7)
+- **Component**: `src/renderer/src/App.tsx` (T08 추가 useEffect 2종 — activeUrl race guard + highlightApi.onToast 구독) + `src/main/index.ts` (`setActiveWebContentsGetter` hook) + `src/renderer/src/App.tsx` (Chat/Notes 탭 토글 sidePanelTab state)
+- **영향**: T08 PR 에서 race guard 코드 path 박혔으나 React testing 측 회귀 누락. App.tsx 가 dependency 많은 큰 컴포넌트 (consentApi / workspaceApi / userSettingApi / browserApi / highlightApi / shortcutApi / chatApi / etc.) → mock 부담 큼. 본 PR 위임. 정상 사용자 path 영향 X (코드 path 자체는 lint / typecheck / build / 통합 부분 회귀로 cover) — 다만 future refactor 시 race regression 잠재 위험.
+- **재현 절차**: (1) App.tsx 의 `useEffect([stage])` 안 cleanup 누락 회귀 (예: navigatedSinceMount flag 제거 후 stale URL setState) 도입. (2) 단위 회귀 없음 → CI 통과. (3) 사용자 시점 다중 탭 빠른 전환 시 stale URL 가 NoteHighlight 에 박힘 → 다른 페이지의 highlight 가 노출되는 위험.
+- **권고 해소 방향**: (1) App.tsx 의 useEffect 일부 분리 → 별도 hook (`useActiveUrl()`, `useHighlightToast()`) 추출 후 단위 회귀. (2) 또는 별도 통합 회귀 — `tests/integration/scenarios/app-navigation.test.ts` 신규 (mock minimal API 5종). (3) Sprint 017 M5 종합 evaluator 시점 또는 Phase 3 후속 R&D batch.
+- **처리 예정 Sprint**: Phase 3 M5 종합 또는 후속 R&D
 - **상태**: `open`
 
 ### KI-029 [open] migrateV04ToV05 의 sentinel-only idempotency — schema invariant self-healing 부재
@@ -404,25 +416,25 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 22 | **18** | **9** |
+| Phase 1 | 1 | 4 | 22 | **19** | **8** |
 | Phase 2 | — | — | 1 | — | 1 |
-| Phase 3 | — | — | 1 | — | 1 |
+| Phase 3 | — | — | 2 | — | 2 |
 
-**Phase 1 closed 18 내역** (Sprint 017 M0 T03 시점 — KI-009 closed 반영 + T02 시점 LOW open carryover stale 정정):
+**Phase 1 closed 19 내역** (Sprint 017 M1 T08 시점 — KI-024 closed 반영):
 - **HIGH closed 1**: KI-003 (Sprint 015 M5-5 BYOK wiring 완료, Sprint 016 M5 T25 status 자가 전환)
 - **MEDIUM closed 1**: KI-007 (T03c #173)
-- **LOW closed 16**: KI-002 (T12 #202) / KI-005 (T21 #210) / KI-008 (T17 #208) / **KI-009 (Sprint 017 M0 T03 — @testing-library/react + MemoryStatsPanel.test.tsx 10 케이스)** / KI-010 (T05 #176) / KI-011~016 (T06 perf bench, T25 — 6건) / KI-017 (T03b #172) / KI-018 / KI-019 (T23 #217 산식 cover, T25) / KI-026 (T24 §11.11 신설, T25) / KI-027 (Sprint 017 M0 T02 — `idNormalize.ts` 신규 + 3 site 방어선 적용)
+- **LOW closed 17**: KI-002 (T12 #202) / KI-005 (T21 #210) / KI-008 (T17 #208) / KI-009 (Sprint 017 M0 T03 — @testing-library/react + MemoryStatsPanel.test.tsx 10 케이스) / KI-010 (T05 #176) / KI-011~016 (T06 perf bench, T25 — 6건) / KI-017 (T03b #172) / KI-018 / KI-019 (T23 #217 산식 cover, T25) / **KI-024 (Sprint 017 M1 T08 PR #226 — `handleContextMenuHighlight` errorCode → `highlight:toast` broadcast graceful path)** / KI-026 (T24 §11.11 신설, T25) / KI-027 (Sprint 017 M0 T02 — `idNormalize.ts` 신규 + 3 site 방어선 적용)
 
-**Phase 1 open 9 내역**:
+**Phase 1 open 8 내역**:
 - HIGH 0
 - MEDIUM 3 (1 in-progress): KI-001 (in-progress, macOS PoC 1차 + 2차 matrix carryover) / KI-004 (response_format API-level, Sprint 017 M3 또는 carryover) / KI-006 (abort 정책 carryover)
-- LOW 6: KI-020 (SPA did-navigate-in-page) / KI-022 (Import embedding_queue re-enqueue) / KI-023 (PDF viewer DOM range) / KI-024 (Shadow DOM cross-boundary) / KI-025 (contentHash 폐기 보수성, Phase 3 R&D) / KI-028 (chatHandlers/ChatService nullable FK normalize 후속, Sprint 017 M0 T02 codex separate KI candidate)
+- LOW 5: KI-020 (SPA did-navigate-in-page) / KI-022 (Import embedding_queue re-enqueue) / KI-023 (PDF viewer DOM range) / KI-025 (contentHash 폐기 보수성, Phase 3 R&D) / KI-028 (chatHandlers/ChatService nullable FK normalize 후속, Sprint 017 M0 T02 codex separate KI candidate)
 
 **Phase 2 잔여 1**: KI-021 (partition cleanup reconcile, Sprint 017 M2 T11 박음)
 
-**Phase 3 잔여 1**: KI-029 (migrateV04ToV05 sentinel-only idempotency self-healing 부재, Sprint 017 M1 T07 codex 019e4e82 NOTABLE #3 — Phase 3 M3 또는 후속 batch)
+**Phase 3 잔여 2**: KI-029 (migrateV04ToV05 sentinel-only idempotency self-healing 부재, Sprint 017 M1 T07 codex 019e4e82 NOTABLE #3) / **KI-030 (App.tsx App-level 회귀 cover gap, Sprint 017 M1 T08 codex 019e4eda NOTABLE #7 — App.tsx hook 분해 후 단위 회귀 추가)**
 
-**총 잔여 11** (Phase 1 9 + Phase 2 1 + Phase 3 1). Sprint 017 진행 누적 closed: T02 KI-027 + T03 KI-009 = **+2**. 신규 +2 (T02 KI-028 carryover + T07 KI-029 신규).
+**총 잔여 11** (Phase 1 8 + Phase 2 1 + Phase 3 2). Sprint 017 진행 누적 closed: T02 KI-027 + T03 KI-009 + T08 KI-024 = **+3**. 신규 +3 (T02 KI-028 + T07 KI-029 + T08 KI-030).
 
 ---
 
