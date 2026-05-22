@@ -351,6 +351,18 @@
 - **처리 예정 Sprint**: Phase 3 후속 R&D
 - **상태**: `open`
 
+### KI-029 [open] migrateV04ToV05 의 sentinel-only idempotency — schema invariant self-healing 부재
+
+- **Severity**: LOW
+- **Phase**: 3
+- **Sprint**: 017 (M1 T07 codex 019e4e82 NOTABLE #3)
+- **Component**: `src/storage/migrations/v04_to_v05.ts:135~150`
+- **영향**: `schema_meta.migration_v05_applied` sentinel 박힘 시 `already_migrated` skip 분기 — 단, sentinel 만 박혀 있고 `highlights` 테이블 또는 인덱스가 누락된 경우 (수동 DB 손상 / 부분 복구 / 향후 v06 transition 시 partial state) self-healing 없이 영구 skip. 정상 사용자 path 영향 X (sentinel + 마이그레이션 함수 단일 path 보장) — 다만 disaster recovery 시점 brittle.
+- **재현 절차**: (1) v05 마이그레이션 완료 (`migration_v05_applied` 박힘) (2) 사용자가 DB 직접 편집 (`DROP TABLE highlights`) (3) 부팅 → `migrateV04ToV05` 가 `already_migrated` skip → highlights 테이블 영구 미생성.
+- **권고 해소 방향**: (1) `already_migrated` 분기 진입 시점에 `sqlite_master.tbl_name='highlights'` + 4종 인덱스 존재 검사. (2) 불일치 시 sentinel 무시하고 마이그레이션 재진행 또는 `schema_invariant_failed` 상태 반환 + 사용자 알림. (3) 추가 회귀 — sentinel 박힘 + highlights 삭제 시나리오 cover.
+- **처리 예정 Sprint**: Phase 3 M3 또는 후속 (MVP 직전 정리 batch)
+- **상태**: `open`
+
 ### KI-028 [open] chatHandlers / ChatService / ai_chat_history 의 pageId/visitId nullable FK normalize 후속
 
 - **Severity**: LOW
@@ -394,7 +406,7 @@
 |---|---|---|---|---|---|
 | Phase 1 | 1 | 4 | 22 | **18** | **9** |
 | Phase 2 | — | — | 1 | — | 1 |
-| Phase 3 | — | — | — | — | — |
+| Phase 3 | — | — | 1 | — | 1 |
 
 **Phase 1 closed 18 내역** (Sprint 017 M0 T03 시점 — KI-009 closed 반영 + T02 시점 LOW open carryover stale 정정):
 - **HIGH closed 1**: KI-003 (Sprint 015 M5-5 BYOK wiring 완료, Sprint 016 M5 T25 status 자가 전환)
@@ -408,7 +420,9 @@
 
 **Phase 2 잔여 1**: KI-021 (partition cleanup reconcile, Sprint 017 M2 T11 박음)
 
-**총 잔여 10** (Phase 1 9 + Phase 2 1). Sprint 017 M0 진행 누적 closed: T02 KI-027 + T03 KI-009 = **+2**. 신규 +1 (T02 KI-028 carryover). T02 시점 LOW open 명단 vs 카운트 stale 1건 (이전 "LOW 7 / 명단 6") 본 T03 PR 에 흡수 (codex T03 dual review Finding 1 정합).
+**Phase 3 잔여 1**: KI-029 (migrateV04ToV05 sentinel-only idempotency self-healing 부재, Sprint 017 M1 T07 codex 019e4e82 NOTABLE #3 — Phase 3 M3 또는 후속 batch)
+
+**총 잔여 11** (Phase 1 9 + Phase 2 1 + Phase 3 1). Sprint 017 진행 누적 closed: T02 KI-027 + T03 KI-009 = **+2**. 신규 +2 (T02 KI-028 carryover + T07 KI-029 신규).
 
 ---
 

@@ -556,3 +556,48 @@ describe('handleHighlightRemove', () => {
     expect(fx.highlightStore.size()).toBe(0)
   })
 })
+
+/**
+ * Sprint 017 M1 T07 hotfix (codex 019e4e82 NEEDS_CHANGES #1) — composite branch FK error boundary.
+ *
+ * SQLite swap 후 `noteService.createNote` 가 FK violation (workspace_id / page_id stale) 시 throw 가능 →
+ * IPC handler 가 reject 되지 않고 `{ ok:false, errorCode }` graceful 응답으로 감싸야 함.
+ */
+describe('handleHighlightCreate — composite branch FK error boundary (codex 019e4e82 #1)', () => {
+  it('noteService.createNote throw → graceful ok=false + errorCode=invalid_input', async () => {
+    const fb = FlowbrowserDatabase.openInMemory()
+    fb.applySchema()
+    const ws = fb.ensureDefaultWorkspace()
+    // noteService throw stub — createNote 호출 시 FK violation 메시지 throw
+    const throwingNoteService = {
+      createNote: async () => {
+        throw new Error('FOREIGN KEY constraint failed')
+      },
+      getNote: () => null
+    } as unknown as NoteService
+    const highlightStore = new HighlightStore()
+    try {
+      const r = await handleHighlightCreate(
+        {
+          url: 'https://example.com',
+          contentHash: 'h',
+          anchor: makeAnchor(),
+          selectedText: 'test selection'
+          // noteId 미명시 → composite branch (noteService.createNote 호출)
+        },
+        {
+          getActiveWorkspaceId: () => ws.id,
+          getHighlightStore: () => highlightStore,
+          getNoteService: () => throwingNoteService
+        }
+      )
+      expect(r.ok).toBe(false)
+      if (!r.ok) {
+        expect(r.errorCode).toBe('invalid_input')
+        expect(r.error).toMatch(/FOREIGN KEY/)
+      }
+    } finally {
+      fb.close()
+    }
+  })
+})

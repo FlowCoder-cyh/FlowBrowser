@@ -22,7 +22,8 @@ import {
   FlowbrowserDatabase,
   DEFAULT_WORKSPACE_NAME,
   DEFAULT_WORKSPACE_ICON,
-  V04_SCHEMA_VERSION
+  V04_SCHEMA_VERSION,
+  V05_SCHEMA_VERSION
 } from '../../../src/storage/Database'
 
 const EXPECTED_TABLES = [
@@ -146,10 +147,13 @@ describe('FlowbrowserDatabase', () => {
       expect(() => db.applySchema()).not.toThrow()
     })
 
-    it('writes schema_meta.version = V04_SCHEMA_VERSION', () => {
+    it('writes schema_meta.version = V05_SCHEMA_VERSION (Sprint 017 M1 T07 — v05 canonical schema)', () => {
       const meta = db.getSchemaMeta('version')
       expect(meta).not.toBeNull()
-      expect(meta?.value).toBe(String(V04_SCHEMA_VERSION))
+      // applySchema 가 v05.sql 적용 시점에 version = V05_SCHEMA_VERSION 박음.
+      // V04_SCHEMA_VERSION (=1) 은 v04 DB sentinel 식별용 (마이그레이션 함수 진입 판정).
+      expect(meta?.value).toBe(String(V05_SCHEMA_VERSION))
+      expect(meta?.value).not.toBe(String(V04_SCHEMA_VERSION))
       expect(meta?.updated_at).toBeGreaterThan(0)
     })
   })

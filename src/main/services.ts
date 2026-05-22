@@ -85,7 +85,9 @@ import {
   type NoteDeleteResponse
 } from './noteHandlers'
 // Sprint 017 M1 T06 — HighlightStore wiring + IPC handler 4종.
+//   Sprint 017 M1 T07 — `migrateV04ToV05` 동반 import (G-014 정합 자동 백업 + applySchema + sentinel).
 import { HighlightStore } from '../storage'
+import { migrateV04ToV05 } from '../storage'
 import {
   handleHighlightCreate,
   handleHighlightListByPage,
@@ -429,17 +431,26 @@ export async function initServices(): Promise<void> {
   shortcutStore = new ShortcutStore(defaultShortcutPath(userDataDir))
   await shortcutStore.load()
 
-  // Sprint 017 M1 T06 — HighlightStore (in-memory) bootstrap.
-  //   SQLite 의존 0 — bootstrap 실패와 무관하게 단독 instance.
-  //   T07 SQLite swap 시점에 본 라인이 SQLite-backed 인스턴스로 교체.
-  highlightStore = new HighlightStore()
+  // Sprint 017 M1 T07 — HighlightStore in-memory fallback (SQLite native 로드 실패 시 graceful path).
+  //   bootstrap 성공 후 `new HighlightStore(flowbrowserDb)` 로 재할당 (영속 활성).
+  //   codex 019e4dd1 #4 + 019e4e82 NOTABLE #5 정합 — 명시 factory `inMemoryForFallback()` 사용
+  //   (silent in-memory production footgun 차단 — `new HighlightStore()` no-arg 는 단위 테스트 한정).
+  highlightStore = HighlightStore.inMemoryForFallback()
 
-  // Sprint 015 M5-3b — v0.4 SQLite 인프라 (FlowbrowserDatabase + VectorIndex + IndexedPageStoreSqlite + NoteStore + SearchService).
+  // Sprint 015 M5-3b → Sprint 017 M1 T07 — bootstrap 분해 (G-014 정합, codex 019e4dd1 BLOCKING).
+  //   기존: `FlowbrowserDatabase.bootstrap({path})` (open + applySchema + ensureDefaultWorkspace 한 번에)
+  //   변경: open → migrateV04ToV05 (백업 + applySchema + sentinel) → ensureDefaultWorkspace
+  //   이유: v04 → v05 schema 변경 전 `<userDataDir>/backup/v04/<ISO_ts>/flowbrowser.db` 자동 백업 강제.
   // bootstrap 실패 (sqlite-vec native 로드 실패 등) 시 검색만 graceful disable — 다른 IPC 는 정상 동작.
   // M3 PoC 시점 (specs/m3-spike-decisions.md) windows-x64 검증 완료, macOS 미검증 (KI-001 추적).
   try {
     const dbPath = join(userDataDir, 'flowbrowser.db')
-    flowbrowserDb = FlowbrowserDatabase.bootstrap({ path: dbPath })
+    flowbrowserDb = FlowbrowserDatabase.open({ path: dbPath })
+    // Sprint 017 M1 T07 — V4 → V5 자동 마이그레이션 (G-014 dry-run + 백업 + sentinel).
+    //   fresh install 시 백업 skip + applySchema(v05) + sentinel 박힘.
+    //   v04 DB 시 `<userDataDir>/backup/v04/<ISO_ts>/flowbrowser.db` 자동 백업 (WAL safe snapshot) + applySchema(v05) + sentinel.
+    //   already_migrated 시 skip.
+    await migrateV04ToV05({ userDataDir, fb: flowbrowserDb })
     const defaultWs = flowbrowserDb.ensureDefaultWorkspace()
     defaultWorkspaceId = defaultWs.id
     vectorIndex = new VectorIndex(flowbrowserDb)
@@ -449,6 +460,10 @@ export async function initServices(): Promise<void> {
     noteStore = new NoteStore(flowbrowserDb)
     aiChatHistoryStore = new AiChatHistoryStore(flowbrowserDb)
     embeddingQueue = new EmbeddingQueue(flowbrowserDb)
+    // Sprint 017 M1 T07 — HighlightStore SQLite-backed 재할당.
+    //   codex 019e4dd1 #4 정합 — DB bootstrap 성공 후 SQLite backend 으로 swap.
+    //   v05.sql 의 `highlights` 테이블 prepared statements 박힘. 영속 활성.
+    highlightStore = new HighlightStore(flowbrowserDb)
     searchService = new SearchService({
       vectorIndex,
       pageStore: indexedPageStore,
@@ -520,8 +535,11 @@ export async function initServices(): Promise<void> {
     indexingGate = null
     indexingService = null
     defaultWorkspaceId = null
+    // Sprint 017 M1 T07 — bootstrap 실패 시 HighlightStore 는 in-memory 단독 instance 유지.
+    //   codex 019e4dd1 #4 권고 — fb 미주입 fallback 으로 IPC handler graceful 동작 (영속 부재 명시).
+    //   `highlightStore = new HighlightStore()` 는 try 블록 진입 전 이미 박힘 (Line 435).
     console.warn(
-      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 / 채팅 / 노트 / 워크스페이스 / 인덱싱 비활성:',
+      '[services] v0.4 SQLite 인프라 bootstrap 실패 — 검색 / 채팅 / 노트 / 워크스페이스 / 인덱싱 비활성 (HighlightStore in-memory fallback):',
       err instanceof Error ? err.message : String(err)
     )
   }

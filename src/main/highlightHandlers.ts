@@ -179,14 +179,25 @@ export async function handleHighlightCreate(
         errorCode: 'invalid_input'
       }
     }
-    const created = await noteService.createNote({
-      workspaceId,
-      selectedText,
-      pageId: normalizedPageId,
-      body: args.body ?? null
-    })
-    noteRow = created.note
-    resolvedNoteId = noteRow.id
+    // codex 019e4e82 NEEDS_CHANGES #1 — Sprint 017 M1 T07 hotfix:
+    //   T07 SQLite swap 후 noteService.createNote 도 FK constraint (pages / workspaces) 위반 시 throw 가능.
+    //   IPC handler reject 차단 위해 graceful `{ ok:false, errorCode }` 응답으로 감쌈.
+    try {
+      const created = await noteService.createNote({
+        workspaceId,
+        selectedText,
+        pageId: normalizedPageId,
+        body: args.body ?? null
+      })
+      noteRow = created.note
+      resolvedNoteId = noteRow.id
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+        errorCode: 'invalid_input'
+      }
+    }
   }
 
   let record: HighlightRecord
