@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **3 진행 중 (Sprint 017 M2 4/4 종결)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 종결 / M1 4/4 종결 / **M2 T10~T13 모두 머지 → M2 closure**). Phase 3 후속 — M3 로컬 LLM spike / M4 Notion Export 등 / M5 종합.
-- **Sprint**: **017 M2 4/4 종결 — T10/T11/T12/T13 머지** (PR #230 `94c43fb` / #231 `b04ec95` / #232 `9e23b73` / #233 `2a56cc4`). 누적 코드 PR Sprint 017: M0 4 + M1 4 + M2 4 = **12 + docs**. 후속 M3 (Phase 3 spike) 진입.
+- **Phase**: **3 진행 중 (Sprint 017 M3 3/4 종결)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 + M1 4/4 + M2 4/4 + **M3 T14/T15/T16 머지** — T17 Sprint 018+ 위임). 후속 M4 Notion Export 등 / M5 종합.
+- **Sprint**: **017 M3 3/4 종결 — T14/T15/T16 머지** (PR #235 `14f7fdd` T14+T15 / #236 `bc155f4` T16). T17 (로컬 임베딩 통합) Sprint 018+ 위임 — Schema v06 결정 후. 누적 코드 PR Sprint 017: M0 4 + M1 4 + M2 4 + M3 2 = **14 + docs**. 후속 M4 진입 또는 Sprint 종료 결정.
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 017 M5 시점 v0.5.0 발행 예정.
-- **최근 갱신 (Sprint 017 M2 종결)**: 2026-05-22 (T10/T11/T12/T13 머지 완료). 단위 **1605 → 1643** (+38, T10 +15 / T11 +8 / T12 +8 / T13 +7). **KI 변동**: closed **+4** (KI-020 T10 / KI-021 T11 / KI-022 T12 / KI-031 T13 신규 closed). Phase 2 잔여 **1 → 0** 도달. 잔여 11 → **9** (Phase 1 7 + Phase 2 0 + Phase 3 2). 학습 #18 **20~23번째 확증** (T10 codex 사전 + dual review 11 finding 모두 흡수 / T11 dual review 9 finding 흡수 / T12 dual review 9 finding 흡수 / T13 dual review 7 finding 흡수). 자기 검증 루프 **46회차 SUCCESS**.
-- **다음 세션 진입점**: **Sprint 017 M3 진입** (Phase 3 spike — T14 Ollama provider adapter / T15 sentence-transformers 로컬 임베딩 PoC / T16 로컬 LLM 통합 / T17 로컬 임베딩 통합). T14/T15 는 외부 dependency 추가 별도 사용자 승인 필수 (G-020 신규 후보).
+- **최근 갱신 (Sprint 017 M3 T14/T15/T16 종결)**: 2026-05-23 (T16 PR #236 `bc155f4` 머지). 단위 **1643 → 1673** (+30, T14 +22 OllamaProvider / T15 spec only +0 / T16 +8 chatProviderSelect). **KI 변동 0** (Phase 3 spike). 잔여 9 유지 (Phase 1 7 + Phase 2 0 + Phase 3 2). 학습 #18 **24~25번째 확증** (T14 codex 사전 9 권고 + dual review NEEDS_CHANGES 1 흡수 / T16 codex 사전 9 + dual review BLOCKING 1 + NEEDS_CHANGES 2 + NOTABLE 7 흡수). 자기 검증 루프 **48회차 SUCCESS**.
+- **다음 세션 진입점**: 사용자 결정 — **M4 진입** (T18 Markdown Export / T19 Notion Export / T20 R3-B / T21 공유 설계) **또는 Sprint 017 종료 선언** (M0~M3 본격 성과로 Sprint 018+ 신규 시안). T17 (로컬 임베딩) Sprint 018+ 위임 — Schema v06 (Workspace.embedding_model + dimension 별 vec0 table) 결정 + G-014 dry-run 마이그레이션 필요.
 
 ## 현재 작업
 
