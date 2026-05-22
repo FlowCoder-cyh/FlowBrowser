@@ -60,7 +60,7 @@
 | **M3 로컬 LLM / 임베딩 spike (T14~T17)** | | |
 | S017-T14 | Ollama spike — `ollama` provider adapter 인터페이스 (BYOK 분기 정합) | `src/ai/providers/OllamaProvider.ts` (spike) | **dependency 추가 (`ollama` npm package) 별도 승인 필수** — codex 사전 협의 정합 |
 | S017-T15 | sentence-transformers spike — 로컬 임베딩 PoC (Python sidecar 또는 ONNX runtime) | `src/ai/embedding/LocalEmbeddingClient.ts` (spike) | **Python sidecar 또는 onnxruntime-node dependency 별도 승인 필수** |
-| S017-T16 | 로컬 LLM 통합 — `UserSetting.providerPreference: 'ollama'` 옵션 추가 + ChatService 분기 | `src/main/services.ts` wiring | T14 spike 후 + 사용자 승인 |
+| S017-T16 | 로컬 LLM 통합 — `UserSetting.defaultProviderId='local'` 명시 시 Chat IPC OllamaProvider 분기 (기존 필드 재활용, 마이그레이션 회피) + selectChatProviderIds pure helper + KI-003 BYOK 디폴트 보존 | `src/main/services.ts` wiring + `src/main/chatProviderSelect.ts` + 단위 회귀 | T14 spike 후 + 사용자 승인 |
 | S017-T17 | 로컬 임베딩 통합 — IndexingService 가 OpenAI 또는 로컬 임베딩 선택 | `src/main/IndexingService.ts` wiring | T15 spike 후 |
 | **M4 Notion Export / Markdown Export / 워크스페이스 공유 (T18~T21)** | | |
 | S017-T18 | Markdown Export — 워크스페이스 → Markdown 폴더 구조 (PRD §11.5.6 Phase 3) | `src/main/MarkdownExportService.ts` | T09 Highlight Export 통합 후 |
