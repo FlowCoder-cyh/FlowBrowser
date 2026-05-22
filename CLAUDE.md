@@ -57,7 +57,7 @@
 - **v0.4 SSOT** — `.flowset/specs/v04-direction.md` 우선 갱신, 역방향 금지 (G-012, M1 활성)
 - **단계별 PR 전략** — (1) 신규 모듈 (2) 사용처 적용 (3) 폐기 순서 (G-013, M2 활성)
 - **데이터 마이그레이션 dry-run + 자동 백업** — `<userDataDir>/backup/v03/<ISO_ts>/` (G-014, M3 활성)
-- **dual review 표준** — 매 PR / 핸드오프 / Milestone 종료 시점 evaluator + codex 병렬 호출 강제 (`feedback_dual_review` 사용자 메모리). docs PR 도 예외 없음 (PR #174 위반 후 학습 #8 박음, 본 세션 PR #178 시도 위반 후 mini-milestone α 흡수)
+- **dual review 표준** — 매 PR / 핸드오프 / Milestone 종료 시점 evaluator + codex 병렬 호출 강제 (`feedback_dual_review` 사용자 메모리). docs PR 도 예외 없음 (PR #174 위반 후 학습 #8 박음, PR #178 시도 위반 후 mini-milestone α 흡수, **Sprint 017 본 세션 PR #234/#237/#239 위반 3건 후 G-021 정식화** — 실 호출 증거 명시 강제: evaluator Pass/Partial/Fail 카운트 + codex thread ID `019eXXXX-...`)
 
 ## 참조 우선순위 (충돌 시)
 
