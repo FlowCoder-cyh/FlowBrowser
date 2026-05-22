@@ -386,6 +386,34 @@ describe('AutoTagger.tagPage — freeform fallback', () => {
       expect(result.tags[0].name.length).toBe(200)
     }
   })
+
+  // Sprint 017 M2 T13 (codex 019e4fdf Q3 권고) — caller path 명시 회귀.
+  //   valid JSON + tags array + 모든 item 이 invalid kind → parser null → freeform fallback.
+  //   "schema 응답은 있었지만 usable tag 0 개" 케이스를 end-to-end 로 캡처 (Q6 정책 정합).
+  it('T13 — 모든 kind invalid → parser null → freeform 단일 tag fallback (caller path)', async () => {
+    const rawResponse = JSON.stringify({
+      tags: [
+        { kind: 'unknown-kind-1', name: 'rejected-a' },
+        { kind: 'unknown-kind-2', name: 'rejected-b' }
+      ]
+    })
+    const provider = makeChatStub(rawResponse)
+    const tagger = new AutoTagger({ provider, tagStore: fx.tagStore })
+    const result = await tagger.tagPage({
+      pageId: fx.pageId,
+      workspaceId: fx.wsId,
+      content: 'x'
+    })
+    expect(result.status).toBe('tagged')
+    if (result.status === 'tagged') {
+      expect(result.schemaParsed).toBe(false)
+      expect(result.tags).toHaveLength(1)
+      expect(result.tags[0].kind).toBe('freeform')
+      // rawText 원본이 truncate(200) 박힘 — JSON 문자열 그대로
+      expect(result.tags[0].name).toBe(rawResponse.slice(0, 200))
+      expect(result.rawText).toBe(rawResponse)
+    }
+  })
 })
 
 describe('AutoTagger.tagPage — skipped / failed', () => {
@@ -774,6 +802,40 @@ describe('parseTagsResponse 단위', () => {
     const text = JSON.stringify({ tags: [{ kind: 'topic', name: '   ' }] })
     const r = parseTagsResponse(text, 6)
     expect(r).toBeNull()
+  })
+
+  // Sprint 017 M2 T13 — parseTagsResponse null 매트릭스 누락분 보강 (codex 019e4fdf Q2 권고).
+  //   기존 회귀: empty raw / JSON parse error / tags missing / tags non-array / 모든 invalid /
+  //              tags 빈 array / partial invalid / kind 6 종.
+  //   누락 보강: parsed value 가 non-object primitive (null / number / string / bool / array).
+  it('T13 — parsed value null (JSON literal "null") → null', () => {
+    expect(parseTagsResponse('null', 6)).toBeNull()
+  })
+
+  it('T13 — parsed value 가 number primitive → null', () => {
+    expect(parseTagsResponse('123', 6)).toBeNull()
+  })
+
+  it('T13 — parsed value 가 string primitive → null', () => {
+    expect(parseTagsResponse('"raw string"', 6)).toBeNull()
+  })
+
+  it('T13 — parsed value 가 boolean primitive → null', () => {
+    expect(parseTagsResponse('true', 6)).toBeNull()
+    expect(parseTagsResponse('false', 6)).toBeNull()
+  })
+
+  it('T13 — parsed value 가 top-level array → null (tags 필드 추출 불가)', () => {
+    // typeof === 'object' true 이나 obj.tags = undefined → tagsField !Array.isArray → null
+    expect(parseTagsResponse('[{"kind":"topic","name":"x"}]', 6)).toBeNull()
+  })
+
+  it('T13 — 정상 sanity — JSON schema 정확 → tag 1 개 반환 (명시적 명명)', () => {
+    const r = parseTagsResponse(
+      JSON.stringify({ tags: [{ kind: 'topic', name: 'sanity' }] }),
+      6
+    )
+    expect(r).toEqual([{ kind: 'topic', name: 'sanity' }])
   })
 
   it('vi spy + provider.chat 호출 카운트 — schema 응답', async () => {
