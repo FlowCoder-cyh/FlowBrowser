@@ -139,7 +139,35 @@ export function buildMarkdownExport(payload: WorkspaceExportV1): MarkdownWorkspa
     })
   }
 
-  return { rootName, files }
+  // codex 019e5072 NEEDS_CHANGES #2 hotfix — relativePath collision deterministic resolution.
+  //   shortId (UUID 첫 8 char) 가 10K 페이지 시 ~1.16% birthday collision 가능. 같은
+  //   sanitized title + 같은 shortId → 동일 relativePath → 후속 writer 가 overwrite 위험.
+  //   service 가 files[] 소유 — collision 발견 시 `-{n}` suffix 박음 (n=2,3,...).
+  return { rootName, files: deduplicatePaths(files) }
+}
+
+/**
+ * 같은 `relativePath` 가 둘 이상이면 두 번째부터 `-{n}` suffix 박음 (확장자 보존).
+ * 예: `pages/foo.md` 중복 → `pages/foo.md`, `pages/foo-2.md`, `pages/foo-3.md` ...
+ *
+ * pure helper — 단위 회귀 cover.
+ */
+export function deduplicatePaths(files: MarkdownExportFile[]): MarkdownExportFile[] {
+  const seen = new Map<string, number>()
+  return files.map((f) => {
+    const count = seen.get(f.relativePath) ?? 0
+    seen.set(f.relativePath, count + 1)
+    if (count === 0) return f
+    // 확장자 보존
+    const dot = f.relativePath.lastIndexOf('.')
+    const slash = f.relativePath.lastIndexOf('/')
+    if (dot > slash && dot >= 0) {
+      const stem = f.relativePath.slice(0, dot)
+      const ext = f.relativePath.slice(dot)
+      return { ...f, relativePath: `${stem}-${count + 1}${ext}` }
+    }
+    return { ...f, relativePath: `${f.relativePath}-${count + 1}` }
+  })
 }
 
 // ============================================================================
@@ -343,19 +371,28 @@ export function sanitizeSegment(raw: string, maxLen: number = 80): string {
   if (trimmed.length === 0) return 'untitled'
   // Windows reserved chars + whitespace 각 별도 (eslint no-control-regex 회피)
   let s = trimmed.replace(/[<>:"/\\|?*]/g, '-').replace(/\s+/g, '-')
+  // codex 019e5072 NEEDS_CHANGES #1 hotfix — C0 control chars (\x00-\x1F) + DEL (\x7F) 제거.
+  //   fs.writeFile 안전성 + 일부 OS 의 invalid filename 차단. eslint no-control-regex 룰은
+  //   하단 disable 주석으로 명시 (의도된 control char 매칭).
+  // eslint-disable-next-line no-control-regex
+  s = s.replace(/[\x00-\x1F\x7F]+/g, '-')
   // path traversal
   if (s === '..' || s === '.') s = '_'
   s = s.replace(/^\.\.+/g, '_')
   if (s.length === 0) return 'untitled'
-  // 예약어
-  const upper = s.toUpperCase()
-  const base = upper.split('.')[0] ?? upper
-  if (WINDOWS_RESERVED_NAMES.has(base)) s = `_${s}`
-  // 길이 제한
-  if (s.length > maxLen) s = s.slice(0, maxLen)
+  // codex 019e5072 NEEDS_CHANGES #3 hotfix — surrogate pair-safe 길이 제한.
+  //   `slice(0, maxLen)` 는 UTF-16 code unit 기준이라 emoji boundary 분리 위험. Array.from
+  //   이 surrogate pair 를 단일 entry 로 처리.
+  if ([...s].length > maxLen) s = Array.from(s).slice(0, maxLen).join('')
   // trailing dot/space/dash 제거 (UX + Windows trailing dot 회피)
   s = s.replace(/[.\- ]+$/g, '')
   if (s.length === 0) return 'untitled'
+  // codex 019e5072 BLOCKING #1 hotfix — 예약어 검사는 모든 mutation/truncation 후 수행.
+  //   `CON-` / `COM1*` 같은 입력이 trailing dash 제거 + reserved punctuation 치환 후 `CON` /
+  //   `COM1` 으로 압축되어 Windows-safe invariant 위반 차단.
+  const upper = s.toUpperCase()
+  const base = upper.split('.')[0] ?? upper
+  if (WINDOWS_RESERVED_NAMES.has(base)) s = `_${s}`
   return s
 }
 

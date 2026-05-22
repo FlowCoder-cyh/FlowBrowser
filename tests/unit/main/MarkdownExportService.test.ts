@@ -23,6 +23,7 @@ import {
   buildMarkdownExport,
   sanitizeSegment,
   renderFrontmatter,
+  deduplicatePaths,
   type MarkdownWorkspaceExport
 } from '../../../src/main/MarkdownExportService'
 import type { WorkspaceExportV1 } from '../../../src/main/WorkspaceExportImportService'
@@ -104,6 +105,78 @@ describe('sanitizeSegment', () => {
   it('비 string → "untitled"', () => {
     expect(sanitizeSegment(null as unknown as string)).toBe('untitled')
     expect(sanitizeSegment(undefined as unknown as string)).toBe('untitled')
+  })
+
+  // codex 019e5072 BLOCKING #1 hotfix — trailing cleanup 후 reserved name 재검사
+  it('codex 019e5072 BLOCKING — CON- / COM1* / AUX- → trailing cleanup 후 reserved name 재검사', () => {
+    expect(sanitizeSegment('CON-')).toBe('_CON')
+    expect(sanitizeSegment('CON*')).toBe('_CON')
+    expect(sanitizeSegment('COM1-')).toBe('_COM1')
+    expect(sanitizeSegment('AUX  ')).toBe('_AUX')
+    expect(sanitizeSegment('NUL.')).toBe('_NUL')
+    expect(sanitizeSegment('LPT9-...')).toBe('_LPT9')
+  })
+
+  // codex 019e5072 NEEDS_CHANGES #1 — C0 control chars (\x00-\x1F) + DEL 제거
+  it('codex 019e5072 NEEDS_CHANGES — C0 control chars (\\x00-\\x1F) + DEL → "-" 치환', () => {
+    expect(sanitizeSegment('foo\x00bar')).toBe('foo-bar')
+    expect(sanitizeSegment('foo\x01\x02\x1Fbar')).toBe('foo-bar')
+    expect(sanitizeSegment('foo\x7Fbar')).toBe('foo-bar')
+  })
+
+  // codex 019e5072 NEEDS_CHANGES #3 — surrogate pair-safe 길이 제한
+  it('codex 019e5072 NEEDS_CHANGES — surrogate pair boundary 분리 차단', () => {
+    // emoji 5 개 ('🌀') 가 UTF-16 으로 length 10. maxLen=5 시 분리하면 lone surrogate.
+    const fiveEmoji = '🌀'.repeat(5)
+    const result = sanitizeSegment(fiveEmoji, 3)
+    // Array.from 으로 분리하면 3 emoji = 6 UTF-16 code units
+    expect([...result].length).toBe(3)
+    expect(result).toBe('🌀🌀🌀')
+  })
+})
+
+describe('deduplicatePaths (codex 019e5072 NEEDS_CHANGES #2)', () => {
+  it('중복 relativePath 없으면 그대로 반환', () => {
+    const files = [
+      { relativePath: 'a/b.md', content: 'a' },
+      { relativePath: 'a/c.md', content: 'c' }
+    ]
+    expect(deduplicatePaths(files)).toEqual(files)
+  })
+
+  it('중복 시 두 번째부터 -2 / -3 suffix (확장자 보존)', () => {
+    const files = [
+      { relativePath: 'pages/foo.md', content: 'first' },
+      { relativePath: 'pages/foo.md', content: 'second' },
+      { relativePath: 'pages/foo.md', content: 'third' }
+    ]
+    const result = deduplicatePaths(files)
+    expect(result[0].relativePath).toBe('pages/foo.md')
+    expect(result[1].relativePath).toBe('pages/foo-2.md')
+    expect(result[2].relativePath).toBe('pages/foo-3.md')
+    // content 보존
+    expect(result.map((f) => f.content)).toEqual(['first', 'second', 'third'])
+  })
+
+  it('확장자 없는 path 도 동작', () => {
+    const files = [
+      { relativePath: 'README', content: 'a' },
+      { relativePath: 'README', content: 'b' }
+    ]
+    const result = deduplicatePaths(files)
+    expect(result[1].relativePath).toBe('README-2')
+  })
+
+  it('다른 path 는 카운트 격리', () => {
+    const files = [
+      { relativePath: 'a.md', content: '1' },
+      { relativePath: 'b.md', content: '1' },
+      { relativePath: 'a.md', content: '2' },
+      { relativePath: 'b.md', content: '2' }
+    ]
+    const result = deduplicatePaths(files)
+    expect(result[2].relativePath).toBe('a-2.md')
+    expect(result[3].relativePath).toBe('b-2.md')
   })
 })
 
