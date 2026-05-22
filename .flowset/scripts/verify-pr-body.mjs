@@ -15,14 +15,19 @@ const EVALUATOR_COUNT_RE = /Pass\s+(\d+)\s*\/\s*Partial\s+(\d+)\s*\/\s*Fail\s+(\
 const CODEX_COUNT_RE = /BLOCKING\s+(\d+)\s*\/\s*NEEDS_CHANGES\s+(\d+)\s*\/\s*(?:NOTABLE|NB)\s+(\d+)/;
 
 export function parseMatrixTable(prBody) {
-  const sectionMatch = prBody.match(/##\s+산출물 매트릭스[^\n]*\n([\s\S]*?)(?=\n##\s|\n---|\n\*\*총\*\*|$)/);
+  // 본문 안의 백틱 인용 (예: `## 산출물 매트릭스`) 매칭 차단 — line anchor 강제.
+  // negative lookahead `(?!\n##\s|\n---|\n\*\*총\*\*)` — 다음 ## 헤더 / --- / **총** 만나기 전까지 매칭.
+  const sectionMatch = prBody.match(
+    /^##\s+산출물 매트릭스[^\n]*\n((?:(?!\n##\s|\n---|\n\*\*총\*\*)[\s\S])*)/m
+  );
   if (!sectionMatch) return null;
-  const rows = [...sectionMatch[1].matchAll(/\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|[^\n]*\|/g)];
+  const rows = [...sectionMatch[1].matchAll(/^\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|[^\n]*\|/gm)];
   return rows.map((r) => ({ path: r[1], plus: Number(r[2]), minus: Number(r[3]) }));
 }
 
 export function parseTotalLine(prBody) {
-  const match = prBody.match(/\*\*총\*\*\s*:\s*\*{0,2}\s*\+(\d+)\s*\/\s*-(\d+)\s*\/\s*(\d+)\s*파일/);
+  // line anchor + 본문 안 인용 차단.
+  const match = prBody.match(/^\*\*총\*\*\s*:\s*\*{0,2}\s*\+(\d+)\s*\/\s*-(\d+)\s*\/\s*(\d+)\s*파일/m);
   if (!match) return null;
   return { plus: Number(match[1]), minus: Number(match[2]), files: Number(match[3]) };
 }
@@ -95,7 +100,10 @@ export function verifyG018(prBody, numstatText) {
 
 export function verifyG021(prBody) {
   const errors = [];
-  const sectionMatch = prBody.match(/##\s+Dual Review[\s\S]*?(?=\n##\s|$)/);
+  // line anchor 강제 — 본문 안 백틱 인용 (`## Dual Review`) 매칭 차단.
+  const sectionMatch = prBody.match(
+    /^##\s+Dual Review[^\n]*\n((?:(?!\n##\s)[\s\S])*)/m
+  );
   if (!sectionMatch) {
     errors.push('PR body Dual Review 섹션 누락 (G-021 위반)');
     return errors;

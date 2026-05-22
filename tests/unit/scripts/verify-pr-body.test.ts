@@ -37,6 +37,22 @@ describe('verify-pr-body (G-018 + G-021 자동 검증)', () => {
 |---|---|---|---|`;
       expect(parseMatrixTable(body)).toEqual([]);
     });
+
+    it('본문 안 백틱 인용 `## 산출물 매트릭스` 매칭 차단 — line anchor 강제 (self-check 발견 bug)', () => {
+      const body = `## 다른 섹션
+
+설명에 \`## 산출물 매트릭스\` 인용이 박힘.
+
+## 산출물 매트릭스
+
+| 파일 | + | - | 비고 |
+|---|---|---|---|
+| \`real.md\` | 5 | 0 | x |
+
+**총**: +5 / -0 / 1 파일`;
+      const result = parseMatrixTable(body);
+      expect(result).toEqual([{ path: 'real.md', plus: 5, minus: 0 }]);
+    });
   });
 
   describe('parseTotalLine (G-018)', () => {
@@ -259,6 +275,20 @@ describe('verify-pr-body (G-018 + G-021 자동 검증)', () => {
 - [x] evaluator — Pass 9 / Partial 0 / Fail 1
 - [x] codex (threadId \`01a2b3c4-5678-7abc-89de-f01234567890\`) — BLOCKING 0 / NEEDS_CHANGES 0 / NOTABLE 0
 `;
+      expect(verifyG021(body)).toEqual([]);
+    });
+
+    it('본문 안 백틱 인용 `## Dual Review` 매칭 차단 — line anchor 강제 (self-check 발견 bug)', () => {
+      const body = `## 다른 섹션
+
+설명에 \`## Dual Review\` 인용이 박힘.
+
+## Dual Review
+
+- [x] evaluator — Pass 9 / Partial 0 / Fail 1
+- [x] codex (threadId \`019e5129-8c58-7662-92d5-db379c67271f\`) — BLOCKING 2 / NEEDS_CHANGES 5 / NOTABLE 4
+`;
+      // 본문 안 인용이 매칭됐다면 evaluator/codex 체크박스 찾기 실패. line anchor 박은 후 정합 정상 path.
       expect(verifyG021(body)).toEqual([]);
     });
 
