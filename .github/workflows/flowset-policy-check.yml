@@ -97,6 +97,19 @@ jobs:
           fi
           echo "✓ PR body 게이트 통과 (dual review + 영향 영역 + 제목 형식 + G-018 산출물 매트릭스)"
 
+      - name: PR body G-018 + G-021 자동 검증 (verify-pr-body.mjs)
+        # Sprint 017 M5 mini-milestone β — codex 019e5119 §5 + 019e5129 NEEDS_CHANGES #5 권고.
+        # G-018 산출물 매트릭스 vs 실측 git diff 자동 대조 + G-021 dual review 증거 regex.
+        # 기존 단순 섹션 존재 검증 (위 step) 위에 deterministic 자동 대조 박음.
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -e
+          BASE_SHA=$(git merge-base origin/main HEAD)
+          git diff --numstat "$BASE_SHA" HEAD > /tmp/numstat.txt
+          printf '%s' "$PR_BODY" > /tmp/pr-body.txt
+          node .flowset/scripts/verify-pr-body.mjs /tmp/pr-body.txt /tmp/numstat.txt
+
       - name: 변경 파일 ownership / handoff·state 갱신 검증
         run: |
           set -e
