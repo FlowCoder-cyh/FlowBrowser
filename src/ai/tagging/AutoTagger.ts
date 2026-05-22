@@ -206,6 +206,9 @@ export class AutoTagger {
     const parsed = parseTagsResponse(rawText, this.maxTags)
     const isFreeformFallback = parsed === null
 
+    // Sprint 017 M2 T13 (codex 019e4fdf Q4/Q5 권고) — null = "schema 로 usable tag 0 개" 신호.
+    //   raw response 그대로 침묵 attach 0 박지 않고 bounded freeform tag 1 개 박음 (Tag.name 저장
+    //   길이 + 검색/UI 표시 안정성 위해 200자 cap, 원본 rawText 는 AutoTagResult.rawText 로 노출).
     const items: Array<{ kind: TagKind; name: string }> = isFreeformFallback
       ? [{ kind: 'freeform', name: truncate(rawText, 200) }]
       : parsed!
@@ -251,7 +254,15 @@ function truncate(s: string, n: number): string {
 
 /**
  * provider 응답 text → `[{kind, name}, ...]` 정규화.
- * 파싱 실패 시 null → 호출자가 freeform fallback 결정.
+ *
+ * **null 은 호출자 책임의 fallback 신호.** `AutoTagger.tagPage` / `tagNote` 가 본 null 을 받으면
+ * provider response 를 단일 freeform tag 로 보존:
+ *   `{ kind: 'freeform', name: truncate(rawText, 200) }`
+ *
+ * Sprint 017 M2 T13 wording 정합 (codex 019e4fdf Q4 권고) —
+ *   null path 가 "parse 실패" 만 아니라 "valid JSON 인데 사용 가능한 태그 0개" 케이스 까지 포함.
+ *   호출자가 침묵 attach 0 가 아닌 raw response 보존하는 freeform tag 1 개 박는 정책.
+ *   PRD §8.8.4 회귀 셋 태그 추출 성공률 ≥ 80% 측면 — fallback 박음으로 체감 성공률 유지.
  *
  * 허용 입력 변형:
  *   - pure JSON (`{ "tags": [...] }`)
@@ -262,6 +273,13 @@ function truncate(s: string, n: number): string {
  *   - kind 가 TAG_KINDS 6 중 하나
  *   - name 이 non-empty string (trim 후)
  *   - 최대 maxTags 까지만 (초과는 잘림)
+ *
+ * null 반환 케이스 매트릭스:
+ *   1. `raw` 가 빈 문자열 또는 whitespace-only
+ *   2. JSON.parse throw (code-fence strip 후)
+ *   3. parsed value 가 null / 또는 non-object primitive (`'123'`, `'"str"'`, `'null'`)
+ *   4. `tags` 필드 missing 또는 non-array
+ *   5. `tags` 가 array 이나 모든 item 이 kind/name 검증에서 skip (result 빈 배열)
  */
 export function parseTagsResponse(
   raw: string,
