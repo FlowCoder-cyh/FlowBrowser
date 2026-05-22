@@ -19,10 +19,13 @@ Sprint 017 T14 (Ollama provider spike) 시점 발견 BLOCKER 해소:
 - **B2**: dimension 별 별도 vec0 table — `vec_pages_1024` (OpenAI) + `vec_pages_768` (Ollama nomic-embed-text). 같은 워크스페이스는 한 dimension 만 사용 (workspace 생성 시 결정).
 
 근거:
-- 격리 강력 — 다른 dimension 의 query embedding 이 vec0 table 안 박힐 가능 0
+- 격리 강력 — 다른 dimension 의 query embedding 이 vec0 table 안 박힐 가능 0 (단, **DB-level 강제는 불가** — codex 019e50ec NOTABLE #3: 본 invariant 는 write paths / import / reindex / 회귀 셋 책임. spec L? 의 "DB-level 차단" 표현은 부정확 — write path enforcement boundary 명시 필수)
 - 마이그레이션 단순 — 기존 워크스페이스 모두 `embedding_model='openai:text-embedding-3-small:1024'` 디폴트
 - 사용자 mid-stream 전환 시 — 새 워크스페이스 생성 + 기존 데이터 재import 필요 명시 (UX 부담은 있으나 데이터 무결성 보장)
 - sqlite-vec 0.1.x 의 vec0 dimension 고정 제약 정합
+
+**B1 거부 근거** (codex 019e50ec NEEDS_CHANGES #5):
+- B1 (`embedding_space_id` 컬럼만 추가 + 단일 vec0 table 유지) 은 의미 space 분리는 가능하나 **dimension mismatch 자체 해소 불가** — `float[1024]` 컬럼에 768-dim 벡터 박을 수 없음. sqlite-vec vec0 의 dimension 고정 제약 정합 위배. B2 (별도 vec0 table) 가 dimension 분리 + B3 (workspaces.embedding_model) 가 의미 space 분리 — 두 축 모두 cover.
 
 ## 3. Schema 변동 매트릭스
 
@@ -82,10 +85,10 @@ CREATE VIRTUAL TABLE vec_pages_768 USING vec0(  -- 신규 (Ollama nomic-embed-te
 -- vec_notes 도 동일 (vec_notes_1024 / vec_notes_768)
 ```
 
-### 3.3 트리거 갱신
+### 3.3 트리거 갱신 (pages + notes 둘 다, codex 019e50ec NEEDS_CHANGES #2 정합)
 
 ```sql
--- v05: pages DELETE → vec_pages DELETE
+-- v05: pages DELETE → vec_pages DELETE / notes DELETE → vec_notes DELETE
 -- v06: pages DELETE → vec_pages_1024 + vec_pages_768 DELETE (둘 다)
 CREATE TRIGGER pages_after_delete_vec_pages_v06
   AFTER DELETE ON pages
@@ -93,6 +96,14 @@ CREATE TRIGGER pages_after_delete_vec_pages_v06
   BEGIN
     DELETE FROM vec_pages_1024 WHERE page_id = OLD.id;
     DELETE FROM vec_pages_768 WHERE page_id = OLD.id;
+  END;
+
+CREATE TRIGGER notes_after_delete_vec_notes_v06
+  AFTER DELETE ON notes
+  FOR EACH ROW
+  BEGIN
+    DELETE FROM vec_notes_1024 WHERE note_id = OLD.id;
+    DELETE FROM vec_notes_768 WHERE note_id = OLD.id;
   END;
 ```
 
@@ -103,7 +114,8 @@ CREATE TRIGGER pages_after_delete_vec_pages_v06
 ```ts
 export async function migrateV05ToV06(fb: FlowbrowserDatabase, opts: { dryRun: boolean }): Promise<MigrationResult> {
   // 1. sentinel check — schema_meta.migration_v06_applied 박혀 있으면 skip
-  // 2. 자동 백업 — <userDataDir>/backup/v05/<ISO_ts>/flowbrowser.sqlite copy
+  // 2. 자동 백업 — <userDataDir>/backup/v05/<ISO_ts>/flowbrowser.db copy
+  //    (codex 019e50ec NEEDS_CHANGES #3 정합 — v04→v05 패턴 V05_BACKUP_FILE='flowbrowser.db' 통일)
   // 3. dry-run 분기 — actual write 박지 않고 검증만
   // 4. workspaces ALTER (embedding_model 컬럼 추가, DEFAULT 'openai:text-embedding-3-small:1024')
   // 5. vec_pages → vec_pages_1024 rename (가능 시) 또는 vec_pages_1024 신규 + 데이터 copy + vec_pages drop
@@ -132,16 +144,40 @@ class IndexingService {
   }
 }
 
-// v06 (제안)
+// v06 (제안) — codex 019e50ec NEEDS_CHANGES #4 정합: closed allowlist mapping 강제
+const VEC_PAGES_TABLES: Record<number, 'vec_pages_1024' | 'vec_pages_768'> = {
+  1024: 'vec_pages_1024',
+  768: 'vec_pages_768'
+}
+const VEC_NOTES_TABLES: Record<number, 'vec_notes_1024' | 'vec_notes_768'> = {
+  1024: 'vec_notes_1024',
+  768: 'vec_notes_768'
+}
+
+function selectVecPagesTable(dim: number): 'vec_pages_1024' | 'vec_pages_768' {
+  const table = VEC_PAGES_TABLES[dim]
+  if (!table) throw new Error(`Unsupported embedding dimension: ${dim}`)
+  return table
+}
+
 class IndexingService {
   async recordVisit(...) {
     const ws = this.workspaceStore.findById(workspaceId)
-    const [provider, model, dim] = ws.embedding_model.split(':')  // 'openai:text-embedding-3-small:1024'
-    const vectorTable = `vec_pages_${dim}`  // 'vec_pages_1024' 또는 'vec_pages_768'
+    const [provider, model, dimStr] = ws.embedding_model.split(':')
+    const dim = parseInt(dimStr, 10)
+    const vectorTable = selectVecPagesTable(dim)  // allowlist mapping (SQL identifier injection 차단)
+    // 본 vector 의 length 가 dim 과 일치하는지 추가 검증 — VectorIndex.ts 의 EMBEDDING_DIMENSIONS=1024 hardcode 정정 동반
+    if (vector.length !== dim) {
+      throw new Error(`embedding vector dim mismatch: expected ${dim}, got ${vector.length}`)
+    }
     await this.vectorIndex.upsertTo(vectorTable, { pageId, workspaceId, vector })
   }
 }
 ```
+
+**SQL identifier injection 차단**: vec0 table 이름은 prepared statement bind 불가 (table name 은 identifier, bind 는 value 만 가능). dynamic table 사용 시 반드시 **closed allowlist mapping** (위 `VEC_PAGES_TABLES`) 강제 — `vec_pages_${userInput}` 직접 보간 절대 금지.
+
+**VectorIndex.ts hardcode 정정**: 현재 `src/storage/VectorIndex.ts:32` 의 `EMBEDDING_DIMENSIONS=1024` 상수 → workspace 별 dim 결정 + per-call validation 으로 교체.
 
 ### 5.2 SearchService
 
@@ -203,7 +239,7 @@ class OllamaProvider implements ProviderAdapter {
 
 본 spec 박힌 후 T17 구현 PR 진입:
 1. G-014 dry-run + 자동 백업 path 정합 (Sprint 017 M1 T07 v04→v05 마이그레이션 패턴 정합)
-2. sqlite-vec 0.1.x dimension 고정 제약 — vec_pages_768 / vec_notes_768 신규 가능 검증 (PoC 박음)
+2. sqlite-vec 0.1.x dimension 고정 제약 — vec_pages_768 / vec_notes_768 신규 가능 검증 **T17a 진입 전 PoC 필수** (codex 019e50ec NEEDS_CHANGES #1 정합 — 본 spec PR 안에는 PoC 산출물 없음, T17a 진입 전 별도 PoC 박힘 후 진입)
 3. OllamaProvider.embed() 재구현 (`/api/embed` 호출 + 768-dim 매핑)
 4. 사용자 UX — 워크스페이스 생성 모달에 모델 선택 드롭다운
 5. 마이그레이션 회귀 — v05 데이터 보존 + dry-run / idempotent 검증
