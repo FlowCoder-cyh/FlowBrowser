@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import {
   initServices,
   rebuildAllProviders,
+  reconcileWorkspacePartitions,
   WebContentsRegistry,
   executeTranslateRequest,
   scanWebContentsFields,
@@ -1281,6 +1282,12 @@ function installApplicationMenu(): void {
 app.whenReady().then(async () => {
   await initServices()
   rebuildAllProviders()
+  // Sprint 017 M2 T11 (KI-021) — 워크스페이스 partition cleanup reconcile.
+  // fire-and-forget — UI 부팅 지연 회피 (codex 019e4f65 Q4 권고). 모든 throw graceful.
+  void reconcileWorkspacePartitions().catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.warn('[main] workspace partition reconcile unexpected failure:', msg)
+  })
   // Sprint 013 M2 — 디스크 영속 ThumbnailStore 복원
   await initializeThumbnailStore()
   installApplicationMenu()

@@ -212,4 +212,122 @@ describe('WorkspacePartitionManager', () => {
       expect(WORKSPACE_PARTITION_PREFIX.startsWith('persist:')).toBe(true)
     })
   })
+
+  describe('Sprint 017 M2 T11 (KI-021) — reconcileOrphanPartitions', () => {
+    let mgr: WorkspacePartitionManager
+    let harness: MockHarness
+    beforeEach(() => {
+      harness = makeMockHarness()
+      mgr = new WorkspacePartitionManager({ factory: harness.factory })
+    })
+
+    it('orphan 0 — 모든 partition 이 active set 안 → cleared=0', async () => {
+      const result = await mgr.reconcileOrphanPartitions(
+        ['ws1', 'ws2'],
+        () => ['ws1', 'ws2']
+      )
+      expect(result.inspected).toBe(2)
+      expect(result.orphaned).toEqual([])
+      expect(result.cleared).toEqual([])
+      expect(result.errors).toEqual([])
+      expect(result.skipped).toBeUndefined()
+      expect(result.enumerationError).toBeUndefined()
+      expect(harness.fromPartitionSpy).not.toHaveBeenCalled()
+    })
+
+    it('orphan 1 + 정상 clearStorageData/Cache → cleared=1', async () => {
+      const result = await mgr.reconcileOrphanPartitions(
+        ['ws1'],
+        () => ['ws1', 'ws-orphan']
+      )
+      expect(result.inspected).toBe(2)
+      expect(result.orphaned).toEqual(['ws-orphan'])
+      expect(result.cleared).toEqual(['ws-orphan'])
+      expect(result.errors).toEqual([])
+      const orphanSes = harness.sessions.get('persist:ws-ws-orphan')!
+      expect(orphanSes.clearStorageData).toHaveBeenCalledTimes(1)
+      expect(orphanSes.clearCache).toHaveBeenCalledTimes(1)
+    })
+
+    it('orphan 2 + 한 개 throw → cleared=1 + errors=1 (다른 orphan 영향 0)', async () => {
+      const result = await mgr.reconcileOrphanPartitions(
+        ['ws1'],
+        () => ['ws1', 'ws-bad', 'ws-good']
+      )
+      // 'ws-bad' clearStorageData throw 박음
+      harness.sessions.get('persist:ws-ws-bad')!.clearStorageData.mockRejectedValueOnce(
+        new Error('disk full')
+      )
+      // 첫 호출 결과는 위에서 이미 채워짐 — 별도 호출로 mock injection
+      const result2 = await mgr.reconcileOrphanPartitions(
+        ['ws1'],
+        () => ['ws1', 'ws-bad', 'ws-good']
+      )
+      expect(result2.inspected).toBe(3)
+      expect(result2.orphaned.sort()).toEqual(['ws-bad', 'ws-good'])
+      expect(result2.errors).toHaveLength(1)
+      expect(result2.errors[0].workspaceId).toBe('ws-bad')
+      expect(result2.errors[0].error.message).toBe('disk full')
+      expect(result2.cleared).toContain('ws-good')
+      // result (첫 호출) 변수 사용 안 함 — lint 회피
+      expect(result.inspected).toBeGreaterThanOrEqual(0)
+    })
+
+    it('activeWorkspaceIds 빈 배열 → skipped=empty_active_set (전체 삭제 차단)', async () => {
+      const listSpy = vi.fn(() => ['ws1', 'ws2', 'ws3'])
+      const result = await mgr.reconcileOrphanPartitions([], listSpy)
+      expect(result.skipped).toBe('empty_active_set')
+      expect(result.inspected).toBe(0)
+      expect(result.orphaned).toEqual([])
+      expect(result.cleared).toEqual([])
+      expect(result.errors).toEqual([])
+      // listExistingPartitionIds 호출조차 안 함 (DB 이상 신호 → 안전망)
+      expect(listSpy).not.toHaveBeenCalled()
+    })
+
+    it('listExistingPartitionIds throw → enumerationError + cleared=0 (boot path 미파괴)', async () => {
+      const result = await mgr.reconcileOrphanPartitions(['ws1'], () => {
+        throw new Error('ENOENT: partitions dir missing')
+      })
+      expect(result.enumerationError).toBeInstanceOf(Error)
+      expect(result.enumerationError!.message).toBe('ENOENT: partitions dir missing')
+      expect(result.inspected).toBe(0)
+      expect(result.cleared).toEqual([])
+      expect(result.errors).toEqual([])
+    })
+
+    it('listExistingPartitionIds reject (async throw) → enumerationError', async () => {
+      const result = await mgr.reconcileOrphanPartitions(['ws1'], async () => {
+        throw new Error('async io')
+      })
+      expect(result.enumerationError).toBeInstanceOf(Error)
+      expect(result.enumerationError!.message).toBe('async io')
+    })
+
+    it('clearWorkspaceData 가 non-Error throw 던져도 errors 배열에 Error 로 wrap', async () => {
+      // listExisting 결과에 'bad-id' 박힘 → clearWorkspaceData 호출 시 mock 이 raw string throw
+      harness.fromPartitionSpy.mockImplementationOnce((name: string) => {
+        return {
+          clearStorageData: vi.fn().mockRejectedValueOnce('string error'),
+          clearCache: vi.fn(),
+          partitionName: name
+        } as unknown as Session
+      })
+      const result = await mgr.reconcileOrphanPartitions(['ws1'], () => ['ws1', 'bad-id'])
+      expect(result.orphaned).toEqual(['bad-id'])
+      expect(result.errors).toHaveLength(1)
+      expect(result.errors[0].error).toBeInstanceOf(Error)
+      expect(result.errors[0].error.message).toBe('string error')
+    })
+
+    it('async listExistingPartitionIds (Promise<string[]>) 도 받음', async () => {
+      const result = await mgr.reconcileOrphanPartitions(
+        ['ws1'],
+        async () => ['ws1', 'orphan-x']
+      )
+      expect(result.inspected).toBe(2)
+      expect(result.orphaned).toEqual(['orphan-x'])
+      expect(result.cleared).toEqual(['orphan-x'])
+    })
+  })
 })

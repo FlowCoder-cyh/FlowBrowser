@@ -124,4 +124,81 @@ export class WorkspacePartitionManager {
     await ses.clearStorageData()
     await ses.clearCache()
   }
+
+  /**
+   * Sprint 017 M2 T11 (KI-021) — 워크스페이스 partition cleanup reconcile.
+   *
+   * 부팅 시점에 호출 — 워크스페이스 DB row 는 cascade 로 정상 삭제됐으나 `clearStorageData()`
+   * 실패 (디스크 IO / Electron session crash) 로 디스크 잔존 partition 정리 path.
+   *
+   * codex 019e4f65 사전 협의 권고 흡수:
+   *   - `activeWorkspaceIds.length === 0` 시 skip (DB/bootstrap 이상 신호 — 전체 삭제 차단)
+   *   - `listExistingPartitionIds` throw 시 graceful skip (`enumerationError` 박음, boot path 미파괴)
+   *   - `cleared` 명명 (clearStorageData 는 storage/cache clear 이지 디렉토리 삭제 보장 아님)
+   *   - orphan 별 개별 try/catch (한 개 실패 시 다른 정상 orphan 처리 계속)
+   *
+   * 본 함수는 디스크 디렉토리 enum 책임 X — caller (services.ts) 가 fs.readdir + filter 후
+   * `listExistingPartitionIds` callback 으로 주입. 단위 회귀 fs 의존성 0.
+   */
+  async reconcileOrphanPartitions(
+    activeWorkspaceIds: readonly string[],
+    listExistingPartitionIds: () => Promise<string[]> | string[]
+  ): Promise<ReconcileOrphanPartitionsResult> {
+    if (activeWorkspaceIds.length === 0) {
+      return {
+        inspected: 0,
+        orphaned: [],
+        cleared: [],
+        errors: [],
+        skipped: 'empty_active_set'
+      }
+    }
+    let existing: string[]
+    try {
+      existing = await Promise.resolve(listExistingPartitionIds())
+    } catch (err) {
+      return {
+        inspected: 0,
+        orphaned: [],
+        cleared: [],
+        errors: [],
+        enumerationError: err instanceof Error ? err : new Error(String(err))
+      }
+    }
+    const activeSet = new Set(activeWorkspaceIds)
+    const orphaned = existing.filter((id) => !activeSet.has(id))
+    const cleared: string[] = []
+    const errors: Array<{ workspaceId: string; error: Error }> = []
+    for (const id of orphaned) {
+      try {
+        await this.clearWorkspaceData(id)
+        cleared.push(id)
+      } catch (err) {
+        errors.push({
+          workspaceId: id,
+          error: err instanceof Error ? err : new Error(String(err))
+        })
+      }
+    }
+    return { inspected: existing.length, orphaned, cleared, errors }
+  }
+}
+
+/**
+ * Sprint 017 M2 T11 (KI-021) — reconcileOrphanPartitions 결과.
+ *
+ * 정상 path: `inspected` (디렉토리 listing 개수) + `orphaned` (active set 에 없는 id) +
+ * `cleared` (clearStorageData/clearCache 성공) + `errors` (개별 실패).
+ *
+ * skip path:
+ *   - `skipped: 'empty_active_set'` — activeWorkspaceIds.length === 0 (DB 이상 신호)
+ *   - `enumerationError: Error` — listExistingPartitionIds throw
+ */
+export interface ReconcileOrphanPartitionsResult {
+  inspected: number
+  orphaned: string[]
+  cleared: string[]
+  errors: Array<{ workspaceId: string; error: Error }>
+  enumerationError?: Error
+  skipped?: 'empty_active_set'
 }

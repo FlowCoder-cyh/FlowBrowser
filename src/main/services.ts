@@ -4,7 +4,7 @@
  */
 
 import { app, BrowserWindow, ipcMain, session, type WebContents } from 'electron'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { promises as fs } from 'node:fs'
 import { createHash } from 'node:crypto'
 
@@ -412,6 +412,90 @@ export function getNoteServiceForHighlight(): NoteService | null {
  */
 export function broadcastMemoryInvalidatedExternal(workspaceId: string | null): void {
   broadcastMemoryInvalidated(workspaceId)
+}
+
+/**
+ * Sprint 017 M2 T11 (KI-021) — 워크스페이스 partition cleanup reconcile.
+ *
+ * `initServices()` 후 fire-and-forget 호출 (UI 부팅 지연 회피). workspaces 테이블 active set 과
+ * `<userData>/Partitions/ws-*` 디렉토리 listing 비교 → orphan partition cleanup 재시도.
+ *
+ * codex 019e4f65 사전 협의 권고 흡수:
+ *   - activeWorkspaceIds.length === 0 시 skip (`reconcileOrphanPartitions` 가 처리)
+ *   - listExistingPartitionIds throw 시 graceful skip (enumerationError 박음)
+ *   - `getStoragePath()` 로 Partitions parent derive (Electron 공식 계약 정합)
+ *   - decodeURIComponent 안 함 (UUID 라 영향 0)
+ *   - summary log 는 orphan>0 || errors>0 시만 (정상 boot noisy 회피)
+ *
+ * boot path 깨지 않도록 모든 throw graceful — caller (main/index.ts) 는 `void` + `.catch`.
+ */
+export async function reconcileWorkspacePartitions(): Promise<void> {
+  if (!workspacePartitionManager || !workspaceService) {
+    // 인프라 bootstrap 실패 path — 다음 부팅 시 재시도.
+    return
+  }
+  const mgr = workspacePartitionManager
+  const activeIds = workspaceService.list().map((w) => w.id)
+  const result = await mgr.reconcileOrphanPartitions(activeIds, () =>
+    listPersistedWorkspacePartitionIds(activeIds[0] ?? null)
+  )
+  if (result.skipped === 'empty_active_set') {
+    console.warn(
+      '[services] workspace partition reconcile skipped — active workspaces 0 (DB/bootstrap 이상 신호?)'
+    )
+    return
+  }
+  if (result.enumerationError) {
+    console.warn(
+      '[services] workspace partition reconcile enumeration failed:',
+      result.enumerationError.message
+    )
+    return
+  }
+  if (result.orphaned.length > 0 || result.errors.length > 0) {
+    console.warn(
+      `[services] workspace partition reconcile — inspected=${result.inspected} ` +
+        `orphaned=${result.orphaned.length} cleared=${result.cleared.length} ` +
+        `errors=${result.errors.length}`
+    )
+    for (const e of result.errors) {
+      console.warn(
+        `[services]   - ws=${e.workspaceId} clearStorageData/Cache failed: ${e.error.message}`
+      )
+    }
+  }
+}
+
+/**
+ * Sprint 017 M2 T11 — `<userData>/Partitions` 디렉토리 enum + `ws-` prefix filter.
+ *
+ * Electron `Session.getStoragePath()` 가 persistent partition 의 실 디스크 root 반환 (in-memory 면
+ * null). `sampleActiveId` 가 null 이면 path derive 불가 — caller 가 skip (reconcileOrphanPartitions
+ * 의 `empty_active_set` 분기 정합).
+ *
+ * decodeURIComponent 미사용 — workspaceId 는 UUID 라 인코딩 영향 0 (codex Q2 정합).
+ *
+ * 디렉토리 미존재 / 권한 부족 / sampleActiveId null 시 throw — caller (reconcileOrphanPartitions)
+ * 의 `enumerationError` 분기 graceful.
+ */
+async function listPersistedWorkspacePartitionIds(
+  sampleActiveId: string | null
+): Promise<string[]> {
+  if (!sampleActiveId) {
+    throw new Error('sample active workspace id missing — cannot derive partitions root')
+  }
+  if (!workspacePartitionManager) {
+    throw new Error('workspacePartitionManager not initialised')
+  }
+  const ses = workspacePartitionManager.getSession(sampleActiveId)
+  const samplePath =
+    typeof ses.getStoragePath === 'function' ? (ses.getStoragePath() as string | null) : null
+  if (!samplePath) {
+    throw new Error('session.getStoragePath() returned null — partition not persistent?')
+  }
+  const partitionsDir = dirname(samplePath)
+  const entries = await fs.readdir(partitionsDir)
+  return entries.filter((name) => name.startsWith('ws-')).map((name) => name.slice(3))
 }
 
 let consentStatePath!: string
