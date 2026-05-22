@@ -17,7 +17,9 @@ import {
   WorkspaceExportImportError,
   WORKSPACE_EXPORT_VERSION,
   WORKSPACE_EXPORT_SCHEMA_VERSION,
-  type WorkspaceExportV1
+  WORKSPACE_EXPORT_SCHEMA_VERSIONS_ACCEPTED,
+  type WorkspaceExportV1,
+  type ExportedHighlight
 } from '../../../src/main/WorkspaceExportImportService'
 
 interface Harness {
@@ -95,17 +97,21 @@ describe('WorkspaceExportImportService', () => {
   })
 
   describe('상수 export', () => {
-    it('version=1 + schemaVersion=v04', () => {
+    it('version=1 + schemaVersion=v05 (Sprint 017 M1 T09 bump)', () => {
       expect(WORKSPACE_EXPORT_VERSION).toBe(1)
-      expect(WORKSPACE_EXPORT_SCHEMA_VERSION).toBe('v04')
+      expect(WORKSPACE_EXPORT_SCHEMA_VERSION).toBe('v05')
+    })
+
+    it('accepted schema versions = [v04, v05] (BC)', () => {
+      expect(WORKSPACE_EXPORT_SCHEMA_VERSIONS_ACCEPTED).toEqual(['v04', 'v05'])
     })
   })
 
   describe('exportWorkspace', () => {
-    it('빈 워크스페이스 export — child 배열 모두 빈 배열', () => {
+    it('빈 워크스페이스 export — child 배열 모두 빈 배열 (highlights 포함)', () => {
       const payload = h.svc.exportWorkspace(h.defaultId)
       expect(payload.version).toBe(1)
-      expect(payload.schemaVersion).toBe('v04')
+      expect(payload.schemaVersion).toBe('v05')
       expect(payload.workspace.id).toBe(h.defaultId)
       expect(payload.workspace.name).toBe('기본')
       expect(payload.pages).toEqual([])
@@ -115,6 +121,7 @@ describe('WorkspaceExportImportService', () => {
       expect(payload.tags).toEqual([])
       expect(payload.pageTags).toEqual([])
       expect(payload.noteTags).toEqual([])
+      expect(payload.highlights).toEqual([])
     })
 
     it('child 데이터 포함 워크스페이스 export — 모든 row 포함', () => {
@@ -219,18 +226,19 @@ describe('WorkspaceExportImportService', () => {
 
     it('invalid_version 거부', () => {
       expect(() =>
-        h.svc.importWorkspace({ version: 999, schemaVersion: 'v04', workspace: { name: 'x', icon: '📚' } })
+        h.svc.importWorkspace({ version: 999, schemaVersion: 'v05', workspace: { name: 'x', icon: '📚' } })
       ).toThrow(/invalid_version/)
     })
 
-    it('unsupported_schema_version 거부', () => {
+    // Sprint 017 M1 T09 — codex 019e4f02 Q1 권고: v99 reject 로 변경 (v04/v05 모두 수용).
+    it('unsupported_schema_version 거부 (v04 / v05 외)', () => {
       expect(() =>
-        h.svc.importWorkspace({ version: 1, schemaVersion: 'v05', workspace: { name: 'x', icon: '📚' } })
+        h.svc.importWorkspace({ version: 1, schemaVersion: 'v99', workspace: { name: 'x', icon: '📚' } })
       ).toThrow(/unsupported_schema_version/)
     })
 
     it('invalid_export_schema — workspace 필드 missing', () => {
-      expect(() => h.svc.importWorkspace({ version: 1, schemaVersion: 'v04' })).toThrow(
+      expect(() => h.svc.importWorkspace({ version: 1, schemaVersion: 'v05' })).toThrow(
         /invalid_export_schema/
       )
     })
@@ -243,7 +251,7 @@ describe('WorkspaceExportImportService', () => {
       expect(() =>
         h.svc.importWorkspace({
           version: 1,
-          schemaVersion: 'v04',
+          schemaVersion: 'v05',
           workspace: { icon: '📚' }
         })
       ).toThrow(/invalid_export_schema/)
@@ -261,7 +269,7 @@ describe('WorkspaceExportImportService', () => {
     it('dangling 참조 graceful skip — visit.page_id 가 매핑 안 되면 visit row skip + summary 는 실제 INSERT 수', () => {
       const exported: WorkspaceExportV1 = {
         version: 1,
-        schemaVersion: 'v04',
+        schemaVersion: 'v05',
         exportedAt: Date.now(),
         workspace: { id: 'old-ws', name: 'Test', icon: '📚', created_at: Date.now(), level_preference: null },
         pages: [],
@@ -277,7 +285,8 @@ describe('WorkspaceExportImportService', () => {
         aiChatHistory: [],
         tags: [],
         pageTags: [],
-        noteTags: []
+        noteTags: [],
+        highlights: []
       }
       const summary = h.svc.importWorkspace(exported)
       // codex NEEDS_CHANGES hotfix — summary 는 실제 INSERT 수 (입력 length X)
@@ -444,6 +453,486 @@ describe('WorkspaceExportImportService', () => {
       // null 또는 string 둘 다 허용 — schema 정합
       const lp = exported.workspace.level_preference
       expect(lp === null || typeof lp === 'string').toBe(true)
+    })
+  })
+
+  /**
+   * Sprint 017 M1 T09 (AC-2 #4 closure) — highlights export/import 통합.
+   *
+   * codex 019e4f02 사전 협의 정합:
+   *   - Q1: schemaVersion v04→v05 bump + v04 payload graceful (highlights=[] normalize)
+   *   - Q2: note_id 매핑 누락 시 skip / page_id 누락 시 null / workspace_id 강제
+   *   - Q3: contentHash dedupe X (round-trip 보존) + duplicate highlight.id 방어 skip
+   *   - Q5: anchor JSON parse 실패 시 skip (HighlightStore 조회 시점 throw 차단)
+   */
+  describe('T09 — highlights export/import', () => {
+    const sampleAnchor = JSON.stringify({
+      rootSelector: 'body',
+      startPath: [0, 0],
+      endPath: [0, 0],
+      startOffset: 0,
+      endOffset: 10,
+      selectedText: 'sample',
+      prefix: '',
+      suffix: '',
+      contentHash: 'a'.repeat(64),
+      contextHash: 'b'.repeat(64)
+    })
+
+    function seedHighlight(
+      ws: string,
+      noteId: string,
+      pageId: string | null,
+      overrides: Partial<ExportedHighlight> = {}
+    ): string {
+      const db = h.fb.getDb()
+      const id = overrides.id ?? randomUUID()
+      db.prepare(
+        `INSERT INTO highlights(id, note_id, workspace_id, page_id, url, content_hash, anchor, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        id,
+        noteId,
+        ws,
+        pageId,
+        overrides.url ?? 'https://example.com',
+        overrides.content_hash ?? 'hash1',
+        overrides.anchor ?? sampleAnchor,
+        overrides.created_at ?? Date.now()
+      )
+      return id
+    }
+
+    it('exportWorkspace — highlights 포함 (workspace_id 격리 + ORDER BY created_at ASC)', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const hl1Id = seedHighlight(h.defaultId, ids.noteId, ids.pageId, {
+        url: 'https://a.com',
+        content_hash: 'h-a',
+        created_at: 1000
+      })
+      const hl2Id = seedHighlight(h.defaultId, ids.noteId, ids.pageId, {
+        url: 'https://b.com',
+        content_hash: 'h-b',
+        created_at: 2000
+      })
+      const payload = h.svc.exportWorkspace(h.defaultId)
+      expect(payload.highlights).toHaveLength(2)
+      expect(payload.highlights[0].id).toBe(hl1Id)
+      expect(payload.highlights[1].id).toBe(hl2Id)
+      expect(payload.highlights[0].url).toBe('https://a.com')
+      expect(payload.highlights[0].anchor).toBe(sampleAnchor)
+      expect(payload.highlights[0].content_hash).toBe('h-a')
+    })
+
+    it('exportWorkspace — cross-workspace 차단 (다른 ws 의 highlights 미포함)', () => {
+      const wsA = h.defaultId
+      const wsB = h.fb.createWorkspace({ name: 'B', icon: '💻' })
+      const idsA = seedWorkspaceData(h, wsA)
+      const idsB = seedWorkspaceData(h, wsB.id)
+      const hlAId = seedHighlight(wsA, idsA.noteId, idsA.pageId, { url: 'https://a.com' })
+      const hlBId = seedHighlight(wsB.id, idsB.noteId, idsB.pageId, { url: 'https://b.com' })
+      const payloadA = h.svc.exportWorkspace(wsA)
+      const payloadB = h.svc.exportWorkspace(wsB.id)
+      expect(payloadA.highlights.map((x) => x.id)).toEqual([hlAId])
+      expect(payloadB.highlights.map((x) => x.id)).toEqual([hlBId])
+      expect(payloadA.highlights.find((x) => x.id === hlBId)).toBeUndefined()
+    })
+
+    it('round-trip — highlights 보존 + note_id/page_id 새 id 로 rewrite + url/content_hash/anchor 원문 보존', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const originalHlId = seedHighlight(h.defaultId, ids.noteId, ids.pageId, {
+        url: 'https://round.com',
+        content_hash: 'rt-hash',
+        created_at: 12345
+      })
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exported)
+      expect(summary.highlights).toBe(1)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights).toHaveLength(1)
+      const restored = reExported.highlights[0]
+      // 새 id (다른 child 와 정책 정합 — randomUUID)
+      expect(restored.id).not.toBe(originalHlId)
+      // note_id / page_id 새 id 로 rewrite (원본과 다름)
+      expect(restored.note_id).not.toBe(ids.noteId)
+      expect(restored.note_id).toBe(reExported.notes[0].id)
+      expect(restored.page_id).not.toBe(ids.pageId)
+      expect(restored.page_id).toBe(reExported.pages[0].id)
+      // workspace_id 는 새 ws (export query 가 ws 필터 → 자명)
+      // url / content_hash / anchor / created_at 보존
+      expect(restored.url).toBe('https://round.com')
+      expect(restored.content_hash).toBe('rt-hash')
+      expect(restored.anchor).toBe(sampleAnchor)
+      expect(restored.created_at).toBe(12345)
+    })
+
+    it('v04 payload (highlights 미포함) graceful import — highlights=0 + 나머지 정상', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const exportedV5 = h.svc.exportWorkspace(h.defaultId)
+      // v04 형태 (Sprint 016 M3 T17 산출물 모사) — highlights 키 제거 + schemaVersion 'v04'
+      const v4Payload = {
+        ...exportedV5,
+        schemaVersion: 'v04' as const,
+        highlights: undefined
+      }
+      delete (v4Payload as Record<string, unknown>).highlights
+      const summary = h.svc.importWorkspace(v4Payload)
+      expect(summary.highlights).toBe(0)
+      expect(summary.pages).toBe(1)
+      expect(summary.notes).toBe(1)
+      // lint 회피
+      expect(ids.pageId).toBeTruthy()
+    })
+
+    it('highlight.note_id 매핑 누락 시 skip — note 가 export 에 없으면 highlight skip (NOT NULL FK)', () => {
+      const exported: WorkspaceExportV1 = {
+        version: 1,
+        schemaVersion: 'v05',
+        exportedAt: Date.now(),
+        workspace: {
+          id: 'old-ws',
+          name: 'Test',
+          icon: '📚',
+          created_at: Date.now(),
+          level_preference: null
+        },
+        pages: [],
+        visits: [],
+        notes: [],
+        aiChatHistory: [],
+        tags: [],
+        pageTags: [],
+        noteTags: [],
+        highlights: [
+          {
+            id: 'orphan-hl',
+            note_id: 'non-existent-note',
+            page_id: null,
+            url: 'https://x.com',
+            content_hash: 'orph',
+            anchor: sampleAnchor,
+            created_at: Date.now()
+          }
+        ]
+      }
+      const summary = h.svc.importWorkspace(exported)
+      expect(summary.highlights).toBe(0)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights).toHaveLength(0)
+    })
+
+    it('highlight.page_id 매핑 누락 시 null 박음 (page SET NULL 정책 정합)', () => {
+      // note 만 있고 page 없는 export — highlight.page_id 가 page 가 아닌 fake id 참조
+      const exported: WorkspaceExportV1 = {
+        version: 1,
+        schemaVersion: 'v05',
+        exportedAt: Date.now(),
+        workspace: {
+          id: 'old-ws',
+          name: 'Test',
+          icon: '📚',
+          created_at: Date.now(),
+          level_preference: null
+        },
+        pages: [],
+        visits: [],
+        notes: [
+          {
+            id: 'src-note',
+            page_id: null,
+            visit_id: null,
+            selected_text: 'sel',
+            body: null,
+            ai_tags: null,
+            created_at: Date.now(),
+            created_by: 'user'
+          }
+        ],
+        aiChatHistory: [],
+        tags: [],
+        pageTags: [],
+        noteTags: [],
+        highlights: [
+          {
+            id: 'hl-page-null',
+            note_id: 'src-note',
+            page_id: 'non-existent-page', // pageIdMap 누락 → null
+            url: 'https://x.com',
+            content_hash: 'h',
+            anchor: sampleAnchor,
+            created_at: Date.now()
+          }
+        ]
+      }
+      const summary = h.svc.importWorkspace(exported)
+      expect(summary.highlights).toBe(1)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights).toHaveLength(1)
+      expect(reExported.highlights[0].page_id).toBeNull()
+    })
+
+    it('동일 contentHash highlight 2개도 모두 round-trip (dedupe X — codex Q3)', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const sameHash = 'same-content-hash'
+      seedHighlight(h.defaultId, ids.noteId, ids.pageId, {
+        content_hash: sameHash,
+        url: 'https://x.com',
+        created_at: 1
+      })
+      seedHighlight(h.defaultId, ids.noteId, ids.pageId, {
+        content_hash: sameHash,
+        url: 'https://x.com',
+        created_at: 2
+      })
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      expect(exported.highlights).toHaveLength(2)
+      const summary = h.svc.importWorkspace(exported)
+      expect(summary.highlights).toBe(2)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights).toHaveLength(2)
+      expect(reExported.highlights.every((x) => x.content_hash === sameHash)).toBe(true)
+    })
+
+    it('duplicate source highlight.id 두 번 등장 시 둘째 skip (corrupt payload 방어 — codex Q3)', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const sharedSrcId = 'shared-src-id'
+      const exported: WorkspaceExportV1 = h.svc.exportWorkspace(h.defaultId)
+      const noteRow = exported.notes[0]
+      const pageRow = exported.pages[0]
+      exported.highlights = [
+        {
+          id: sharedSrcId,
+          note_id: noteRow.id,
+          page_id: pageRow.id,
+          url: 'https://x.com',
+          content_hash: 'h',
+          anchor: sampleAnchor,
+          created_at: 1
+        },
+        {
+          id: sharedSrcId, // 두 번째 등장 → skip
+          note_id: noteRow.id,
+          page_id: pageRow.id,
+          url: 'https://y.com',
+          content_hash: 'h2',
+          anchor: sampleAnchor,
+          created_at: 2
+        }
+      ]
+      const summary = h.svc.importWorkspace(exported)
+      expect(summary.highlights).toBe(1) // 둘째 skip
+      // 첫 번째 row 만 INSERT — url 'https://x.com'
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights).toHaveLength(1)
+      expect(reExported.highlights[0].url).toBe('https://x.com')
+      // lint 회피
+      expect(ids.noteId).toBeTruthy()
+    })
+
+    it('malformed anchor (JSON parse 실패) 시 skip — HighlightStore 조회 시점 throw 차단', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const exported: WorkspaceExportV1 = h.svc.exportWorkspace(h.defaultId)
+      exported.highlights = [
+        {
+          id: randomUUID(),
+          note_id: exported.notes[0].id,
+          page_id: exported.pages[0].id,
+          url: 'https://valid.com',
+          content_hash: 'h-ok',
+          anchor: sampleAnchor,
+          created_at: 1
+        },
+        {
+          id: randomUUID(),
+          note_id: exported.notes[0].id,
+          page_id: exported.pages[0].id,
+          url: 'https://bad.com',
+          content_hash: 'h-bad',
+          anchor: '{not valid json',
+          created_at: 2
+        }
+      ]
+      const summary = h.svc.importWorkspace(exported)
+      expect(summary.highlights).toBe(1) // malformed 둘째 skip
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights).toHaveLength(1)
+      expect(reExported.highlights[0].url).toBe('https://valid.com')
+      // lint 회피
+      expect(ids.noteId).toBeTruthy()
+    })
+
+    it('workspace_id 강제 — payload 의 workspace_id 가 다른 ws 라도 newWorkspaceId 로 INSERT (cross-ws 유입 차단)', () => {
+      const wsB = h.fb.createWorkspace({ name: 'B', icon: '💻' })
+      const idsA = seedWorkspaceData(h, h.defaultId)
+      // wsA 의 export 에 wsB 의 가짜 workspace_id 가 박힌 corrupt payload (안 박혀도 service 가 강제 — 본 테스트는 확정)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      // 이 시점 export.highlights[].workspace_id 는 export query 자체에 미포함 (ExportedHighlight 인터페이스에 없음)
+      // → service 의 INSERT 시 항상 newWorkspaceId 강제 정합 cover
+      seedHighlight(h.defaultId, idsA.noteId, idsA.pageId, {
+        url: 'https://forcecheck.com',
+        content_hash: 'ws-force'
+      })
+      const exportedAfter = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exportedAfter)
+      // import 후 new ws 에 highlight 가 들어있어야 함 (wsB 영향 0)
+      const reExportedB = h.svc.exportWorkspace(wsB.id)
+      expect(reExportedB.highlights).toHaveLength(0)
+      const reExportedNew = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExportedNew.highlights.find((x) => x.url === 'https://forcecheck.com')).toBeTruthy()
+      // 원본 wsA 도 그대로 보존
+      const reExportedA = h.svc.exportWorkspace(h.defaultId)
+      expect(reExportedA.highlights.length).toBeGreaterThan(0)
+      // lint 회피
+      expect(exported.highlights).toBeDefined()
+    })
+
+    it('summary.highlights 가 실제 INSERT 수 (입력 length X — note_id skip + malformed skip 합산)', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const exported: WorkspaceExportV1 = h.svc.exportWorkspace(h.defaultId)
+      exported.highlights = [
+        // 1. 정상
+        {
+          id: randomUUID(),
+          note_id: exported.notes[0].id,
+          page_id: exported.pages[0].id,
+          url: 'https://1.com',
+          content_hash: 'h1',
+          anchor: sampleAnchor,
+          created_at: 1
+        },
+        // 2. note 매핑 누락 → skip
+        {
+          id: randomUUID(),
+          note_id: 'missing-note',
+          page_id: null,
+          url: 'https://2.com',
+          content_hash: 'h2',
+          anchor: sampleAnchor,
+          created_at: 2
+        },
+        // 3. malformed anchor → skip
+        {
+          id: randomUUID(),
+          note_id: exported.notes[0].id,
+          page_id: null,
+          url: 'https://3.com',
+          content_hash: 'h3',
+          anchor: 'not json',
+          created_at: 3
+        }
+      ]
+      const summary = h.svc.importWorkspace(exported)
+      expect(summary.highlights).toBe(1)
+      expect(ids.noteId).toBeTruthy()
+    })
+
+    it('round-trip — Sprint 017 M1 T09 합산: highlights + 다른 child 모두 정합', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      seedHighlight(h.defaultId, ids.noteId, ids.pageId, { url: 'https://h.com', content_hash: 'ch' })
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      const summary = h.svc.importWorkspace(exported)
+      expect(summary.pages).toBe(1)
+      expect(summary.notes).toBe(1)
+      expect(summary.aiChatHistory).toBe(1)
+      expect(summary.highlights).toBe(1)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights[0].url).toBe('https://h.com')
+      expect(reExported.highlights[0].note_id).toBe(reExported.notes[0].id)
+    })
+
+    // codex 019e4f19 NEEDS_CHANGES #1 hotfix — v04 payload 는 highlights 필드가 있어도 무시.
+    it('v04 payload + highlights[] 포함 시 무시 (forward-compat 위배 차단)', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const exported = h.svc.exportWorkspace(h.defaultId)
+      // v04 모사 — schemaVersion 'v04' + highlights 박음 (corrupt payload)
+      const corrupt = {
+        ...exported,
+        schemaVersion: 'v04' as const,
+        highlights: [
+          {
+            id: 'should-be-ignored',
+            note_id: exported.notes[0].id,
+            page_id: exported.pages[0].id,
+            url: 'https://ignored.com',
+            content_hash: 'h-ignored',
+            anchor: sampleAnchor,
+            created_at: 1
+          }
+        ]
+      }
+      const summary = h.svc.importWorkspace(corrupt)
+      expect(summary.highlights).toBe(0) // v04 면 highlights 무시
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights).toHaveLength(0)
+      expect(ids.noteId).toBeTruthy()
+    })
+
+    // codex 019e4f19 NEEDS_CHANGES #2 hotfix — NOT NULL 컬럼 missing 시 per-row skip (transaction rollback 차단).
+    it('missing NOT NULL 필드 (url / content_hash / created_at / id) per-row skip — transaction rollback 차단', () => {
+      const ids = seedWorkspaceData(h, h.defaultId)
+      const exported: WorkspaceExportV1 = h.svc.exportWorkspace(h.defaultId)
+      const validNoteId = exported.notes[0].id
+      const validPageId = exported.pages[0].id
+      // 각각 필드 missing 한 corrupt row + 마지막에 valid row 박음
+      // valid row 가 INSERT 되어야 transaction 전체 rollback 차단 확인 가능.
+      exported.highlights = [
+        // 1. id missing → skip
+        {
+          note_id: validNoteId,
+          page_id: validPageId,
+          url: 'https://1.com',
+          content_hash: 'h1',
+          anchor: sampleAnchor,
+          created_at: 1
+        } as unknown as ExportedHighlight,
+        // 2. url missing → skip (NOT NULL)
+        {
+          id: randomUUID(),
+          note_id: validNoteId,
+          page_id: validPageId,
+          content_hash: 'h2',
+          anchor: sampleAnchor,
+          created_at: 2
+        } as unknown as ExportedHighlight,
+        // 3. content_hash missing → skip (NOT NULL)
+        {
+          id: randomUUID(),
+          note_id: validNoteId,
+          page_id: validPageId,
+          url: 'https://3.com',
+          anchor: sampleAnchor,
+          created_at: 3
+        } as unknown as ExportedHighlight,
+        // 4. created_at missing → skip (NOT NULL)
+        {
+          id: randomUUID(),
+          note_id: validNoteId,
+          page_id: validPageId,
+          url: 'https://4.com',
+          content_hash: 'h4',
+          anchor: sampleAnchor
+        } as unknown as ExportedHighlight,
+        // 5. valid row → INSERT
+        {
+          id: randomUUID(),
+          note_id: validNoteId,
+          page_id: validPageId,
+          url: 'https://valid.com',
+          content_hash: 'h-valid',
+          anchor: sampleAnchor,
+          created_at: 99
+        }
+      ]
+      const summary = h.svc.importWorkspace(exported)
+      // 4 skip + 1 INSERT = 1
+      expect(summary.highlights).toBe(1)
+      // 다른 child 도 정상 INSERT (transaction 전체 rollback 차단 확인)
+      expect(summary.pages).toBe(1)
+      expect(summary.notes).toBe(1)
+      const reExported = h.svc.exportWorkspace(summary.workspaceId)
+      expect(reExported.highlights).toHaveLength(1)
+      expect(reExported.highlights[0].url).toBe('https://valid.com')
+      expect(ids.noteId).toBeTruthy()
     })
   })
 })
