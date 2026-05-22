@@ -201,6 +201,34 @@ describe('runHighlightRestore — 정상 path', () => {
     expect(result).toBeNull()
   })
 
+  it('Sprint 017 M2 T10 — clearWhenEmpty=true + records=0 → buildRestoreScript([]) inject (SPA stale clear path)', async () => {
+    const store = new HighlightStore()
+    const wc = makeWebContents({ url: 'https://example.com' })
+    const result = await runHighlightRestore(
+
+      { workspaceId: 'ws1', webContents: wc as any },
+      { getHighlightStore: () => store },
+      { clearWhenEmpty: true }
+    )
+    // records=0 이라도 inject 강제 — buildRestoreScript 내부 prefix clear path 동작.
+    expect(wc.executeJavaScript).toHaveBeenCalledTimes(1)
+    // CSS 룰은 빈 ids → buildHighlightCssForIds 결과 빈 string → insertCSS 미호출.
+    expect(wc.insertCSS).not.toHaveBeenCalled()
+    expect(result).not.toBeNull()
+  })
+
+  it('Sprint 017 M2 T10 — clearWhenEmpty=false (default) + records=0 → 기존대로 early null', async () => {
+    const store = new HighlightStore()
+    const wc = makeWebContents({ url: 'https://example.com' })
+    const result = await runHighlightRestore(
+
+      { workspaceId: 'ws1', webContents: wc as any },
+      { getHighlightStore: () => store }
+    )
+    expect(result).toBeNull()
+    expect(wc.executeJavaScript).not.toHaveBeenCalled()
+  })
+
   it('listByPage throw (HighlightStore inconsistent) → null (graceful)', async () => {
     // store.listByPage 자체가 throw 하도록 stub.
     const stubStore = {

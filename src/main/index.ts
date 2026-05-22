@@ -23,6 +23,8 @@ import {
 } from './services'
 // Sprint 017 M1 T06 — selection 캡처 (page context inject) + did-finish-load 복원 trigger.
 import { runHighlightRestore } from './highlightRestore'
+// Sprint 017 M2 T10 (KI-020) — SPA `did-navigate-in-page` 자동 인덱싱 debounce scheduler.
+import { createSpaNavScheduler } from './spaNavIndexingScheduler'
 import {
   buildSerializeScript,
   type SerializeResult
@@ -38,6 +40,9 @@ import { ClosedTabHistory } from './ClosedTabHistory'
 let mainWindow: BrowserWindow | null = null
 const tabManager = new TabManager()
 const tabViews = new Map<string, WebContentsView>()
+// Sprint 017 M2 T10 — SPA did-navigate-in-page 자동 인덱싱 debounce scheduler (KI-020).
+// module-level (tab 별 timer 정리 책임 명확, codex 019e4f40 Q3 권고 정합).
+const spaNavScheduler = createSpaNavScheduler()
 // Sprint 012 M1 — 탭 미리보기 (hover thumbnail) 메모리 LRU
 const thumbnailStore = new ThumbnailStore(50)
 const THUMBNAIL_RESIZE_WIDTH = 300
@@ -91,6 +96,9 @@ async function runPageIndexing(tabId: string, view: WebContentsView): Promise<vo
   const isActiveTab = tabManager.getActiveId() === tabId
   try {
     const fieldScan = await scanWebContentsFields(wc.id)
+    // Sprint 017 M2 T10 — URL consistency guard (codex 019e4f40 MEDIUM).
+    //   async scan 후 full navigation 시작되면 새 URL 을 stale DOM 으로 인덱싱하는 race 차단.
+    if (wc.isDestroyed() || wc.getURL() !== url) return
     let content = ''
     try {
       const paragraphs = (await wc.executeJavaScript(getParagraphsExtractScript())) as Array<{
@@ -101,6 +109,8 @@ async function runPageIndexing(tabId: string, view: WebContentsView): Promise<vo
       // 본문 추출 실패 시 빈 본문 — IndexingService 가 'empty_content' 로 임베딩 skip.
       content = ''
     }
+    // paragraph extract 직후 한 번 더 URL guard — extract 가 가장 긴 async 단계.
+    if (wc.isDestroyed() || wc.getURL() !== url) return
     const title = wc.getTitle()
     await tryIndexPage({
       url,
@@ -599,6 +609,9 @@ function createTabView(
   // services.tryIndexPage 가 IndexingService 미초기화 (인프라 bootstrap 실패) 시 graceful null.
   // 활성 탭이면 priority 10, 백그라운드면 1 (PRD §8.1).
   view.webContents.on('did-finish-load', () => {
+    // Sprint 017 M2 T10 — full navigation 이 시작되면 대기 중 SPA debounce timer 는 stale.
+    //   `did-finish-load` 가 도착하면 본 timer 는 무효 (해당 path 가 인덱싱/복원 책임).
+    spaNavScheduler.cancel(tabId)
     void runPageIndexing(tabId, view)
     // Sprint 017 M1 T06 — Highlight 복원 trigger (CSS Highlight API 등록).
     //   codex dual review Finding 1 흡수 — `getActiveWorkspaceId()` 대신 본 탭의 `workspace_id` 사용.
@@ -611,6 +624,38 @@ function createTabView(
       { workspaceId: tabWorkspaceId, webContents: view.webContents },
       { getHighlightStore: () => getHighlightStore() }
     )
+  })
+
+  // Sprint 017 M2 T10 (KI-020) — SPA `did-navigate-in-page` 자동 인덱싱 hook.
+  //   GitHub issue → PR 전환, Notion 페이지 전환 등 history.pushState 시점.
+  //   codex 019e4f40 사전 협의 정합:
+  //     - debounce 1000ms (Q1 권고 — Notion 류 다단 pushState + async DOM settle 고려)
+  //     - isMainFrame 만 처리 (iframe 광고 등 무시)
+  //     - scheduledUrl 캡처 + fire 직전 currentUrl 비교 (race 차단)
+  //     - http/https allowlist 선필터 (runPageIndexing 정합)
+  //     - records=0 일 때도 highlight registry clear (SPA same-document stale 차단 — BLOCKING)
+  view.webContents.on('did-navigate-in-page', (_event, _url, isMainFrame) => {
+    if (!isMainFrame) return
+    const wc = view.webContents
+    if (wc.isDestroyed()) return
+    const scheduledUrl = wc.getURL()
+    if (!scheduledUrl) return
+    if (!scheduledUrl.startsWith('http://') && !scheduledUrl.startsWith('https://')) return
+    spaNavScheduler.schedule(tabId, {
+      scheduledUrl,
+      getCurrentUrl: () => view.webContents.getURL(),
+      isDestroyed: () => view.webContents.isDestroyed(),
+      runIndex: async () => {
+        await runPageIndexing(tabId, view)
+        const tab = tabManager.snapshotAll().tabs.find((t) => t.id === tabId)
+        const tabWorkspaceId = tab?.workspace_id ?? null
+        await runHighlightRestore(
+          { workspaceId: tabWorkspaceId, webContents: view.webContents },
+          { getHighlightStore: () => getHighlightStore() },
+          { clearWhenEmpty: true }
+        )
+      }
+    })
   })
   view.webContents.on('page-title-updated', (_event, title) => {
     tabManager.updateTitle(tabId, title)
@@ -725,6 +770,8 @@ function destroyTabView(tabId: string): void {
   const view = tabViews.get(tabId)
   if (!view) return
   tabViews.delete(tabId)
+  // Sprint 017 M2 T10 — SPA debounce timer leak 차단 (codex 019e4f40 회귀 매트릭스).
+  spaNavScheduler.cancel(tabId)
   // Sprint 012 M1 — 탭 close 시 ThumbnailStore에서도 자동 제거
   // Sprint 013 M2 — 디스크에서도 동기 제거 (debounced save로 반영)
   if (thumbnailStore.remove(tabId)) scheduleThumbnailSave()
