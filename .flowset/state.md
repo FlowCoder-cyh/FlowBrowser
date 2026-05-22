@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **3 진행 중 (Sprint 017 M3 3/4 종결)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 + M1 4/4 + M2 4/4 + **M3 T14/T15/T16 머지** — T17 Sprint 018+ 위임). 후속 M4 Notion Export 등 / M5 종합.
-- **Sprint**: **017 M3 3/4 종결 — T14/T15/T16 머지** (PR #235 `14f7fdd` T14+T15 / #236 `bc155f4` T16). T17 (로컬 임베딩 통합) Sprint 018+ 위임 — Schema v06 결정 후. 누적 코드 PR Sprint 017: M0 4 + M1 4 + M2 4 + M3 2 = **14 + docs**. 후속 M4 진입 또는 Sprint 종료 결정.
+- **Phase**: **3 진행 중 (Sprint 017 M4 T18 단독 closure)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 + M1 4/4 + M2 4/4 + M3 3/4 + **M4 T18 머지** — T19/T20/T21 사용자 결정 후 진행). T17 + 잔여 M4 task Sprint 018+ 또는 후속 결정 위임.
+- **Sprint**: **017 M4 T18 단독 closure — T18 머지** (PR #238 `c35cfd5` Markdown Export). 누적 main first-parent S017 PR (codex 019e50aa BLOCKING 정정 후): M0 4 (T01 #219 / T02 #220 / T03 #221 / T04+T05 docs #222) + M1 7 (T06 #223 / T07 #224 / T07 docs #225 / T08 #226 / T08 docs #227 / T09 #228 / T09 docs #229) + M2 5 (T10 #230 / T11 #231 / T12 #232 / T13 #233 / M2 docs #234) + M3 3 (T14+T15 #235 / T16 #236 / M3 docs #237) + M4 1 (T18 #238) = **20 PR** (코드 14 + docs 6). 본 docs PR 머지 시 **21 PR** (코드 14 + docs 7). T19 (Notion Export) 사용자 결정 대기 — 외부 dep 옵션 매트릭스 (4 옵션). T20/T21 후속.
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 017 M5 시점 v0.5.0 발행 예정.
-- **최근 갱신 (Sprint 017 M3 T14/T15/T16 종결)**: 2026-05-23 (T16 PR #236 `bc155f4` 머지). 단위 **1643 → 1673** (+30, T14 +22 OllamaProvider / T15 spec only +0 / T16 +8 chatProviderSelect). **KI 변동 0** (Phase 3 spike). 잔여 9 유지 (Phase 1 7 + Phase 2 0 + Phase 3 2). 학습 #18 **24~25번째 확증** (T14 codex 사전 9 권고 + dual review NEEDS_CHANGES 1 흡수 / T16 codex 사전 9 + dual review BLOCKING 1 + NEEDS_CHANGES 2 + NOTABLE 7 흡수). 자기 검증 루프 **48회차 SUCCESS**.
-- **다음 세션 진입점**: 사용자 결정 — **M4 진입** (T18 Markdown Export / T19 Notion Export / T20 R3-B / T21 공유 설계) **또는 Sprint 017 종료 선언** (M0~M3 본격 성과로 Sprint 018+ 신규 시안). T17 (로컬 임베딩) Sprint 018+ 위임 — Schema v06 (Workspace.embedding_model + dimension 별 vec0 table) 결정 + G-014 dry-run 마이그레이션 필요.
+- **최근 갱신 (Sprint 017 M4 T18 머지)**: 2026-05-24 (T18 PR #238 `c35cfd5` 머지 + 본 docs PR #239 진행 중). 단위 **1673 → 1709** (+36, T18 본문 +29 + dual review hotfix +7). **KI 변동 0**. 잔여 9 유지 (Phase 1 7 + Phase 2 0 + Phase 3 2). 학습 #18 **26번째 확증** — T18 codex 사전 10 권고 + dual review 13 finding (BLOCKING 1 + NEEDS_CHANGES 3 + NOTABLE 9) = **23 항목** 모두 본 PR `c97a635` hotfix 흡수 또는 정합 path. 자기 검증 루프 **49회차 SUCCESS**.
+- **다음 세션 진입점**: **T19 사용자 결정** (4 옵션: @notionhq/client + BYOK / raw fetch + BYOK / spec only / skip + T20/T21 만). T19 결정 후 본격 M4 closure 또는 T19 skip 시 T20 (R3-B UserLevelEstimator 실 학습 — 학습 데이터셋 부재 시 spec only) + T21 (공유 설계 spec) 진행.
 
 ## 현재 작업
 
