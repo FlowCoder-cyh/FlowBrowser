@@ -494,7 +494,17 @@ async function listPersistedWorkspacePartitionIds(
     throw new Error('session.getStoragePath() returned null — partition not persistent?')
   }
   const partitionsDir = dirname(samplePath)
-  const entries = await fs.readdir(partitionsDir)
+  let entries: string[]
+  try {
+    entries = await fs.readdir(partitionsDir)
+  } catch (err) {
+    // codex 019e4f77 NEEDS_CHANGES #2 hotfix —
+    //   fresh install / first run 시점은 Electron 이 아직 `Partitions` parent 디렉토리를
+    //   생성 안 했을 가능성. ENOENT 는 "orphan 0" 의 정상 path 로 처리 (false positive warning 차단).
+    //   다른 에러 (권한 부족 / IO 오류) 는 그대로 throw → caller 의 `enumerationError` 분기 graceful.
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw err
+  }
   return entries.filter((name) => name.startsWith('ws-')).map((name) => name.slice(3))
 }
 
