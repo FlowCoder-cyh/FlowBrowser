@@ -49,6 +49,13 @@ export interface RunHighlightRestoreOptions {
   rootSelector?: string
   /** 단위 테스트용 telemetry hook. result 받음. */
   onResult?: (result: RestoreResult) => void
+  /**
+   * Sprint 017 M2 T10 — SPA navigation 시 같은 document 의 stale CSS Highlight registry clear.
+   * codex 019e4f40 BLOCKING — SPA 이동 후 records=0 일 때도 이전 url 의 highlight CSS Highlight
+   * registry 가 같은 document 라 남음 (일반 reload 는 새 document 라 무관). true 일 때 records=0
+   * 이라도 buildRestoreScript([]) inject — buildRestoreScript 내부 prefix clear path 만 동작.
+   */
+  clearWhenEmpty?: boolean
 }
 
 export interface RunHighlightRestoreDeps {
@@ -81,7 +88,7 @@ export async function runHighlightRestore(
   } catch {
     return null
   }
-  if (records.length === 0) return null
+  if (records.length === 0 && !options.clearWhenEmpty) return null
 
   const rootSelector = options.rootSelector ?? 'body'
   const restorePayload = records.map((r) => ({ id: r.id, anchor: r.anchor }))
