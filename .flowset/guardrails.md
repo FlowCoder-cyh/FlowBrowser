@@ -266,7 +266,7 @@
     - [x] evaluator — **Pass N / Partial M / Fail K** → 머지 권고
     - [x] codex (threadId `019eXXXX-...`) — BLOCKING N / NEEDS_CHANGES M / NOTABLE K
     ```
-  - workflow 검증 강화 (후속 PR 후보, codex 019e50c9 NEEDS_CHANGES #2 정합): codex thread ID **full UUID 패턴** (`019e[0-9a-f]{4}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`) 인용 grep + evaluator 결과 카운트 (Pass/Partial/Fail) 검증. 8자리 prefix 만으로는 자가 위조 가능 — hyphen 포함 full UUID 정확 매칭 필수.
+  - workflow 검증 강화 (Sprint 017 M5 mini-milestone β D PR 박힘, codex 019e514b NEEDS_CHANGES #1 정합): codex thread ID **full UUID v7 패턴** (RFC 9562 정합 — `[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`, timestamp prefix 강제 X — 시간대 바뀌면 false negative) 인용 grep + evaluator 결과 카운트 (Pass/Partial/Fail) 검증. 8자리 prefix 만으로는 자가 위조 가능 — hyphen 포함 full UUID v7 (version + variant bits 검증) 정확 매칭 필수. `.flowset/scripts/verify-pr-body.mjs` 가 deterministic 자동 검증 박음.
 
 - **출처**: 본 세션 학습 #8 위반 3건 회고 (2026-05-23~24, handoff 2026-05-24.md §7) + codex 019e50c2 권고 ("workflow 신규 확장이라기보다 G-021을 guardrail로 박고 docs PR 누락 재발 방지 문구/검증 케이스/회고 정합을 명시").
 
