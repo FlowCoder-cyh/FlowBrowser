@@ -989,7 +989,7 @@ function registerChatIpc(): void {
           //
           // Sprint 017 M3 T16 (codex 019e502d) — `defaultProviderId='local'` 시점에 본 helper 가
           //   `['local']` 단일 candidate 반환. KI-003 BYOK 디폴트 (`['openai']`) 는 그 외 보존.
-          const userDefault = userSettingStore?.getState().defaultProviderId ?? 'openai'
+          const userDefault = userSettingStore.getState().defaultProviderId
           const candidates: ReadonlyArray<CredentialProviderType> = selectChatProviderIds(
             allowedProviders as ReadonlyArray<CredentialProviderType> | undefined,
             userDefault
@@ -1003,12 +1003,17 @@ function registerChatIpc(): void {
             }
           }
           if (!selected) return null
+          // codex 019e503a BLOCKING hotfix —
+          //   ChatService 의 BYOK 검증 (`allowedProviders.includes(providerType)`) 에 helper 가
+          //   계산한 effective candidates 전달. 원본 `allowedProviders=undefined` 전달 시 ChatService
+          //   가 DEFAULT_ALLOWED_PROVIDERS (`['openai']`) 박음 → `defaultProviderId='local'` path 에서
+          //   `providerType='local'` 이 `byok_required` 로 차단.
           return new ChatService({
             provider: selected,
             historyStore: aiChatHistoryStore,
-            allowedProviders: allowedProviders as
-              | ReadonlyArray<'openai' | 'codex' | 'anthropic' | 'gemini' | 'local'>
-              | undefined
+            allowedProviders: candidates as ReadonlyArray<
+              'openai' | 'codex' | 'anthropic' | 'gemini' | 'local'
+            >
           })
         },
         historyStore: aiChatHistoryStore
