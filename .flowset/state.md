@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **3 진행 중 (Sprint 017 M1 T07 머지)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 종결 / M1 T06+T07 머지). Phase 3 후속 — M1 잔여 (T08 overlay UX / T09 Export/Import) / M2 신규 KI batch / M3 로컬 LLM spike / M4 Notion Export 등 / M5 종합.
-- **Sprint**: **017 M1 진행 중 — T07 머지** (PR #224 `c22b2e7`). 후속 T08 → T09 시퀀스 권고. M0 5/5 종결 (T01 #219 / T02 #220 / T03 #221 / T04+T05 #222) + M1 T06 (#223) + T07 (#224).
+- **Phase**: **3 진행 중 (Sprint 017 M1 T08 머지)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 종결 / M1 T06~T08 머지). Phase 3 후속 — M1 잔여 T09 (Export/Import — AC-2 4항 closure) / M2 신규 KI batch / M3 로컬 LLM spike / M4 Notion Export 등 / M5 종합.
+- **Sprint**: **017 M1 진행 중 — T08 머지** (PR #226 `db1d18f`). 후속 T09 (Highlight Export/Import) — M1 마지막. M0 5/5 종결 (T01 #219 / T02 #220 / T03 #221 / T04+T05 #222) + M1 T06 (#223) / T07 (#224) / T08 (#226).
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 017 M5 시점 v0.5.0 발행 예정.
-- **최근 갱신 (Sprint 017 M1 T07 머지)**: 2026-05-22 (T07 #224 머지). 단위 **1544 → 1562** (+18, T07 본문 +16 + dual review hotfix +2). **KI 변동 +1** (KI-029 신규 — sentinel self-healing, Phase 3 LOW). 학습 #18 **17번째 확증** (T07 codex 사전 BLOCKING 1 + 권고 6 + dual review NEEDS_CHANGES 2 + NOTABLE 3 = 11 finding 중 10 본 PR 내 흡수 + 1 KI-029 위임). 자기 검증 루프 **40회차 SUCCESS**.
-- **다음 세션 진입점**: **Sprint 017 M1 T08 진입** (renderer overlay UX — toast fallback + highlight 클릭 → 노트 패널 포커스 + 다중 highlight z-index 정합 + NoteHighlight App.tsx mount). KI-024 Shadow DOM cross-boundary graceful fallback 동반. T06+T07 의존 충족 (영속 + IPC 모두 박힘). T08 머지 후 T09 (Export/Import — AC-2 4항 closure).
+- **최근 갱신 (Sprint 017 M1 T08 머지)**: 2026-05-22 (T08 #226 머지). 단위 **1562 → 1590** (+28, T08 본문 +23 + dual review hotfix +5). **KI 변동 +1 closed -1 신규 (KI-024 closed + KI-030 신규)** — Shadow DOM graceful toast path 박힘 / App-level 회귀 cover gap. 학습 #18 **18번째 확증** (T08 codex 사전 권고 6 + dual review BLOCKING 1 + NEEDS_CHANGES 3 + NOTABLE 3 = 13 finding 중 12 본 PR 내 흡수 + 1 KI-030 위임). 자기 검증 루프 **41회차 SUCCESS**.
+- **다음 세션 진입점**: **Sprint 017 M1 T09 진입** (Highlight Export/Import — `WorkspaceExportImportService` 에 highlights 행 추가 + import 시 contentHash conflict / FK rewrite. AC-2 4항 closure). T06 (renderer) + T07 (SQLite 영속) + T08 (UX) 모두 의존 충족. T09 머지 후 M2 신규 KI batch (KI-020/021/022/013).
 
 ## 현재 작업
 
