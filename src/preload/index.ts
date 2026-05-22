@@ -634,6 +634,8 @@ interface WorkspaceImportResponsePayload {
     tags: number
     pageTags: number
     noteTags: number
+    /** Sprint 017 M1 T09 — highlights INSERT 수 (실수치). v04 payload import 시 항상 0. */
+    highlights: number
   }
   error?: string
   errorCode?:

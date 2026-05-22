@@ -1,11 +1,12 @@
 /**
  * Sprint 016 M3 T17 (KI-008 closed) — Workspace JSON Export/Import.
+ * Sprint 017 M1 T09 (AC-2 #4 closure) — highlights 행 export/import 통합 + schema v05 bump.
  *
  * 책임:
  *   - 한 워크스페이스의 모든 데이터를 versioned JSON 으로 export (Workspace + Page + Visit + Note +
- *     AiChatHistory + Tag + page_tags + note_tags 일괄)
+ *     AiChatHistory + Tag + page_tags + note_tags + highlights 일괄)
  *   - JSON 을 새 워크스페이스로 import (모든 id 새 발급 + child 참조 재매핑 + chat_meta/retrieved_items
- *     page_id 참조 rewrite)
+ *     page_id 참조 rewrite + highlights FK rewrite)
  *
  * 비책임:
  *   - vec_pages / vec_notes 임베딩 row export/import — derived data, model/dimension/sqlite-vec 버전 의존.
@@ -15,10 +16,12 @@
  *
  * Schema:
  *   - version: 1 (변경 시 마이그레이션 로직 추가)
- *   - schemaVersion: 'v04' (DB schema 버전 추적 — 향후 v05 호환성)
+ *   - schemaVersion: 'v05' (Sprint 017 M1 T07 V4→V5 + T09 highlights 정합)
+ *     - v04 payload (Sprint 016 M3 T17 산출물) 도 graceful import — highlights[] 가 없으면 빈 배열로 normalize.
+ *     - codex 019e4f02 Q1 권고: A — v05 bump + v04 graceful BC.
  *
  * 단위 회귀: tests/unit/main/WorkspaceExportImportService.test.ts
- * PRD 인용: §11.5.6 (Phase 1, M6) — Workspace JSON Export/Import.
+ * PRD 인용: §11.5.6 (Phase 1, M6) — Workspace JSON Export/Import. §11.11 highlights.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -26,7 +29,10 @@ import type { Database as BetterDatabase } from 'better-sqlite3'
 import type { FlowbrowserDatabase, WorkspaceRow, LevelPreference } from '../storage/Database'
 
 export const WORKSPACE_EXPORT_VERSION = 1 as const
-export const WORKSPACE_EXPORT_SCHEMA_VERSION = 'v04' as const
+export const WORKSPACE_EXPORT_SCHEMA_VERSION = 'v05' as const
+/** Sprint 017 M1 T09 — v04 payload (highlights[] 미포함) 도 graceful import 허용. */
+export const WORKSPACE_EXPORT_SCHEMA_VERSIONS_ACCEPTED = ['v04', 'v05'] as const
+export type WorkspaceExportSchemaVersion = (typeof WORKSPACE_EXPORT_SCHEMA_VERSIONS_ACCEPTED)[number]
 
 export interface ExportedWorkspace {
   id: string
@@ -102,9 +108,25 @@ export interface ExportedNoteTag {
   created_at: number
 }
 
+/**
+ * Sprint 017 M1 T09 — highlights export 행.
+ * schema v05 highlights 컬럼 정합 (id / note_id / workspace_id / page_id / url / content_hash / anchor / created_at).
+ * anchor 는 TEXT JSON 그대로 — import 시 service 가 prepared statement 로 직접 INSERT (HighlightStore 우회).
+ */
+export interface ExportedHighlight {
+  id: string
+  note_id: string
+  page_id: string | null
+  url: string
+  content_hash: string
+  /** anchor TEXT JSON — import 시 JSON.parse 가능 여부만 검증 후 원문 INSERT. */
+  anchor: string
+  created_at: number
+}
+
 export interface WorkspaceExportV1 {
   version: 1
-  schemaVersion: 'v04'
+  schemaVersion: WorkspaceExportSchemaVersion
   exportedAt: number
   workspace: ExportedWorkspace
   pages: ExportedPage[]
@@ -114,6 +136,8 @@ export interface WorkspaceExportV1 {
   tags: ExportedTag[]
   pageTags: ExportedPageTag[]
   noteTags: ExportedNoteTag[]
+  /** Sprint 017 M1 T09 — v05 부터 박힘. v04 payload import 시 [] 로 normalize. */
+  highlights: ExportedHighlight[]
 }
 
 export interface ImportResultSummary {
@@ -125,6 +149,8 @@ export interface ImportResultSummary {
   tags: number
   pageTags: number
   noteTags: number
+  /** Sprint 017 M1 T09 — 실제 INSERT 된 highlights row 수 (입력 length 아닌 실수치). */
+  highlights: number
 }
 
 export class WorkspaceExportImportError extends Error {
@@ -218,6 +244,15 @@ export class WorkspaceExportImportService {
       )
       .all(workspaceId) as ExportedNoteTag[]
 
+    // Sprint 017 M1 T09 — highlights export. `idx_highlight_workspace_time` 인덱스 매칭.
+    // anchor TEXT JSON 은 원문 그대로 (HighlightStore.rawToRecord 의 JSON.parse 와 대칭).
+    const highlights = this.db
+      .prepare(
+        `SELECT id, note_id, page_id, url, content_hash, anchor, created_at
+         FROM highlights WHERE workspace_id = ? ORDER BY created_at ASC`
+      )
+      .all(workspaceId) as ExportedHighlight[]
+
     return {
       version: WORKSPACE_EXPORT_VERSION,
       schemaVersion: WORKSPACE_EXPORT_SCHEMA_VERSION,
@@ -235,7 +270,8 @@ export class WorkspaceExportImportService {
       aiChatHistory,
       tags,
       pageTags,
-      noteTags
+      noteTags,
+      highlights
     }
   }
 
@@ -298,6 +334,11 @@ export class WorkspaceExportImportService {
     const insertNoteTag = this.db.prepare(
       `INSERT INTO note_tags(note_id, tag_id, workspace_id, ai_generated, created_at) VALUES (?, ?, ?, ?, ?)`
     )
+    // Sprint 017 M1 T09 — highlights INSERT. workspace_id 는 payload 값 무시하고 newWorkspaceId 강제.
+    const insertHighlight = this.db.prepare(
+      `INSERT INTO highlights(id, note_id, workspace_id, page_id, url, content_hash, anchor, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
 
     // codex NEEDS_CHANGES #1 hotfix — 실제 INSERT 된 row 카운트 (입력 length X)
     const counts = {
@@ -307,7 +348,8 @@ export class WorkspaceExportImportService {
       aiChatHistory: 0,
       tags: 0,
       pageTags: 0,
-      noteTags: 0
+      noteTags: 0,
+      highlights: 0
     }
 
     const tx = this.db.transaction((): ImportResultSummary => {
@@ -414,6 +456,41 @@ export class WorkspaceExportImportService {
         counts.noteTags++
       }
 
+      // Sprint 017 M1 T09 — highlights INSERT (codex 019e4f02 Q2 정합):
+      //   - note_id NOT NULL FK 강제 → noteIdMap 누락 시 skip (NOT NULL 위반 차단)
+      //   - page_id nullable + ON DELETE SET NULL → pageIdMap 누락 시 null
+      //   - workspace_id 는 payload 값 신뢰 X → 항상 newWorkspaceId 강제 (cross-workspace 유입 차단)
+      //   - duplicate source highlight.id 방어 skip (corrupt payload 안전망, codex 019e4f02 Q3)
+      //   - anchor JSON parse 실패 시 skip (HighlightStore.rawToRecord 의 JSON.parse 가 list 시점에 throw 차단)
+      //   - id 는 export 원본 그대로 재사용 (다른 child 와 동일하게 새로 발급해도 무방하나 highlights id 는 외부 참조 0)
+      //     → 새 randomUUID 발급 (다른 row 와 정책 정합, 동일 payload 두 번 import 시 id 충돌 차단).
+      const seenHighlightIds = new Set<string>()
+      for (const h of data.highlights) {
+        if (seenHighlightIds.has(h.id)) continue // corrupt payload — 동일 source id 두 번 등장
+        seenHighlightIds.add(h.id)
+        const newNoteId = noteIdMap.get(h.note_id)
+        if (!newNoteId) continue // note skip 되면 highlight 도 skip (NOT NULL FK)
+        const newPageId = h.page_id ? pageIdMap.get(h.page_id) ?? null : null
+        // anchor 는 JSON parse 가능 여부만 검증 — 원문 그대로 INSERT (HighlightStore rawToRecord 호환).
+        if (typeof h.anchor !== 'string') continue
+        try {
+          JSON.parse(h.anchor)
+        } catch {
+          continue // malformed anchor 는 DB 박지 않음 (조회 시점 throw 차단)
+        }
+        insertHighlight.run(
+          randomUUID(),
+          newNoteId,
+          newWorkspaceId,
+          newPageId,
+          h.url,
+          h.content_hash,
+          h.anchor,
+          h.created_at
+        )
+        counts.highlights++
+      }
+
       return {
         workspaceId: newWorkspaceId,
         pages: counts.pages,
@@ -422,7 +499,8 @@ export class WorkspaceExportImportService {
         aiChatHistory: counts.aiChatHistory,
         tags: counts.tags,
         pageTags: counts.pageTags,
-        noteTags: counts.noteTags
+        noteTags: counts.noteTags,
+        highlights: counts.highlights
       }
     })
 
@@ -437,7 +515,15 @@ export class WorkspaceExportImportService {
     if (obj.version !== WORKSPACE_EXPORT_VERSION) {
       throw new WorkspaceExportImportError('invalid_version', `version=${obj.version}`)
     }
-    if (obj.schemaVersion !== WORKSPACE_EXPORT_SCHEMA_VERSION) {
+    // Sprint 017 M1 T09 — v04 / v05 graceful 수용 (codex 019e4f02 Q1):
+    //   - v05: 본 Sprint 산출물 — highlights[] 포함
+    //   - v04: Sprint 016 M3 T17 산출물 — highlights[] 미포함 → 빈 배열로 normalize
+    //   - 그 외 값 → unsupported_schema_version
+    if (
+      !WORKSPACE_EXPORT_SCHEMA_VERSIONS_ACCEPTED.includes(
+        obj.schemaVersion as WorkspaceExportSchemaVersion
+      )
+    ) {
       throw new WorkspaceExportImportError(
         'unsupported_schema_version',
         `schemaVersion=${obj.schemaVersion}`
@@ -450,7 +536,8 @@ export class WorkspaceExportImportService {
     if (typeof ws.name !== 'string' || typeof ws.icon !== 'string') {
       throw new WorkspaceExportImportError('invalid_export_schema', 'workspace.name/icon required')
     }
-    // child arrays default to empty array (forward-compat)
+    // child arrays default to empty array (forward-compat).
+    // 본 service 가 한 schema 로 normalize → 호출자/loop 분기 X (v04 payload 도 highlights:[] 로 채워서 동일 흐름).
     const data: WorkspaceExportV1 = {
       version: WORKSPACE_EXPORT_VERSION,
       schemaVersion: WORKSPACE_EXPORT_SCHEMA_VERSION,
@@ -470,7 +557,8 @@ export class WorkspaceExportImportService {
         : []) as ExportedAiChatHistory[],
       tags: (Array.isArray(obj.tags) ? obj.tags : []) as ExportedTag[],
       pageTags: (Array.isArray(obj.pageTags) ? obj.pageTags : []) as ExportedPageTag[],
-      noteTags: (Array.isArray(obj.noteTags) ? obj.noteTags : []) as ExportedNoteTag[]
+      noteTags: (Array.isArray(obj.noteTags) ? obj.noteTags : []) as ExportedNoteTag[],
+      highlights: (Array.isArray(obj.highlights) ? obj.highlights : []) as ExportedHighlight[]
     }
     return data
   }
