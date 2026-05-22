@@ -5,12 +5,12 @@
 
 ## 메타
 
-- **Phase**: **3 진행 중 (Sprint 017 M1 T08 머지)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 종결 / M1 T06~T08 머지). Phase 3 후속 — M1 잔여 T09 (Export/Import — AC-2 4항 closure) / M2 신규 KI batch / M3 로컬 LLM spike / M4 Notion Export 등 / M5 종합.
-- **Sprint**: **017 M1 진행 중 — T08 머지** (PR #226 `db1d18f`). 후속 T09 (Highlight Export/Import) — M1 마지막. M0 5/5 종결 (T01 #219 / T02 #220 / T03 #221 / T04+T05 #222) + M1 T06 (#223) / T07 (#224) / T08 (#226).
+- **Phase**: **3 진행 중 (Sprint 017 M1 T09 머지 — M1 종결)** (Sprint 016 M0~M5 모두 머지 / Sprint 017 M0 5/5 종결 / **M1 T06~T09 모두 머지 → M1 closure**). Phase 3 후속 — M2 신규 KI batch (T10~T13) / M3 로컬 LLM spike / M4 Notion Export 등 / M5 종합.
+- **Sprint**: **017 M1 종결 — T09 머지** (PR #228 `d710fde`). M0 5/5 종결 (T01 #219 / T02 #220 / T03 #221 / T04+T05 #222) + M1 T06 (#223) / T07 (#224) / T08 (#226) / **T09 (#228)** = 8 PR + docs 1 (#227 예정). 후속 M2 진입.
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 017 M5 시점 v0.5.0 발행 예정.
-- **최근 갱신 (Sprint 017 M1 T08 머지)**: 2026-05-22 (T08 #226 머지). 단위 **1562 → 1590** (+28, T08 본문 +23 + dual review hotfix +5). **KI 변동 +1 closed -1 신규 (KI-024 closed + KI-030 신규)** — Shadow DOM graceful toast path 박힘 / App-level 회귀 cover gap. 학습 #18 **18번째 확증** (T08 codex 사전 권고 6 + dual review BLOCKING 1 + NEEDS_CHANGES 3 + NOTABLE 3 = 13 finding 중 12 본 PR 내 흡수 + 1 KI-030 위임). 자기 검증 루프 **41회차 SUCCESS**.
-- **다음 세션 진입점**: **Sprint 017 M1 T09 진입** (Highlight Export/Import — `WorkspaceExportImportService` 에 highlights 행 추가 + import 시 contentHash conflict / FK rewrite. AC-2 4항 closure). T06 (renderer) + T07 (SQLite 영속) + T08 (UX) 모두 의존 충족. T09 머지 후 M2 신규 KI batch (KI-020/021/022/013).
+- **최근 갱신 (Sprint 017 M1 T09 머지)**: 2026-05-22 (T09 #228 머지). 단위 **1590 → 1605** (+15, T09 본문 +13 + dual review hotfix +2). **KI 변동 0** — 본 PR 은 Export/Import path 만 확장 (KI-022 T12 위임 / KI-024 T08 closed / KI-030 T08 신규 모두 무영향). 학습 #18 **19번째 확증** (T09 codex 사전 권고 6 + dual review BLOCKING 0 + NEEDS_CHANGES 2 + NOTABLE 1 = 9 finding 중 8 본 PR 내 흡수 + 1 후속 위임). 자기 검증 루프 **42회차 SUCCESS**.
+- **다음 세션 진입점**: **Sprint 017 M2 진입** (Sprint 016 신규 KI batch — T10 KI-020 SPA did-navigate-in-page / T11 KI-021 partition cleanup reconcile / T12 KI-022 Import embedding_queue re-enqueue / T13 KI-013 freeform fallback wording). T12 는 T09 산출물 (`WorkspaceExportImportService.importWorkspace`) 위에 EmbeddingQueue.enqueue 자동 호출 박음.
 
 ## 현재 작업
 
