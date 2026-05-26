@@ -141,6 +141,7 @@ try {
       );
       if (intent.advisory === 'BLOCK_ENTRY') {
         console.log('- ⚠️ 마무리 의도 검출 — 사용자 명시 선택 박힐 때까지 새 작업 진입 금지 (G-022)');
+        console.log('- 🔒 PreToolUse 게이트 활성 (S018-T02): 새 산출물 작성(non-closeout) + 새 작업 커밋(feat/fix/refactor/perf) 차단 (exit 2). closeout(state/handoffs/logs/memory) + docs/chore 커밋은 통과. 사용자 "PR 생성" / "계속 진행" / "다른 작업" 명시 후 해제.');
       } else if (intent.advisory === 'ALLOW_ENTRY') {
         console.log('- ✓ 허용 패턴 (진입 의사 / autonomous 위임 박힘) — G-022 §허용 패턴 정합 진입 가능');
       }

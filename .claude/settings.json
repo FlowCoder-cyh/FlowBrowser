@@ -16,8 +16,8 @@
     ],
     "PreToolUse": [
       {
-        "_comment": "Bash/PowerShell — main push 차단 (exit 2) / .flowset/ 핵심 파일·디렉토리 삭제 차단 (exit 2) / git commit 형식 경고 / gh pr dual review 환기",
-        "matcher": "Bash|PowerShell",
+        "_comment": "Bash/PowerShell — main push 차단 (exit 2) / .flowset/ 핵심 파일·디렉토리 삭제 차단 (exit 2) / git commit 형식 경고 / gh pr dual review 환기. Write/Edit/MultiEdit/NotebookEdit 추가 (S018-T02 G-022 blocking 전환) — 사용자 마무리 의도(BLOCK_ENTRY) 후 새 산출물 작성·새 작업 커밋·gh pr create·git push·dependency 설치 차단 (exit 2). closeout(state/handoffs/logs/memory) 통과 + fail-open.",
+        "matcher": "Bash|PowerShell|Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",

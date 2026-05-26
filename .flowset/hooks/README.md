@@ -13,16 +13,17 @@ Windows PowerShell 5.1 은 BOM 없는 UTF-8 `.ps1` 파일을 cp949 로 해석한
 | 파일 | 이벤트 | 역할 | block 여부 |
 |---|---|---|---|
 | `session-start.mjs` | SessionStart | state.md 앞 30줄 / 최신 핸드오프 §6~§7 80줄 / guardrails [active] 헤더 / KI 잔여 통계 / 표준 환기 stdout 실주입 | 없음 |
-| `pre-tool-use.mjs` | PreToolUse (Bash/PowerShell) | main 직접 push 차단 (G-007, exit 2) / `.flowset/` 핵심 파일 삭제 차단 (wi-flowset §3, exit 2) / git commit G-009 형식 경고 / gh pr dual review 환기 | 2 케이스만 block |
+| `pre-tool-use.mjs` | PreToolUse (Bash/PowerShell/Write/Edit/MultiEdit/NotebookEdit) | main 직접 push 차단 (G-007, exit 2) / `.flowset/` 핵심 파일 삭제 차단 (wi-flowset §3, exit 2) / **G-022 진입 차단 (S018-T02, exit 2)** / git commit G-009 형식 경고 / gh pr dual review 환기 | 3 종 block (G-007 / wi-flowset / G-022) |
 | `post-tool-use.mjs` | PostToolUse (Write/Edit/NotebookEdit) | ownership.json 매핑 출력 / PRD·v04-direction·CLAUDE.md·handoffs·guardrails 변경 시 동기화 권고 | 없음 |
 | `stop.mjs` | Stop | 오늘 핸드오프 존재 / state.md 최근 갱신 / 최근 commits G-009 / 미머지 브랜치 / dual review 환기 | 없음 |
 
 ## 설계 원칙
 
 - **정보·권고 위주, 강제 차단은 최소화** — UX 보존. 강한 게이트는 CI `flowset-policy-check` 가 분담 (PR body dual review 체크박스 + 영향 영역 + 제목 형식 강제 검증).
-- **PreToolUse exit 2 (block) 발동 케이스 2종**:
+- **PreToolUse exit 2 (block) 발동 케이스 3종**:
   1. main 직접 push 시도 (G-007)
   2. `.flowset/` 핵심 파일 삭제 시도 (`state.md`, `guardrails.md`, `requirements.md`, `ownership.json`, `known-issues.md`, `ontology.md`, `contracts/`, `specs/`, `eval-results/`, `handoffs/`) — `.flowset/hooks/` 자체는 예외 (작업 가능)
+  3. **G-022 진입 차단 (S018-T02)** — transcript 최신 user 발화가 `BLOCK_ENTRY` (마무리 의도, ALLOW_ENTRY entry/delegation phrase 없음) 일 때: non-closeout Write/Edit/MultiEdit/NotebookEdit + 새 작업 커밋(feat/fix/refactor/perf) + gh pr create + git push + 새 브랜치 + dependency mutation + non-closeout 셸 파일 쓰기 차단. closeout(state/handoffs/logs/eval-results/known-issues/memory) + docs·chore 커밋 + read-only 통과. transcript 미발견·발화 추출 실패·검출 에러 = **fail-open** (exit 0). `g022-tool-classifier.mjs` 분리 (단위 테스트 가능). **out-of-scope**: bare `>` redirect / `node -e` 파일쓰기 / cp·mv / MCP write tool — guardrails.md G-022 명시
 - **stderr 출력** — Claude Code 컨텍스트에 권고/차단 사유 전달
 - **UTF-8 + cross-platform** — Node.js native 인코딩
 
@@ -64,3 +65,5 @@ Windows PowerShell 5.1 은 BOM 없는 UTF-8 `.ps1` 파일을 cp949 로 해석한
 ## 변경 이력
 
 - 2026-05-20: 4 hook 신규 + README (mini-milestone β PR). `.ps1` 1차 시도 후 Windows PowerShell 5.1 cp949 한계 발견 → `.mjs` 전환.
+- 2026-05-23 (S018-T01, PR #246): `session-start.mjs` 에 G-022 advisory 추가 (transcript 직접 읽기 + non-blocking 검출).
+- 2026-05-26 (S018-T02, mini-milestone β PR C): `pre-tool-use.mjs` matcher 에 Write/Edit/MultiEdit/NotebookEdit 추가 + G-022 진입 차단(exit 2) 3번째 block 케이스. SessionStart 는 exit 2 차단 불가(공식 문서) → enforcement PreToolUse 로 (contract deviation, codex 019e634d). `g022-tool-classifier.mjs` 분리.
