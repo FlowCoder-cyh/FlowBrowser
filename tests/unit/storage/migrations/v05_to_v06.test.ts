@@ -53,6 +53,13 @@ function vec1024(seed: number): Buffer {
   return Buffer.from(a.buffer)
 }
 
+/** 768-dim 임베딩 Buffer (Ollama nomic-embed-text 차원, 트리거 cascade 검증용). */
+function vec768(seed: number): Buffer {
+  const a = new Float32Array(768)
+  for (let i = 0; i < 768; i++) a[i] = Math.sin(seed + i * 0.01)
+  return Buffer.from(a.buffer)
+}
+
 /** fresh v05 DB — applySchema (v05.sql, version=2). 데이터 없음. */
 async function setupV05Fresh(): Promise<Fx> {
   const userDataDir = await makeUserDataDir()
@@ -187,6 +194,16 @@ describe('migrateV05ToV06 (Sprint 018 M2 T17a)', () => {
         )
         .all('ws-b', vec1024(2), 5) as Array<{ id: string }>
       expect(wsB.map((x) => x.id)).toEqual(['p2'])
+      // vec_notes_1024 도 검색 가능 — n1 (ws-a) 보존 + 자기 최근접
+      const notes = db
+        .prepare(
+          `SELECT note_id AS id, distance FROM vec_notes_1024
+           WHERE workspace_id = ? AND embedding MATCH ? AND k = ? ORDER BY distance`
+        )
+        .all('ws-a', vec1024(3), 1) as Array<{ id: string; distance: number }>
+      expect(notes).toHaveLength(1)
+      expect(notes[0].id).toBe('n1')
+      expect(notes[0].distance).toBeLessThan(0.0001)
     } finally {
       await teardown(fx)
     }
@@ -294,7 +311,10 @@ describe('migrateV05ToV06 (Sprint 018 M2 T17a)', () => {
       // 기준 — fresh v06 schema 직접 exec.
       ref.getDb().exec(v06SchemaSQL)
 
-      // vec0 shadow 테이블(내부 구현) 제외하고 user 정의 객체(테이블/인덱스/트리거) 정규화 비교.
+      // vec0 shadow 테이블(내부 구현) + workspaces 제외하고 user 정의 객체 텍스트 비교 (단순 공백 collapse만).
+      //   workspaces 는 ALTER ADD COLUMN 재구성(migrate) vs inline 선언(fresh) 의 SQL 텍스트가 punctuation 공백만
+      //   다르므로 텍스트 비교 제외 — 대신 PRAGMA table_info 로 semantic(컬럼/타입/notnull/default/pk) 동등 검증.
+      //   (codex 019e658a NOTABLE — 과관대한 punctuation 정규화 제거: 문자열 리터럴 내부 comma/paren 오판 위험 회피.)
       const SHADOW = /^vec_(pages|notes)_(1024|768)_/
       const collect = (fb: FlowbrowserDatabase): Record<string, string> => {
         const rows = fb
@@ -306,24 +326,143 @@ describe('migrateV05ToV06 (Sprint 018 M2 T17a)', () => {
         const map: Record<string, string> = {}
         for (const r of rows) {
           if (SHADOW.test(r.name)) continue // vec0 내부 shadow 제외
-          // 정규화: 공백 collapse + 구조적 punctuation( ( ) , ) 주변 공백 제거.
-          //   ALTER ADD COLUMN 재구성과 inline 선언은 punctuation 주변 공백만 다름 (의미 동일) — column set/제약은 별도 검증.
-          map[`${r.type}:${r.name}`] = r.sql
-            .replace(/\s+/g, ' ')
-            .replace(/\s*([(),])\s*/g, '$1')
-            .trim()
+          if (r.name === 'workspaces') continue // ALTER vs inline 재구성 차이 — table_info 로 semantic 비교
+          map[`${r.type}:${r.name}`] = r.sql.replace(/\s+/g, ' ').trim()
         }
         return map
       }
       const migrated = collect(fx.fb)
       const fresh = collect(ref)
       expect(migrated).toEqual(fresh)
+      // 비교 대상이 실제로 vec0 4종 + 트리거 2종 + 핵심 테이블을 포함하는지 sanity (빈 비교 회피)
+      expect(Object.keys(migrated)).toContain('table:vec_pages_768')
+      expect(Object.keys(migrated)).toContain('trigger:pages_after_delete_vec_pages_v06')
 
-      // workspaces 컬럼 동등 (embedding_model 포함)
-      expect(columnNames(fx.fb, 'workspaces')).toEqual(columnNames(ref, 'workspaces'))
+      // workspaces semantic 동등 — 컬럼 name/type/notnull/default/pk 까지 (embedding_model 포함).
+      const tableInfo = (fb: FlowbrowserDatabase): Array<Record<string, unknown>> =>
+        (
+          fb.getDb().prepare(`PRAGMA table_info(workspaces)`).all() as Array<{
+            name: string
+            type: string
+            notnull: number
+            dflt_value: unknown
+            pk: number
+          }>
+        ).map((c) => ({
+          name: c.name,
+          type: c.type,
+          notnull: c.notnull,
+          dflt_value: c.dflt_value,
+          pk: c.pk
+        }))
+      expect(tableInfo(fx.fb)).toEqual(tableInfo(ref))
       expect(columnNames(ref, 'workspaces')).toContain('embedding_model')
     } finally {
       ref.close()
+      await teardown(fx)
+    }
+  })
+
+  it('10. 트리거 — pages/notes DELETE 시 _1024 + _768 둘 다 cascade', async () => {
+    const fx = await setupV05WithData()
+    try {
+      await migrateV05ToV06({ userDataDir: fx.userDataDir, fb: fx.fb })
+      const db = fx.fb.getDb()
+      const now = Date.now()
+      // 실 pages/notes 행 + 두 dimension vec 임베딩 (트리거는 pages/notes DELETE 에 fire).
+      db.prepare(
+        'INSERT INTO pages(id, workspace_id, url, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+      ).run('pg1', 'ws-a', 'https://example.com', now, now)
+      db.prepare('INSERT INTO vec_pages_1024(page_id, workspace_id, embedding) VALUES (?, ?, ?)').run(
+        'pg1',
+        'ws-a',
+        vec1024(5)
+      )
+      db.prepare('INSERT INTO vec_pages_768(page_id, workspace_id, embedding) VALUES (?, ?, ?)').run(
+        'pg1',
+        'ws-a',
+        vec768(5)
+      )
+      db.prepare(
+        'INSERT INTO notes(id, workspace_id, selected_text, created_at, created_by) VALUES (?, ?, ?, ?, ?)'
+      ).run('nt1', 'ws-a', '선택', now, 'user')
+      db.prepare('INSERT INTO vec_notes_1024(note_id, workspace_id, embedding) VALUES (?, ?, ?)').run(
+        'nt1',
+        'ws-a',
+        vec1024(6)
+      )
+      db.prepare('INSERT INTO vec_notes_768(note_id, workspace_id, embedding) VALUES (?, ?, ?)').run(
+        'nt1',
+        'ws-a',
+        vec768(6)
+      )
+      const cnt = (table: string, col: string, id: string): number =>
+        (db.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE ${col} = ?`).get(id) as { c: number }).c
+      expect(cnt('vec_pages_1024', 'page_id', 'pg1')).toBe(1)
+      expect(cnt('vec_pages_768', 'page_id', 'pg1')).toBe(1)
+
+      // pages DELETE → vec_pages_1024 + vec_pages_768 둘 다 삭제
+      db.prepare('DELETE FROM pages WHERE id = ?').run('pg1')
+      expect(cnt('vec_pages_1024', 'page_id', 'pg1')).toBe(0)
+      expect(cnt('vec_pages_768', 'page_id', 'pg1')).toBe(0)
+
+      // notes DELETE → vec_notes_1024 + vec_notes_768 둘 다 삭제
+      db.prepare('DELETE FROM notes WHERE id = ?').run('nt1')
+      expect(cnt('vec_notes_1024', 'note_id', 'nt1')).toBe(0)
+      expect(cnt('vec_notes_768', 'note_id', 'nt1')).toBe(0)
+    } finally {
+      await teardown(fx)
+    }
+  })
+
+  it('11. 백업 snapshot 유효성 — 마이그레이션 전 v05 shape + 데이터 보존', async () => {
+    const fx = await setupV05WithData()
+    try {
+      const r = await migrateV05ToV06({ userDataDir: fx.userDataDir, fb: fx.fb })
+      expect(r.backup_file).toBeDefined()
+      // 백업 파일을 실제로 열어 마이그레이션 전 v05 snapshot 인지 검증 (G-014 복구점 실효성).
+      const backup = FlowbrowserDatabase.open({ path: r.backup_file!, enableWal: false })
+      try {
+        // v05 shape — 단일 vec_pages/vec_notes 존재, _1024/_768 미존재, embedding_model 컬럼 없음.
+        expect(tableExists(backup, 'vec_pages')).toBe(true)
+        expect(tableExists(backup, 'vec_notes')).toBe(true)
+        expect(tableExists(backup, 'vec_pages_1024')).toBe(false)
+        expect(columnNames(backup, 'workspaces')).not.toContain('embedding_model')
+        // 데이터 보존 — workspaces 2 + vec_pages 2 + vec_notes 1.
+        expect(
+          (backup.getDb().prepare('SELECT COUNT(*) AS c FROM workspaces').get() as { c: number }).c
+        ).toBe(2)
+        expect(
+          (backup.getDb().prepare('SELECT COUNT(*) AS c FROM vec_pages').get() as { c: number }).c
+        ).toBe(2)
+        expect(
+          (backup.getDb().prepare('SELECT COUNT(*) AS c FROM vec_notes').get() as { c: number }).c
+        ).toBe(1)
+      } finally {
+        backup.close()
+      }
+    } finally {
+      await teardown(fx)
+    }
+  })
+
+  it('12. 부분/외부 변형 hard-fail — embedding_model 컬럼 + sentinel 부재 시 throw', async () => {
+    const fx = await setupV05Fresh()
+    try {
+      // 인위적 부분 상태 — embedding_model 컬럼만 추가 (vec 변환/sentinel 없이).
+      fx.fb
+        .getDb()
+        .exec(
+          `ALTER TABLE workspaces ADD COLUMN embedding_model TEXT NOT NULL DEFAULT 'openai:text-embedding-3-small:1024'`
+        )
+      // 조용한 skip 금지 — 명시 throw (codex 019e658a NEEDS_CHANGES #2).
+      await expect(
+        migrateV05ToV06({ userDataDir: fx.userDataDir, fb: fx.fb, freshInstall: true })
+      ).rejects.toThrow(/일관성 위반|sentinel/i)
+      // 변환 미진행 — vec_pages 잔존, _1024 미생성.
+      expect(tableExists(fx.fb, 'vec_pages')).toBe(true)
+      expect(tableExists(fx.fb, 'vec_pages_1024')).toBe(false)
+    } finally {
       await teardown(fx)
     }
   })

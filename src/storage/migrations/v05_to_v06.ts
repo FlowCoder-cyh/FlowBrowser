@@ -128,9 +128,13 @@ function hasEmbeddingModelColumn(fb: FlowbrowserDatabase): boolean {
  * v05 → v06 변환 DDL/DML (단일 transaction 내 실행 — 호출자가 db.transaction 으로 래핑).
  *
  * codex 019e6574 권고 순서: old trigger drop → ALTER → _1024/_768 생성 → copy → old vec drop →
- * new trigger create → version 박음. 전부 sync.
+ * new trigger create → version + sentinel 박음. 전부 sync.
+ *
+ * @param sentinelTs — `migration_v06_applied` sentinel 에 박을 ISO timestamp.
+ *   version 과 sentinel 을 **동일 transaction 내** 박음 (codex 019e658a NEEDS_CHANGES #1) —
+ *   commit 후 별도 sentinel write 시 commit↔write 사이 crash 로 "v06 인데 sentinel 부재" 영구 inconsistency 차단.
  */
-function applyV06Transform(fb: FlowbrowserDatabase): void {
+function applyV06Transform(fb: FlowbrowserDatabase, sentinelTs: string): void {
   const db = fb.getDb()
   // 1. 기존(v05) 트리거 제거 — dropped table 가리키는 깨진 trigger 방지 (codex 019e6574).
   db.exec(`
@@ -189,20 +193,23 @@ function applyV06Transform(fb: FlowbrowserDatabase): void {
         DELETE FROM vec_notes_768 WHERE note_id = OLD.id;
       END;
   `)
-  // 7. schema_meta.version = 3 (transaction 내 — rollback 시 함께 원복).
+  // 7. schema_meta.version = 3 + sentinel (transaction 내 — rollback 시 함께 원복, atomic 박힘).
+  //    version + sentinel 을 같은 txn 에 두어 부분 박힘(version 만 / sentinel 만) inconsistency 차단.
   fb.setSchemaMeta('version', String(V06_SCHEMA_VERSION))
+  fb.setSchemaMeta(MIGRATION_V06_SCHEMA_META_KEY, sentinelTs)
 }
 
 /**
  * Public entry — v05 → v06 마이그레이션 (G-014 정합).
  *
  * 5 단계:
- *   1. sentinel 체크 → already_migrated skip (embedding_model 컬럼 존재 방어 판정 동반)
+ *   1. sentinel 체크 → 존재 시 already_migrated skip. sentinel 부재 + embedding_model 컬럼 존재 시
+ *      hard fail (부분/외부 변형 — 조용한 skip 금지, codex 019e658a NEEDS_CHANGES #2)
  *   2. 백업 (freshInstall=false 인 경우만 — G-014, `backup/v05/<ts>/flowbrowser.db`)
  *   3. dryRunOnly 분기 → 백업까지만
  *   4. 변환 transaction (old trigger drop → ALTER → _1024/_768 생성 → copy → old vec drop →
- *      new trigger → version) — 실패 시 전체 rollback
- *   5. sentinel `migration_v06_applied` 박음
+ *      new trigger → version + sentinel) — 실패 시 전체 rollback. version + sentinel 동일 txn (atomic).
+ *   5. commit 후 결과 반환 (version=3 + sentinel 박힌 상태)
  */
 export async function migrateV05ToV06(opts: MigrateV06Options): Promise<MigrateV06Result> {
   const { userDataDir, fb, freshInstall = false, dryRunOnly = false, backupFn } = opts
@@ -213,18 +220,28 @@ export async function migrateV05ToV06(opts: MigrateV06Options): Promise<MigrateV
 
   const previousVersion = probeVersion(fb)
 
-  // 1. sentinel 체크 — 존재 시 already_migrated. embedding_model 컬럼이 이미 있으면 방어적으로 동일 처리.
+  // 1. sentinel 체크 — 존재 시 already_migrated. sentinel 은 version 과 동일 transaction 박힘 (신뢰 가능 단일 신호).
   const sentinel = fb.getSchemaMeta(MIGRATION_V06_SCHEMA_META_KEY)
-  if (sentinel || hasEmbeddingModelColumn(fb)) {
-    await appendLog(logPath, [
-      `[skip] sentinel=${sentinel?.value ?? 'none'} / embedding_model 컬럼=${hasEmbeddingModelColumn(fb)} → already_migrated`
-    ])
+  if (sentinel) {
+    await appendLog(logPath, [`[skip] sentinel=${sentinel.value} → already_migrated`])
     return {
       status: 'already_migrated',
       log_path: logPath,
       previous_version: previousVersion,
       applied_version: previousVersion
     }
+  }
+  // sentinel 부재인데 embedding_model 컬럼이 이미 존재 = 부분 마이그레이션 / 외부 변형 상태.
+  //   정상 경로(version+sentinel 동일 txn)에서는 불가 — crash-mid-commit / 수동 변형 / 이전 실험 빌드 흔적.
+  //   조용한 skip 금지 (codex 019e658a NEEDS_CHANGES #2) — 명시 hard fail 로 사용자 복구(백업 복원) 유도.
+  if (hasEmbeddingModelColumn(fb)) {
+    await appendLog(logPath, [
+      `[error] embedding_model 컬럼 존재 + migration_v06_applied sentinel 부재 → 부분/외부 변형 의심 (hard fail)`
+    ])
+    throw new Error(
+      'migrateV05ToV06: 일관성 위반 — workspaces.embedding_model 컬럼이 있으나 migration_v06_applied sentinel 부재. ' +
+        '부분 마이그레이션/외부 변형 의심 — 수동 복구 필요 (backup/v05/<ISO_ts>/flowbrowser.db 복원 후 재시도).'
+    )
   }
 
   // 2. 자동 백업 — freshInstall=false 인 경우만 (백업할 사용자 데이터 없음 시 skip).
@@ -263,17 +280,18 @@ export async function migrateV05ToV06(opts: MigrateV06Options): Promise<MigrateV
     }
   }
 
-  // 4. 변환 transaction — 중간 실패 시 전체 rollback (vec_pages 복원, version 미박힘). T17a PoC 검증.
+  // 4. 변환 transaction — version + sentinel 동일 txn 내 박음 (atomic, codex 019e658a NEEDS_CHANGES #1).
+  //    중간 실패 시 전체 rollback (vec_pages 복원, version/sentinel 미박힘). T17a PoC + 회귀 8 검증.
+  const sentinelTs = isoTimestamp()
   fb.getDb().transaction(() => {
-    applyV06Transform(fb)
+    applyV06Transform(fb, sentinelTs)
   })()
 
-  // 5. sentinel 박음 (변환 commit 후).
-  fb.setSchemaMeta(MIGRATION_V06_SCHEMA_META_KEY, isoTimestamp())
+  // 5. commit 후 — version + sentinel 둘 다 박힌 상태.
   const appliedVersion = probeVersion(fb)
   await appendLog(logPath, [
     `[apply] v05 → v06 변환 commit (${previousVersion ?? 'null'} → ${appliedVersion ?? 'null'})`,
-    `[sentinel] schema_meta.${MIGRATION_V06_SCHEMA_META_KEY} 박힘`
+    `[sentinel] schema_meta.${MIGRATION_V06_SCHEMA_META_KEY} 박힘 (변환 transaction 내, atomic)`
   ])
 
   return {
