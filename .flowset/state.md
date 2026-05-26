@@ -5,13 +5,13 @@
 
 ## 메타
 
-- **Phase**: **3 진행 중 (Sprint 018 M0 T01 진행 중 — mini-milestone β PR B advisory hook)** (Sprint 017 partial closure 박힘 → **Sprint 018 진입 ← Sprint 017 partial closure docs #245 `06c4cc1` 머지 완료**). carryover 7 항목 잔여 (T17 + T19 + T20 + T21 + T22~T26 + Schema v06 + G-022 blocking + PRD v0.5.0 = 8 → 본 T01 머지 시 7).
-- **Sprint**: **018 M0 T01 진행 중 (2026-05-23) — codex 019e5183 1순위 권고 정합** (S018-T01 transcript source validation + advisory SessionStart hook, 사용자 결정 불요). 누적 S018 PR: 0 → 본 T01 머지 시 1.
+- **Phase**: **3 진행 중 (Sprint 018 M0 T01 머지 완료 `5edf048` — 본 state 동기화 docs PR 진행 중)** (Sprint 017 partial closure 박힘 → **Sprint 018 진입 / M0 T01 advisory hook 머지 완료**). carryover **8 작업 잔여** (T17 + T19 + T20 + T21 + T22~T26 + Schema v06 + **G-022 blocking** + PRD v0.5.0 — codex 019e6336 NEEDS_CHANGES #2 정합: CO 행 8개 중 CO-7 의 advisory[T01] 부분만 closed, blocking[T02] 잔여라 작업 단위로는 8 미완).
+- **Sprint**: **018 M0 T01 머지 완료 (#246 `5edf048`) — 본 state 동기화 docs PR 진행 중**. 누적 main first-parent S018 PR: **1** (#246, 본 docs PR 머지 시 2). 다음 = S018-T02 (G-022 blocking 전환).
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 018 M4 시점 v0.5.0 발행 예정 (carryover).
-- **최근 갱신 (Sprint 018 M0 T01)**: 2026-05-23 (PR #245 Sprint 017 partial closure docs 머지 `06c4cc1` + **본 S018-T01 advisory hook PR 진행 중**). 단위 회귀 1760 → **1774** (+14 transcript-reader 회귀). **KI 변동 0**. 잔여 9 유지. G-022 자기 적용 4번째 사례 (사용자 발화 "코덱스랑 협의해서 진행해" → autonomous 위임 → codex 019e5183 1순위 권고 진입). 자기 검증 루프 **54회차 진행 중**.
-- **다음 세션 진입점** (S018-T01 머지 후):
-  1. **S018-T02** — mini-milestone β PR C (G-022 blocking 전환, advisory → blocking)
+- **최근 갱신 (Sprint 018 M0 T01 머지 완료)**: 2026-05-23 (PR #246 advisory hook 머지 `5edf048` — CI 6/6 SUCCESS). 단위 회귀 1760 → **1777** (+17 transcript-reader 회귀). **KI 변동 0**. 잔여 9 유지. 본 세션 4 PR 머지 (#243 G-022 + #244 mini-milestone β D + #245 partial closure docs + #246 advisory hook). G-022 자기 적용 4 사례 (#243/#244/#245/#246) + advisory hook 첫 자기 적용 (smoke test "코덱스랑 협의해서 진행해" → ALLOW_ENTRY). 자기 검증 루프 **54회차 SUCCESS**.
+- **다음 세션 진입점** (본 state 동기화 docs PR 머지 후 — Sprint 018 carryover 8 작업):
+  1. **S018-T02** — mini-milestone β PR C (G-022 blocking 전환, advisory → blocking) — 사용자 결정 불요
   2. **T19 사용자 결정** — Notion Export 옵션 A/B/C/D 명시 선택 후 진입 (S018-T03)
   3. **Schema v06 spec 재진입 결정** — 사용자 명시 선택 후 진입 (S018-T04)
   4. **T17 / T20 / T21** — dependency 승인 / 학습 데이터셋 박힌 후 진입 (S018-T05~T07)
