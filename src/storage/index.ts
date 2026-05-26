@@ -50,7 +50,8 @@ export {
   DEFAULT_WORKSPACE_NAME,
   DEFAULT_WORKSPACE_ICON,
   V04_SCHEMA_VERSION,
-  V05_SCHEMA_VERSION
+  V05_SCHEMA_VERSION,
+  V06_SCHEMA_VERSION
 } from './Database'
 export type {
   WorkspaceRow,
@@ -130,6 +131,22 @@ export type {
   MigrateV05Status,
   MigrateV05Result
 } from './migrations/v04_to_v05'
+
+// Sprint 018 M2 T17a — v05 → v06 마이그레이션 (G-014 dry-run + `<userDataDir>/backup/v05/<ISO_ts>/flowbrowser.db` 백업).
+//   workspaces.embedding_model 컬럼 + dimension 별 vec0 테이블 (vec_pages_1024/768 + vec_notes_1024/768) + 트리거 갱신.
+//   services.ts 체인 wiring + VectorIndex dimension 분기는 T17b.
+export {
+  migrateV05ToV06,
+  MIGRATION_V06_SCHEMA_META_KEY,
+  V06_LOG_FILE,
+  V06_BACKUP_ROOT,
+  V06_BACKUP_FILE
+} from './migrations/v05_to_v06'
+export type {
+  MigrateV06Options,
+  MigrateV06Status,
+  MigrateV06Result
+} from './migrations/v05_to_v06'
 
 export {
   GlossaryStore,
