@@ -32,14 +32,17 @@ import { classifyToolForG022 } from '../scripts/g022-tool-classifier.mjs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
 
-const G022_GATED_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'Bash', 'PowerShell']);
+const G022_GATED_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell']);
 
-// 현재 세션 최신 user 발화 박기 — transcript_path(정확) 우선, 없으면 mtime discovery fallback.
+// 현재 세션 최신 user 발화 박기.
+// codex 019e634d NEEDS_CHANGES #1 정합 — transcript_path 가 주어지면 그 파일만 신뢰.
+// 추출 0건이어도 다른 jsonl 로 fallback 하지 않음 (stale 세션의 BLOCK_ENTRY 오집어 false positive 회피).
+// transcript_path 가 아예 없을 때만 mtime discovery fallback.
 export function resolveLatestUtterance(payload, root = repoRoot) {
   const tpath = payload?.transcript_path;
   if (typeof tpath === 'string' && tpath.trim()) {
     const { utterances } = extractRecentUserUtterances(tpath, 1);
-    if (utterances.length > 0) return utterances[utterances.length - 1];
+    return utterances.length > 0 ? utterances[utterances.length - 1] : null;
   }
   const cwd = (typeof payload?.cwd === 'string' && payload.cwd.trim()) ? payload.cwd : root;
   const { candidates } = discoverTranscriptSourceCandidates(cwd);

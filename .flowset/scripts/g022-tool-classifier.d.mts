@@ -9,6 +9,8 @@ export interface G022Intent {
 
 export function isCloseoutPath(filePath: string): boolean;
 
+export function commandTargetsCloseout(command: string): boolean;
+
 export function extractCommitMessage(command: string): string | null;
 
 export function extractCommitType(message: string): string | null;

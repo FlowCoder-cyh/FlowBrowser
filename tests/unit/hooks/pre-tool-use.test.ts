@@ -58,6 +58,14 @@ describe('pre-tool-use hook (Sprint 018 M0 T02 — G-022 blocking 전환)', () =
       const u = resolveLatestUtterance({ cwd: 'Z:\\nonexistent-xyz-123' });
       expect(u).toBeNull();
     });
+
+    it('transcript_path 주어졌으나 발화 0건 — fallback 안 함, null (codex NEEDS_CHANGES #1)', () => {
+      // 빈 transcript_path → stale discovery 로 fallback 하면 안 됨 (false positive 회피)
+      const empty = join(tmpDir, 'empty.jsonl');
+      writeFileSync(empty, '', 'utf8');
+      const u = resolveLatestUtterance({ transcript_path: empty });
+      expect(u).toBeNull();
+    });
   });
 
   describe('evaluateG022Gate — BLOCK_ENTRY 발화', () => {
@@ -86,6 +94,23 @@ describe('pre-tool-use hook (Sprint 018 M0 T02 — G-022 blocking 전환)', () =
           transcript_path: blockTranscript
         }).block
       ).toBe(false);
+    });
+
+    it('NotebookEdit (non-closeout) → block (hook gate set 포함 — e2e 회귀)', () => {
+      const r = evaluateG022Gate({
+        tool_name: 'NotebookEdit',
+        tool_input: { notebook_path: 'nb/x.ipynb' },
+        transcript_path: blockTranscript
+      });
+      expect(r.block).toBe(true);
+    });
+
+    it('gh pr create / git push / npm install → block', () => {
+      for (const command of ['gh pr create --fill', 'git push -u origin feature/x', 'npm install lodash']) {
+        expect(
+          evaluateG022Gate({ tool_name: 'Bash', tool_input: { command }, transcript_path: blockTranscript }).block
+        ).toBe(true);
+      }
     });
 
     it('새 작업 커밋 (feat) → block / docs 커밋 → allow', () => {

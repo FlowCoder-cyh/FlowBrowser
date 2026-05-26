@@ -34,13 +34,13 @@ const ENTRY_INTENT_PATTERNS = [
   /지금\s*박아/
 ];
 
+// 주어(codex/코덱스) 있는 형태로만 — bare /권고대로 진행/ 은 부정문("권고대로 진행하지 마") false ALLOW (codex NOTABLE #2).
 const AUTONOMOUS_DELEGATION_PATTERNS = [
   /코덱스랑\s*협의해서/,
   /코덱스\s*권고대로/,
   /codex\s*권고\s*받아서/,
   /codex\s*권고대로/,
-  /codex\s*협의해서\s*진행/,
-  /권고대로\s*진행/
+  /codex\s*협의해서\s*진행/
 ];
 
 export function detectFinalizationIntent(utterance) {
