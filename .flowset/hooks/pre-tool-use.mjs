@@ -67,7 +67,7 @@ export function evaluateG022Gate(payload, root = repoRoot) {
       return { block: false, reason: null }; // 발화 미상 — fail-open
     }
     const intent = detectFinalizationIntent(utterance.text);
-    const result = classifyToolForG022(toolName, payload?.tool_input, intent);
+    const result = classifyToolForG022(toolName, payload?.tool_input, intent, root);
     if (result.action === 'block') {
       return { block: true, reason: result.reason };
     }

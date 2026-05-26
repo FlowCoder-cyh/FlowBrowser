@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   classifyToolForG022,
   isCloseoutPath,
-  commandTargetsCloseout,
+  shellWriteTargetsCloseout,
   extractCommitMessage,
   extractCommitType
 } from '../../../.flowset/scripts/g022-tool-classifier.mjs';
@@ -11,17 +11,18 @@ import {
 const BLOCK = { advisory: 'BLOCK_ENTRY' as const };
 const ALLOW = { advisory: 'ALLOW_ENTRY' as const };
 const NEUTRAL = { advisory: 'NEUTRAL' as const };
+const ROOT = 'C:\\dev\\Flowbrowser';
 
 describe('g022-tool-classifier (Sprint 018 M0 T02 — G-022 blocking 전환)', () => {
   describe('isCloseoutPath — closeout 경로 (BLOCK_ENTRY 에서도 통과)', () => {
-    it('.flowset/state.md (forward / backslash 둘 다)', () => {
+    it('.flowset/state.md (repo-relative / root-anchored 절대)', () => {
       expect(isCloseoutPath('.flowset/state.md')).toBe(true);
-      expect(isCloseoutPath('C:\\dev\\Flowbrowser\\.flowset\\state.md')).toBe(true);
+      expect(isCloseoutPath('C:\\dev\\Flowbrowser\\.flowset\\state.md', ROOT)).toBe(true);
     });
 
     it('.flowset/handoffs/ 하위', () => {
       expect(isCloseoutPath('.flowset/handoffs/2026-05-26.md')).toBe(true);
-      expect(isCloseoutPath('C:\\dev\\Flowbrowser\\.flowset\\handoffs\\2026-05-26.md')).toBe(true);
+      expect(isCloseoutPath('C:\\dev\\Flowbrowser\\.flowset\\handoffs\\2026-05-26.md', ROOT)).toBe(true);
     });
 
     it('.flowset/logs/ 및 eval-results/', () => {
@@ -55,11 +56,22 @@ describe('g022-tool-classifier (Sprint 018 M0 T02 — G-022 blocking 전환)', (
       expect(isCloseoutPath('tests/unit/foo.test.ts')).toBe(false);
     });
 
-    it('commandTargetsCloseout — 명령이 closeout 경로 참조 판정', () => {
-      expect(commandTargetsCloseout('Set-Content .flowset/state.md -Value x')).toBe(true);
-      expect(commandTargetsCloseout('echo y >> .flowset/handoffs/2026-05-26.md')).toBe(true);
-      expect(commandTargetsCloseout('Set-Content src/main/Foo.ts -Value x')).toBe(false);
-      expect(commandTargetsCloseout('git status')).toBe(false);
+    it('root-anchor — 중첩 .flowset/.claude 우회 차단 (codex NEEDS_CHANGES #1)', () => {
+      expect(isCloseoutPath('src/.flowset/handoffs/foo.ts')).toBe(false);
+      expect(isCloseoutPath('tmp/.flowset/state.md')).toBe(false);
+      expect(isCloseoutPath('src/.flowset/handoffs/foo.ts', ROOT)).toBe(false);
+      expect(isCloseoutPath('C:\\dev\\Flowbrowser\\src\\.flowset\\state.md', ROOT)).toBe(false);
+    });
+
+    it('shellWriteTargetsCloseout — 셸 쓰기 타겟이 전부 closeout 인지', () => {
+      expect(shellWriteTargetsCloseout('Set-Content .flowset/state.md -Value x')).toBe(true);
+      expect(shellWriteTargetsCloseout('Set-Content src/main/Foo.ts -Value x')).toBe(false);
+      // 타겟 식별 불가 → false (fail-closed)
+      expect(shellWriteTargetsCloseout('Set-Content -Value x')).toBe(false);
+      // 쓰기 타겟은 src, 참조만 closeout → false (타겟 기반 — codex BLOCKING)
+      expect(
+        shellWriteTargetsCloseout('Set-Content src/main/Foo.ts -Value (Get-Content .flowset/state.md)')
+      ).toBe(false);
     });
 
     it('비문자열 입력은 false (fail-open)', () => {
@@ -165,13 +177,19 @@ describe('g022-tool-classifier (Sprint 018 M0 T02 — G-022 blocking 전환)', (
       expect(classifyToolForG022('Bash', { command: 'node .flowset/scripts/transcript-reader.mjs' }, BLOCK).action).toBe('allow');
     });
 
-    it('gh pr create / git push / 새 브랜치 / dependency 설치 → block (codex BLOCKING)', () => {
+    it('gh pr create / git push / 새 브랜치 / dependency 추가 → block (codex BLOCKING)', () => {
       expect(classifyToolForG022('Bash', { command: 'gh pr create --fill' }, BLOCK).action).toBe('block');
       expect(classifyToolForG022('Bash', { command: 'git push -u origin feature/x' }, BLOCK).action).toBe('block');
       expect(classifyToolForG022('Bash', { command: 'git checkout -b feat/x' }, BLOCK).action).toBe('block');
       expect(classifyToolForG022('PowerShell', { command: 'git switch -c feat/x' }, BLOCK).action).toBe('block');
       expect(classifyToolForG022('Bash', { command: 'npm install lodash' }, BLOCK).action).toBe('block');
       expect(classifyToolForG022('Bash', { command: 'pnpm add zod' }, BLOCK).action).toBe('block');
+    });
+
+    it('npm ci / bare npm install → allow (lockfile 복원=검증 준비, codex NEEDS_CHANGES #2)', () => {
+      expect(classifyToolForG022('Bash', { command: 'npm ci' }, BLOCK).action).toBe('allow');
+      expect(classifyToolForG022('Bash', { command: 'npm install' }, BLOCK).action).toBe('allow');
+      expect(classifyToolForG022('Bash', { command: 'pnpm install' }, BLOCK).action).toBe('allow');
     });
 
     it('git push --dry-run → allow (publish 아님)', () => {
@@ -184,9 +202,17 @@ describe('g022-tool-classifier (Sprint 018 M0 T02 — G-022 blocking 전환)', (
       expect(classifyToolForG022('Bash', { command: 'sed -i "s/a/b/" src/x.ts' }, BLOCK).action).toBe('block');
     });
 
-    it('셸 파일 쓰기 + closeout 경로 참조 → allow', () => {
+    it('셸 파일 쓰기 + closeout 타겟 → allow', () => {
       expect(classifyToolForG022('PowerShell', { command: 'Set-Content .flowset/state.md -Value x' }, BLOCK).action).toBe('allow');
-      expect(classifyToolForG022('Bash', { command: 'echo y >> .flowset/handoffs/2026-05-26.md' }, BLOCK).action).toBe('allow');
+    });
+
+    it('chained 셸 쓰기 우회 차단 (closeout + non-closeout 혼합 — codex 3차 BLOCKING)', () => {
+      expect(
+        classifyToolForG022('PowerShell', { command: 'Set-Content .flowset/state.md -Value x; Set-Content src/x.ts -Value y' }, BLOCK).action
+      ).toBe('block');
+      expect(
+        classifyToolForG022('PowerShell', { command: 'Set-Content src/x.ts -Value (Get-Content .flowset/state.md)' }, BLOCK).action
+      ).toBe('block');
     });
 
     it('command 미상 Bash → allow (fail-open)', () => {
