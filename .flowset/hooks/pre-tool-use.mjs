@@ -19,8 +19,9 @@
 //   - exit 2: block + stderr (Claude 에 차단 사유 전달)
 
 import { readFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { homedir } from 'node:os';
 
 import {
   discoverTranscriptSourceCandidates,
@@ -31,6 +32,8 @@ import { classifyToolForG022 } from '../scripts/g022-tool-classifier.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
+// 사용자 memory projects root — closeout memory anchor (transcript-reader getProjectsDir 와 동일 규칙).
+const memoryRoot = process.env.FLOWSET_CLAUDE_PROJECTS_DIR || join(homedir(), '.claude', 'projects');
 
 const G022_GATED_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell']);
 
@@ -67,7 +70,7 @@ export function evaluateG022Gate(payload, root = repoRoot) {
       return { block: false, reason: null }; // 발화 미상 — fail-open
     }
     const intent = detectFinalizationIntent(utterance.text);
-    const result = classifyToolForG022(toolName, payload?.tool_input, intent, root);
+    const result = classifyToolForG022(toolName, payload?.tool_input, intent, root, memoryRoot);
     if (result.action === 'block') {
       return { block: true, reason: result.reason };
     }

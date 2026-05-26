@@ -48,12 +48,20 @@ function normalizePath(p) {
   return p.replace(/\\/g, '/');
 }
 
-// closeout 경로 판정. root 주어지면 `<root>/.flowset/<closeout>` 로 anchor (절대 경로 cover).
-// root 미지정(순수 단위 테스트)이어도 repo-relative `.flowset/<closeout>` 는 anchor 됨 (startsWith).
-export function isCloseoutPath(filePath, root) {
+// closeout 경로 판정.
+// - root 주어지면 `<root>/.flowset/<closeout>` 로 anchor (절대 경로 cover). repo-relative `.flowset/<closeout>` 도 anchor.
+// - memoryRoot 주어지면 `<memoryRoot>/<key>/memory/` 로 anchor (src/.claude/... 우회 차단 — codex NEEDS_CHANGES).
+//   memoryRoot 미지정(순수 단위 테스트)일 때만 substring fallback.
+export function isCloseoutPath(filePath, root, memoryRoot) {
   const norm = normalizePath(filePath);
   if (!norm) return false;
-  if (MEMORY_PATH_RE.test(norm)) return true; // 메모리는 repo 밖
+  // 메모리 (repo 밖) — memoryRoot anchor 우선, 없으면 substring fallback
+  if (memoryRoot) {
+    const mr = normalizePath(memoryRoot).replace(/\/+$/, '') + '/';
+    if (norm.startsWith(mr) && /^[^/]+\/memory\//i.test(norm.slice(mr.length))) return true;
+  } else if (MEMORY_PATH_RE.test(norm)) {
+    return true;
+  }
   let rel = null;
   if (root) {
     const r = normalizePath(root).replace(/\/+$/, '');
@@ -76,8 +84,12 @@ function matchShellNewWork(command) {
   if (/\bgit\s+(?:checkout\s+-b|switch\s+-c)\b/.test(command)) {
     return 'git 새 브랜치 생성 — 새 작업 진입.';
   }
-  // dependency mutation 만 (npm install <pkg> / pnpm·yarn add). npm ci / bare install 은 lockfile 복원 → 통과.
-  if (/\bnpm\s+(?:install|i)\s+(?!-)\S/.test(command) || /\b(?:pnpm|yarn)\s+add\b/.test(command)) {
+  // dependency mutation 만 (npm install [flags] <pkg> / pnpm·yarn add). npm ci / bare install / flag-only 는 lockfile 복원 → 통과.
+  // flag(-D/--save-dev 등) 를 건너뛰고 non-flag 패키지 인자가 있을 때만 차단 (codex BLOCKING — `npm install -D lodash` 우회 차단).
+  if (
+    /\bnpm\s+(?:install|i)\s+(?:-\S+\s+)*(?!-)\S/.test(command) ||
+    /\b(?:pnpm|yarn)\s+add\b/.test(command)
+  ) {
     return 'dependency 추가 (G-020) — 새 작업.';
   }
   return null;
@@ -85,13 +97,13 @@ function matchShellNewWork(command) {
 
 // 단일 셸 쓰기 subcommand 의 타겟이 전부 closeout 인가 (codex BLOCKING — 타겟 기반 판정).
 // path-like 토큰을 추출 — 하나라도 non-closeout 이면 차단. 타겟 식별 불가 시 차단(fail-closed, BLOCK_ENTRY 하 셸쓰기는 의심).
-export function shellWriteTargetsCloseout(sub, root) {
+export function shellWriteTargetsCloseout(sub, root, memoryRoot) {
   const tokens = sub.split(/[\s"'`()]+/).filter(Boolean);
   const pathTokens = tokens.filter(
     (t) => !t.startsWith('-') && (/[\\/]/.test(t) || /\.[A-Za-z0-9]{1,6}$/.test(t))
   );
   if (pathTokens.length === 0) return false;
-  return pathTokens.every((t) => isCloseoutPath(t, root));
+  return pathTokens.every((t) => isCloseoutPath(t, root, memoryRoot));
 }
 
 // git commit 명령에서 첫 줄 메시지 추출 (here-doc / here-string / -m / -am / --message=).
@@ -130,9 +142,10 @@ export function extractCommitType(message) {
  * @param {object} toolInput - tool_input (file_path / notebook_path / command 등)
  * @param {{advisory?: string}} intent - detectFinalizationIntent 결과 (advisory 만 사용)
  * @param {string} [root] - repo root (closeout 절대 경로 anchor — hook 이 전달)
+ * @param {string} [memoryRoot] - 사용자 memory projects root (`~/.claude/projects`) anchor — hook 이 전달
  * @returns {{action: 'allow'|'block', reason: string|null}}
  */
-export function classifyToolForG022(toolName, toolInput, intent, root) {
+export function classifyToolForG022(toolName, toolInput, intent, root, memoryRoot) {
   // 게이트는 BLOCK_ENTRY 일 때만 활성 — ALLOW_ENTRY / NEUTRAL / 미상 은 항상 통과 (fail-open).
   if (!intent || intent.advisory !== 'BLOCK_ENTRY') {
     return { action: 'allow', reason: null };
@@ -146,7 +159,7 @@ export function classifyToolForG022(toolName, toolInput, intent, root) {
     if (typeof filePath !== 'string' || !filePath.trim()) {
       return { action: 'allow', reason: null }; // 경로 미상 — fail-open
     }
-    if (isCloseoutPath(filePath, root)) {
+    if (isCloseoutPath(filePath, root, memoryRoot)) {
       return { action: 'allow', reason: null };
     }
     return {
@@ -171,7 +184,7 @@ export function classifyToolForG022(toolName, toolInput, intent, root) {
     // 2b. 파일 쓰기 셸 동사 — subcommand 단위, 각 write subcommand 타겟이 전부 closeout 일 때만 통과.
     const subs = command.split(/&&|\|\||;/);
     for (const sub of subs) {
-      if (SHELL_WRITE_VERB.test(sub) && !shellWriteTargetsCloseout(sub, root)) {
+      if (SHELL_WRITE_VERB.test(sub) && !shellWriteTargetsCloseout(sub, root, memoryRoot)) {
         return {
           action: 'block',
           reason: `[G-022] BLOCK_ENTRY 후 셸 파일 쓰기 차단 (non-closeout 타겟) — Set-Content/Out-File/sed -i 등. 사용자 명시 선택 박힌 후 진입.`

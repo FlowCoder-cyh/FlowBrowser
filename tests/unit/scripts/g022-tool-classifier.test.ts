@@ -12,6 +12,7 @@ const BLOCK = { advisory: 'BLOCK_ENTRY' as const };
 const ALLOW = { advisory: 'ALLOW_ENTRY' as const };
 const NEUTRAL = { advisory: 'NEUTRAL' as const };
 const ROOT = 'C:\\dev\\Flowbrowser';
+const MEMROOT = 'C:/Users/User/.claude/projects';
 
 describe('g022-tool-classifier (Sprint 018 M0 T02 — G-022 blocking 전환)', () => {
   describe('isCloseoutPath — closeout 경로 (BLOCK_ENTRY 에서도 통과)', () => {
@@ -56,11 +57,23 @@ describe('g022-tool-classifier (Sprint 018 M0 T02 — G-022 blocking 전환)', (
       expect(isCloseoutPath('tests/unit/foo.test.ts')).toBe(false);
     });
 
-    it('root-anchor — 중첩 .flowset/.claude 우회 차단 (codex NEEDS_CHANGES #1)', () => {
+    it('root-anchor — 중첩 .flowset 우회 차단 (codex NEEDS_CHANGES #1)', () => {
       expect(isCloseoutPath('src/.flowset/handoffs/foo.ts')).toBe(false);
       expect(isCloseoutPath('tmp/.flowset/state.md')).toBe(false);
       expect(isCloseoutPath('src/.flowset/handoffs/foo.ts', ROOT)).toBe(false);
       expect(isCloseoutPath('C:\\dev\\Flowbrowser\\src\\.flowset\\state.md', ROOT)).toBe(false);
+    });
+
+    it('memory-anchor — memoryRoot 주어지면 중첩 .claude 우회 차단 (codex 4차 NEEDS_CHANGES)', () => {
+      // 정상 memory 경로 (memoryRoot 하위) → allow
+      expect(
+        isCloseoutPath('C:/Users/User/.claude/projects/C--dev-Flowbrowser/memory/m.md', ROOT, MEMROOT)
+      ).toBe(true);
+      // src/.claude/... 우회 → memoryRoot 하위 아님 → false
+      expect(isCloseoutPath('src/.claude/projects/x/memory/foo.md', ROOT, MEMROOT)).toBe(false);
+      expect(
+        isCloseoutPath('C:\\dev\\Flowbrowser\\src\\.claude\\projects\\x\\memory\\foo.md', ROOT, MEMROOT)
+      ).toBe(false);
     });
 
     it('shellWriteTargetsCloseout — 셸 쓰기 타겟이 전부 closeout 인지', () => {
@@ -186,10 +199,17 @@ describe('g022-tool-classifier (Sprint 018 M0 T02 — G-022 blocking 전환)', (
       expect(classifyToolForG022('Bash', { command: 'pnpm add zod' }, BLOCK).action).toBe('block');
     });
 
-    it('npm ci / bare npm install → allow (lockfile 복원=검증 준비, codex NEEDS_CHANGES #2)', () => {
+    it('npm install -D/--save-dev <pkg> 우회 차단 (codex 4차 BLOCKING)', () => {
+      expect(classifyToolForG022('Bash', { command: 'npm install -D lodash' }, BLOCK).action).toBe('block');
+      expect(classifyToolForG022('Bash', { command: 'npm i --save-dev vitest' }, BLOCK).action).toBe('block');
+      expect(classifyToolForG022('Bash', { command: 'npm install --save zod' }, BLOCK).action).toBe('block');
+    });
+
+    it('npm ci / bare install / flag-only → allow (lockfile 복원=검증 준비, codex NEEDS_CHANGES #2)', () => {
       expect(classifyToolForG022('Bash', { command: 'npm ci' }, BLOCK).action).toBe('allow');
       expect(classifyToolForG022('Bash', { command: 'npm install' }, BLOCK).action).toBe('allow');
       expect(classifyToolForG022('Bash', { command: 'pnpm install' }, BLOCK).action).toBe('allow');
+      expect(classifyToolForG022('Bash', { command: 'npm install --production' }, BLOCK).action).toBe('allow');
     });
 
     it('git push --dry-run → allow (publish 아님)', () => {
