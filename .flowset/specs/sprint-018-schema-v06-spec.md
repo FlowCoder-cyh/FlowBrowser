@@ -1,7 +1,8 @@
 # Schema v06 spec (T17 진입 조건) — Sprint 018 M1 복원 (PR #241 → S018-T04)
 
 > **복원 메타 (Sprint 018 M1 T04, 2026-05-26)**: 본 spec 은 PR #241 (`feature/WI-S017M5-feat-schema-v06-spec`, +269) 에서 작성됐으나 **내용 결함이 아닌 G-022 진입 타이밍 위반**(마무리 의도 후 임의 진입)으로 close 됨. 산출물 자체는 codex 리뷰 4 스레드(019e500b/019e5067/019e50c2/019e50ec) 통과 + 지적 반영 완료 상태. 사용자 명시 선택(복원)으로 Sprint 018 M1 에 복원 — 파일명 `sprint-017-*` → `sprint-018-*` 이동.
-> **현재 코드 재대조 (2026-05-26)**: `workspaces.embedding_model` 컬럼 미존재 + `vec_pages` 단일 `float[1024]` (`src/storage/schema/v05.sql`) + 최신 스키마 v05 (`V05_SCHEMA_VERSION=2`) — 즉 아래 "v05 (현재)/v06 (제안)" 묘사가 **그대로 유효** (close 이후 스키마 변경 0). 본문 무수정 복원.
+> **현재 코드 재대조 (2026-05-26)**: `workspaces.embedding_model` 컬럼 미존재 + `vec_pages` 단일 `float[1024]` (`src/storage/schema/v05.sql`) + 최신 스키마 v05 (`V05_SCHEMA_VERSION=2`) — 즉 아래 "v05 (현재)/v06 (제안)" 묘사가 **그대로 유효** (close 이후 스키마 변경 0).
+> **복원 시 2차 codex 리뷰 정정 (019e653c)**: 원본 spec 결함 5건 정정 — (1) BLOCKING: 1536/3072 allowlist↔테이블 불일치 → 1024/768 고정 (CHECK·테이블·UX 3자 일치) (2) vec_notes 마이그레이션 보존 추가 (3) wiring 실 코드 지점(`EmbeddingClient.processNextEmbeddingJob`/`searchHandlers.ts`) 명시 (4) SearchService allowlist helper 통일 (5) T17a 진입 게이트(PoC) 통일. 결정/SQL sketch 골격은 유지, 위 정정만 반영.
 >
 > 작성: 2026-05-24 (Sprint 017 M5, G-021 정식화 후속).
 > 권고 출처: codex 019e500b Q4/Q5 (T14 시점) + codex 019e5067 + codex 019e50c2 권고 G.
@@ -54,10 +55,9 @@ CREATE TABLE workspaces (
   embedding_model TEXT NOT NULL DEFAULT 'openai:text-embedding-3-small:1024'
     CHECK (embedding_model IN (
       'openai:text-embedding-3-small:1024',
-      'openai:text-embedding-3-small:1536',
-      'openai:text-embedding-3-large:3072',
       'ollama:nomic-embed-text:768'
-      -- 후속 모델 추가 시 CHECK 확장 + 별도 vec_pages_{dim} 테이블 동반
+      -- v06 범위 = 1024/768 고정 (codex 019e653c BLOCKING — DB CHECK ↔ vec0 테이블 ↔ UX 3자 일치 강제).
+      -- 1536/3072 등 후속 모델 추가 시: CHECK 확장 + vec_pages_{dim}/vec_notes_{dim} 테이블 + allowlist mapping 동반 필수.
     ))
 );
 ```
@@ -121,7 +121,8 @@ export async function migrateV05ToV06(fb: FlowbrowserDatabase, opts: { dryRun: b
   //    (codex 019e50ec NEEDS_CHANGES #3 정합 — v04→v05 패턴 V05_BACKUP_FILE='flowbrowser.db' 통일)
   // 3. dry-run 분기 — actual write 박지 않고 검증만
   // 4. workspaces ALTER (embedding_model 컬럼 추가, DEFAULT 'openai:text-embedding-3-small:1024')
-  // 5. vec_pages → vec_pages_1024 rename (가능 시) 또는 vec_pages_1024 신규 + 데이터 copy + vec_pages drop
+  // 5. vec_pages → vec_pages_1024 AND vec_notes → vec_notes_1024 (둘 다 — rename 가능 시, 아니면 _1024 신규 + 데이터 copy + 원본 drop)
+  //    (codex 019e653c NEEDS_CHANGES: vec_notes 보존 누락 정정 — v05 에 vec_notes float[1024] 실재 v05.sql:234, T17a "v05 데이터 보존" 회귀 정합)
   // 6. vec_pages_768 / vec_notes_768 신규 (빈 테이블)
   // 7. 트리거 갱신 (DROP + CREATE)
   // 8. sentinel 박음 (migration_v06_applied=1)
@@ -136,7 +137,9 @@ export async function migrateV05ToV06(fb: FlowbrowserDatabase, opts: { dryRun: b
 
 ## 5. 코드 wiring 변동
 
-### 5.1 IndexingService
+> **실제 수정 지점 (codex 019e653c NEEDS_CHANGES — 현재 코드 소유 지점 명시)**: 현재 `IndexingService` 는 embedding/upsert 를 직접 하지 않고 embedding_queue **enqueue 만** 한다. 실 upsert 는 `src/ai/embedding/EmbeddingClient.ts` 의 `processNextEmbeddingJob` 경로. 검색의 query embedding 은 `src/main/searchHandlers.ts:134` 에서 생성되고 `SearchService` 는 받은 벡터로 검색만 한다. 아래 §5.1/§5.2 sketch 는 **개념 예시**이며, 실 구현(T17b)은 (a) upsert 시 table 선택을 `EmbeddingClient.processNextEmbeddingJob`, (b) query embedding + table 선택을 `searchHandlers.ts` 에 박아야 한다 (IndexingService/SearchService 클래스 직접 수정 아님 — 소유 지점 혼동 주의).
+
+### 5.1 IndexingService (개념 — 실 지점 EmbeddingClient.processNextEmbeddingJob)
 
 ```ts
 // v05 (현재)
@@ -182,19 +185,17 @@ class IndexingService {
 
 **VectorIndex.ts hardcode 정정**: 현재 `src/storage/VectorIndex.ts:32` 의 `EMBEDDING_DIMENSIONS=1024` 상수 → workspace 별 dim 결정 + per-call validation 으로 교체.
 
-### 5.2 SearchService
+### 5.2 SearchService (개념 — 실 지점 searchHandlers.ts query embedding)
 
 ```ts
 // 워크스페이스 별 embedding_model 따라 query embedding + 매칭 vec0 table 선택
-class SearchService {
-  async search(query: string, workspaceId: string) {
-    const ws = this.workspaceStore.findById(workspaceId)
-    const [provider, model, dim] = ws.embedding_model.split(':')
-    const queryVector = await this.embeddingClient.embed(query, { provider, model })
-    const vectorTable = `vec_pages_${dim}`
-    return this.vectorIndex.queryFrom(vectorTable, queryVector, ...)
-  }
-}
+// (실 wiring 은 searchHandlers.ts:134 query embedding 생성 지점)
+const ws = workspaceStore.findById(workspaceId)
+const [provider, model, dimStr] = ws.embedding_model.split(':')
+const dim = parseInt(dimStr, 10)
+const queryVector = await embeddingClient.embed(query, { provider, model })
+const vectorTable = selectVecPagesTable(dim)  // §5.1 allowlist helper 공용 — 직접 보간 금지 (codex 019e653c — 검색 경로도 동일 helper)
+return vectorIndex.queryFrom(vectorTable, queryVector, ...)
 ```
 
 ### 5.3 OllamaProvider.embed() 재활성화
@@ -221,7 +222,7 @@ class OllamaProvider implements ProviderAdapter {
 
 새 UI 추가:
 - "임베딩 모델" 드롭다운 (디폴트: OpenAI 1024)
-- 옵션: OpenAI 3-small (1024) / OpenAI 3-small (1536) / OpenAI 3-large (3072) / Ollama nomic-embed-text (768)
+- 옵션 (v06 범위): OpenAI 3-small (1024) / Ollama nomic-embed-text (768). ※ 1536/3072 는 vec_pages_{dim}·vec_notes_{dim} 테이블 + allowlist + CHECK 동반 추가 시 확장 (codex 019e653c BLOCKING — DB CHECK/테이블/UX 3자 일치)
 - 사용자 선택 → `workspaces.embedding_model` 박음
 
 ### 6.2 기존 워크스페이스
@@ -251,7 +252,7 @@ class OllamaProvider implements ProviderAdapter {
 
 | T | 산출물 | 진입 조건 |
 |---|---|---|
-| T17a | `v06.sql` + `migrate_v05_to_v06.ts` + 단위 회귀 | 본 spec 박힘 |
+| T17a | `v06.sql` + `migrate_v05_to_v06.ts` + 단위 회귀 | 본 spec 박힘 **+ sqlite-vec 768dim vec0 신규 가능 PoC 통과** (§8-2 정합 — codex 019e653c, 진입 게이트 통일) |
 | T17b | IndexingService 분기 + SearchService 분기 + 단위 회귀 | T17a 머지 |
 | T17c | OllamaProvider.embed() 재구현 + supportsEmbed=true | T17a 머지 |
 | T17d | UX — 워크스페이스 생성 모달 모델 선택 | T17a 머지 |
@@ -270,4 +271,5 @@ class OllamaProvider implements ProviderAdapter {
 ## 11. 변경 이력
 
 - 2026-05-24: Sprint 017 M5 G-021 머지 후 G 옵션 진입. codex 019e50c2 권고 G + T14 시점 발견 BLOCKER 해소 spec. 본 spec = 결정 + sketch 만, 실 구현 Sprint 018+ 위임. (PR #241 — G-022 진입 타이밍 위반으로 close)
-- 2026-05-26 (Sprint 018 M1 T04): **복원** (사용자 명시 선택). 파일명 sprint-017 → sprint-018 이동 + 헤더 복원 메타. 현재 코드 재대조 — v05 스키마 무변경 확인, 본문 무수정. 실 구현 Sprint 018 M2 T17 위임.
+- 2026-05-26 (Sprint 018 M1 T04): **복원** (사용자 명시 선택). 파일명 sprint-017 → sprint-018 이동 + 헤더 복원 메타. 현재 코드 재대조 — v05 스키마 무변경 확인. 실 구현 Sprint 018 M2 T17 위임.
+- 2026-05-27 (T04 dual review): codex 019e653c 2차 리뷰로 원본 spec 결함 5건 정정 — BLOCKING(1536/3072 제거, 1024/768 고정) + NEEDS_CHANGES 4(vec_notes 마이그레이션 / wiring 실지점 EmbeddingClient·searchHandlers / SearchService allowlist 통일 / T17a 진입 게이트 PoC 통일). evaluator Pass 4/0/0.
