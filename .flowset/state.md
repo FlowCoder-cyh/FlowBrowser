@@ -5,17 +5,16 @@
 
 ## 메타
 
-- **Phase**: **3 진행 중 (Sprint 018 M0 T01 머지 완료 `5edf048` — 본 state 동기화 docs PR 진행 중)** (Sprint 017 partial closure 박힘 → **Sprint 018 진입 / M0 T01 advisory hook 머지 완료**). carryover **8 작업 잔여** (T17 + T19 + T20 + T21 + T22~T26 + Schema v06 + **G-022 blocking** + PRD v0.5.0 — codex 019e6336 NEEDS_CHANGES #2 정합: CO 행 8개 중 CO-7 의 advisory[T01] 부분만 closed, blocking[T02] 잔여라 작업 단위로는 8 미완).
-- **Sprint**: **018 M0 T01 머지 완료 (#246 `5edf048`) — 본 state 동기화 docs PR 진행 중**. 누적 main first-parent S018 PR: **1** (#246, 본 docs PR 머지 시 2). 다음 = S018-T02 (G-022 blocking 전환).
+- **Phase**: **3 진행 중 (Sprint 018 M0 T02 머지 완료 `f3f0543` — 본 state 동기화 docs PR 진행 중)** (Sprint 017 partial closure 박힘 → **Sprint 018 진입 / M0 T01 advisory + T02 blocking 머지 완료, M0 종료**). carryover **7 작업 잔여** (T17 + T19 + T20 + T21 + T22~T26 + Schema v06 + PRD v0.5.0 — CO-7 G-022 advisory[T01]+blocking[T02] 둘 다 closed 로 작업 단위 8→7).
+- **Sprint**: **018 M0 T02 머지 완료 (#248 `f3f0543`) — 본 state 동기화 docs PR 진행 중**. 누적 main first-parent S018 PR: **3** (#246 T01 + #247 docs + #248 T02, 본 docs PR 머지 시 4). M0 (mini-milestone β PR B+C) 종료. 다음 = M1 (T19/Schema v06 사용자 결정 후 진입).
 - **PROJECT_CLASS**: hybrid
 - **PRD 버전**: **v0.4.1 발행** (2026-05-21, Sprint 016 M5 T24 — Phase 2 진입 메타 + §11.11 Highlights 신설). Sprint 018 M4 시점 v0.5.0 발행 예정 (carryover).
-- **최근 갱신 (Sprint 018 M0 T01 머지 완료)**: 2026-05-23 (PR #246 advisory hook 머지 `5edf048` — CI 6/6 SUCCESS). 단위 회귀 1760 → **1777** (+17 transcript-reader 회귀). **KI 변동 0**. 잔여 9 유지. 본 세션 4 PR 머지 (#243 G-022 + #244 mini-milestone β D + #245 partial closure docs + #246 advisory hook). G-022 자기 적용 4 사례 (#243/#244/#245/#246) + advisory hook 첫 자기 적용 (smoke test "코덱스랑 협의해서 진행해" → ALLOW_ENTRY). 자기 검증 루프 **54회차 SUCCESS**.
-- **다음 세션 진입점** (본 state 동기화 docs PR 머지 후 — Sprint 018 carryover 8 작업):
-  1. **S018-T02** — mini-milestone β PR C (G-022 blocking 전환, advisory → blocking) — 사용자 결정 불요
-  2. **T19 사용자 결정** — Notion Export 옵션 A/B/C/D 명시 선택 후 진입 (S018-T03)
-  3. **Schema v06 spec 재진입 결정** — 사용자 명시 선택 후 진입 (S018-T04)
-  4. **T17 / T20 / T21** — dependency 승인 / 학습 데이터셋 박힌 후 진입 (S018-T05~T07)
-  5. **PRD v0.5.0 + Phase 3 종료 검토 + Sprint 019 시안** (S018-T10~T13)
+- **최근 갱신 (Sprint 018 M0 T02 머지 완료)**: 2026-05-26 (PR #248 G-022 blocking 전환 머지 `f3f0543` — CI 6/6 SUCCESS). 단위 회귀 1777 → **1835** (+58: classifier 39 + hook 19 + intent 5, non-perf). **KI 변동 0**. 잔여 9 유지. G-022 advisory → **PreToolUse blocking 전환** (SessionStart exit 2 차단 불가 공식 문서 검증 → contract deviation, codex 019e634d). dual review: evaluator Pass 4/0/0 + codex 4 라운드 → 최종 BLOCKING 0/NEEDS_CHANGES 0/NOTABLE 0. 자기 검증 루프 **55회차 SUCCESS**. G-022 자기 적용 — 진입 발화 "핸드오프 읽고 작업 진행해" (ALLOW_ENTRY) + 본 세션 모든 feat 커밋/gh pr 가 live 게이트 통과 (ALLOW_ENTRY 하 inert 실증).
+- **다음 세션 진입점** (본 state 동기화 docs PR 머지 후 — Sprint 018 carryover 7 작업):
+  1. **T19 사용자 결정** — Notion Export 옵션 A/B/C/D 명시 선택 후 진입 (S018-T03, M1)
+  2. **Schema v06 spec 재진입 결정** — 사용자 명시 선택 후 진입 (S018-T04, M1)
+  3. **T17 / T20 / T21** — dependency 승인 / 학습 데이터셋 박힌 후 진입 (S018-T05~T07, M2)
+  4. **PRD v0.5.0 + Phase 3 종료 검토 + Sprint 019 시안** (S018-T10~T13, M4~M5)
 
 ## 현재 작업
 
@@ -260,6 +259,7 @@ Electron 셸 / 다중 탭 + 영속 / Privacy Filter / OS Keychain / Provider Ada
 
 ## 최근 핸드오프
 
+- [2026-05-26](./handoffs/2026-05-26.md) — **Sprint 018 M0 T02 (mini-milestone β PR C — G-022 advisory → PreToolUse blocking 전환, #248 `f3f0543`)** — SessionStart exit 2 차단 불가 공식 문서 검증 → contract deviation (PreToolUse enforcement, codex 019e634d). `g022-tool-classifier.mjs` 신규 + `pre-tool-use.mjs` 게이트 + matcher 확장. false positive 0 (closeout/docs 커밋/read-only/fail-open 통과). dual review evaluator Pass 4/0/0 + codex 4 라운드 → 0/0/0. 단위 non-perf 1777→1835 (+58), CI 6/6. **M0 종료** (T01 advisory + T02 blocking). 자기 검증 루프 55회차 SUCCESS, carryover 8→7, 다음 = M1 (T19/Schema v06 사용자 결정)
 - [2026-05-21](./handoffs/2026-05-21.md) — **Sprint 016 M2 어댑터 일괄 제거 + M3 cookies partition + M4 백그라운드 번역·하이라이트 + M4 종결 (5/5 — T20 NoteHighlight DOM anchor 머지)** (M2 6 PR #198~#203 + M2 docs #204 + M3 4 PR #205~#208 + M3 docs #209 + **M4 4 PR #210 T21 / #211 T22 / #212 T19 / #213 T18 + M4 docs #214 + M4 T20 #215 + 본 docs PR = 누적 18 PR**) — **KI-002 (M2) + KI-005 (M4 T21) + KI-008 (M3) closed = 3 closed / KI-021 + KI-022 신규 (M3 NB) + KI-023~026 신규 (M4 T20 batch) = 6 신규** / 단위 1374 PASS / codex 사전 BLOCKING/NEEDS_CHANGES 6 (M2) + 7 (M3) + 8 (M4) + 1 (T20) + 3 (본 docs PR) = **25건 모두 본 PR 내 hotfix 흡수** + 학습 #18 **11번째 확증** + #19 정합, 다음 세션 **Sprint 016 M5 종합 (T23~T26)** 진입
 - [2026-05-20](./handoffs/2026-05-20.md) — Sprint 016 M0 §1~§14 + §15 M1 T07+T08 시나리오 2·3 cover (#194/#195) + §16 T02-followup KI-006 실 구현 (#196/#197) 완료 — 시나리오 회귀 18/18 cover + KI-006 closed 후보 추가 (총 7종) + race-safe generation 패턴, 단위 1163 PASS, 자기 검증 루프 17회차 SUCCESS, 가드레일 G-018, 학습 8종 (#18 codex BLOCKING 본질적 설계 결함 차단), 다음 세션 M2 어댑터 일괄 제거 진입
 - [2026-05-19](./handoffs/2026-05-19.md) — Sprint 015 M5 (§10) + M6 종합 (§11) 모두 완료 — Phase 1 종료 선언 + PRD v0.4.0 정식 발행 + Sprint 016 진입 권고
