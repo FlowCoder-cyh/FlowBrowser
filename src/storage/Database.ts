@@ -60,6 +60,16 @@ export const V04_SCHEMA_VERSION = 1
  */
 export const V05_SCHEMA_VERSION = 2
 
+/**
+ * Sprint 018 M2 T17a — v0.6 schema 버전. `migrateV05ToV06` 가 transition 완료 시 schema_meta.version 으로 박음.
+ * v05 → v06 transition: workspaces.embedding_model 컬럼 + dimension 별 vec0 테이블 분리
+ * (vec_pages_1024/vec_pages_768/vec_notes_1024/vec_notes_768) + 트리거 갱신 (Schema v06 spec §3).
+ *
+ * applySchema 는 v05.sql 을 유지 (version=2) — v06 transition 은 명시 마이그레이션 함수 소유 (codex 019e6574 권고 A).
+ * v06 wiring (services.ts 체인 + VectorIndex/SearchService dimension 분기) 은 T17b.
+ */
+export const V06_SCHEMA_VERSION = 3
+
 export type LevelPreference = 'novice' | 'intermediate' | 'advanced' | null
 
 export interface WorkspaceRow {
