@@ -81,7 +81,7 @@ Notion 엔 진짜 hidden property 없음 → `FlowBrowser/*` 관리 속성으로
 
 | 속성 | 타입 | 용도 |
 |---|---|---|
-| `Flow External ID` | rich_text / title | `{entity}:{flowbrowser_uuid}` — upsert dedup 키 |
+| `Flow External ID` | rich_text | `{entity}:{flowbrowser_uuid}` — upsert dedup 키 (title 아님 — §7.1) |
 | `Flow Workspace ID` | rich_text | `{workspace_uuid}` |
 | `Flow Schema Version` | rich_text | `v05` |
 | `Flow Row Hash` | rich_text | `sha256(canonical entity JSON)` — update/skip 판정 |
