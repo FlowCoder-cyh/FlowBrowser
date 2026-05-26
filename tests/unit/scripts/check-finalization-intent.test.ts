@@ -64,6 +64,35 @@ describe('check-finalization-intent (G-022 advisory helper)', () => {
     });
   });
 
+  describe('진입 phrase 보강 (S018-T02 codex 019e634d §4)', () => {
+    it('"계속 진행" → ALLOW_ENTRY', () => {
+      expect(detectFinalizationIntent('아니 계속 진행해').advisory).toBe('ALLOW_ENTRY');
+    });
+
+    it('"PR 생성/만들어/올려" → ALLOW_ENTRY', () => {
+      expect(detectFinalizationIntent('PR 생성해줘').advisory).toBe('ALLOW_ENTRY');
+      expect(detectFinalizationIntent('PR 만들어').advisory).toBe('ALLOW_ENTRY');
+      expect(detectFinalizationIntent('PR 올려').advisory).toBe('ALLOW_ENTRY');
+    });
+
+    it('"다른 작업 진행/시작" → ALLOW_ENTRY', () => {
+      expect(detectFinalizationIntent('다른 작업 진행하자').advisory).toBe('ALLOW_ENTRY');
+      expect(detectFinalizationIntent('다른 작업 시작해').advisory).toBe('ALLOW_ENTRY');
+    });
+
+    it('"codex 권고대로 진행" → ALLOW_ENTRY (delegation)', () => {
+      const r = detectFinalizationIntent('codex 권고대로 진행해');
+      expect(r.hasAutonomousDelegation).toBe(true);
+      expect(r.advisory).toBe('ALLOW_ENTRY');
+    });
+
+    it('광의 false ALLOW 회귀 — "다음 세션에서 진행" 은 여전히 BLOCK_ENTRY', () => {
+      const r = detectFinalizationIntent('다음 세션에서 진행하자');
+      expect(r.hasEntryIntent).toBe(false);
+      expect(r.advisory).toBe('BLOCK_ENTRY');
+    });
+  });
+
   describe('검출 신호만 박힌 발화 — BLOCK_ENTRY', () => {
     it('마무리 의도만 박힌 발화', () => {
       const result = detectFinalizationIntent('오늘은 세션 마무리하자');

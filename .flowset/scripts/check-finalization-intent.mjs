@@ -17,18 +17,30 @@ const FINALIZATION_PATTERNS = {
   추궁: [/오래\s*걸리냐/, /오래걸리냐/, /왜\s*이렇게\s*오래/, /왜이렇게\s*오래/, /여태[^\n]+안\s*[가-힣]/, /검증\s*시켰는데/, /검증시켰는데/]
 };
 
+// 진입 의사 명시 (unblock) — 검출 신호보다 우선. S018-T02 codex 019e634d §4 보강.
+// 주의: bare /진행/ 같은 광의 패턴 금지 — "다음 세션에서 진행"(지연) 을 false ALLOW 로 뒤집음.
+// 동사 페어로만 매칭 (작업/계속/이어서/다른 작업 + 진행, PR + 생성/만들어/올려/박아).
 const ENTRY_INTENT_PATTERNS = [
   /작업\s*진행해/,
-  /PR\s*박아/,
-  /구현\s*시작/,
+  /계속\s*진행/,
   /이어서\s*진행/,
+  /다른\s*작업\s*(?:진행|시작|해|하자|박아|로)/,
+  /다음\s*작업\s*(?:진행|시작|해)/,
+  /구현\s*시작/,
+  /PR\s*박아/,
+  /PR\s*생성/,
+  /PR\s*만들어/,
+  /PR\s*올려/,
   /지금\s*박아/
 ];
 
 const AUTONOMOUS_DELEGATION_PATTERNS = [
   /코덱스랑\s*협의해서/,
+  /코덱스\s*권고대로/,
   /codex\s*권고\s*받아서/,
-  /codex\s*협의해서\s*진행/
+  /codex\s*권고대로/,
+  /codex\s*협의해서\s*진행/,
+  /권고대로\s*진행/
 ];
 
 export function detectFinalizationIntent(utterance) {
