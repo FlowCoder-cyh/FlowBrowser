@@ -118,10 +118,36 @@ function probeVersion(fb: FlowbrowserDatabase): string | null {
   return fb.getSchemaMeta('version')?.value ?? null
 }
 
-/** workspaces.embedding_model 컬럼 존재 여부 (이미 v06 인지 방어 판정). */
+/** workspaces.embedding_model 컬럼 존재 여부. */
 function hasEmbeddingModelColumn(fb: FlowbrowserDatabase): boolean {
   const cols = fb.getDb().prepare(`PRAGMA table_info(workspaces)`).all() as Array<{ name: string }>
   return cols.some((c) => c.name === 'embedding_model')
+}
+
+/**
+ * v06 변환 흔적(artifact) 전수 탐지 — sentinel 부재 상태에서 부분/외부 변형 판정용.
+ *
+ * codex 019e658a 2차 NEEDS_CHANGES — embedding_model 컬럼만 보면 vec_pages_1024 등 다른 v06 객체만
+ * 일부 존재하는 상태를 놓쳐 INSERT…SELECT 중복 벡터 생성 위험. embedding_model 컬럼 + dimension 별 vec0
+ * 4종 + v06 트리거 2종 전반 검사.
+ *
+ * @returns 발견된 v06 artifact 이름 목록 (비어 있으면 깨끗한 v05).
+ */
+function detectV06Artifacts(fb: FlowbrowserDatabase): string[] {
+  const db = fb.getDb()
+  const found: string[] = []
+  if (hasEmbeddingModelColumn(fb)) found.push('workspaces.embedding_model')
+  const objExists = (type: 'table' | 'trigger', name: string): boolean =>
+    Boolean(
+      db.prepare(`SELECT name FROM sqlite_master WHERE type = ? AND name = ?`).get(type, name)
+    )
+  for (const t of ['vec_pages_1024', 'vec_pages_768', 'vec_notes_1024', 'vec_notes_768']) {
+    if (objExists('table', t)) found.push(t)
+  }
+  for (const tr of ['pages_after_delete_vec_pages_v06', 'notes_after_delete_vec_notes_v06']) {
+    if (objExists('trigger', tr)) found.push(tr)
+  }
+  return found
 }
 
 /**
@@ -203,8 +229,8 @@ function applyV06Transform(fb: FlowbrowserDatabase, sentinelTs: string): void {
  * Public entry — v05 → v06 마이그레이션 (G-014 정합).
  *
  * 5 단계:
- *   1. sentinel 체크 → 존재 시 already_migrated skip. sentinel 부재 + embedding_model 컬럼 존재 시
- *      hard fail (부분/외부 변형 — 조용한 skip 금지, codex 019e658a NEEDS_CHANGES #2)
+ *   1. sentinel 체크 → 존재 시 already_migrated skip. sentinel 부재 + v06 artifact(embedding_model 컬럼 /
+ *      vec_*_1024·768 / v06 트리거) 존재 시 hard fail (부분/외부 변형 — 조용한 skip 금지, codex 019e658a NEEDS_CHANGES #2)
  *   2. 백업 (freshInstall=false 인 경우만 — G-014, `backup/v05/<ts>/flowbrowser.db`)
  *   3. dryRunOnly 분기 → 백업까지만
  *   4. 변환 transaction (old trigger drop → ALTER → _1024/_768 생성 → copy → old vec drop →
@@ -231,15 +257,17 @@ export async function migrateV05ToV06(opts: MigrateV06Options): Promise<MigrateV
       applied_version: previousVersion
     }
   }
-  // sentinel 부재인데 embedding_model 컬럼이 이미 존재 = 부분 마이그레이션 / 외부 변형 상태.
-  //   정상 경로(version+sentinel 동일 txn)에서는 불가 — crash-mid-commit / 수동 변형 / 이전 실험 빌드 흔적.
-  //   조용한 skip 금지 (codex 019e658a NEEDS_CHANGES #2) — 명시 hard fail 로 사용자 복구(백업 복원) 유도.
-  if (hasEmbeddingModelColumn(fb)) {
+  // sentinel 부재인데 v06 artifact(embedding_model 컬럼 / vec_*_1024·768 / v06 트리거)가 이미 존재 =
+  //   부분 마이그레이션 / 외부 변형 상태. 정상 경로(version+sentinel 동일 txn)에서는 불가
+  //   — crash-mid-commit / 수동 변형 / 이전 실험 빌드 흔적.
+  //   조용한 skip 금지 (codex 019e658a NEEDS_CHANGES #2, 2차 — 흔적 전수 검사로 확대) — 명시 hard fail.
+  const v06Artifacts = detectV06Artifacts(fb)
+  if (v06Artifacts.length > 0) {
     await appendLog(logPath, [
-      `[error] embedding_model 컬럼 존재 + migration_v06_applied sentinel 부재 → 부분/외부 변형 의심 (hard fail)`
+      `[error] v06 artifact 존재(${v06Artifacts.join(', ')}) + migration_v06_applied sentinel 부재 → 부분/외부 변형 의심 (hard fail)`
     ])
     throw new Error(
-      'migrateV05ToV06: 일관성 위반 — workspaces.embedding_model 컬럼이 있으나 migration_v06_applied sentinel 부재. ' +
+      `migrateV05ToV06: 일관성 위반 — v06 흔적(${v06Artifacts.join(', ')})이 있으나 migration_v06_applied sentinel 부재. ` +
         '부분 마이그레이션/외부 변형 의심 — 수동 복구 필요 (backup/v05/<ISO_ts>/flowbrowser.db 복원 후 재시도).'
     )
   }

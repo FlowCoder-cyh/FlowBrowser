@@ -338,6 +338,21 @@ describe('migrateV05ToV06 (Sprint 018 M2 T17a)', () => {
       expect(Object.keys(migrated)).toContain('table:vec_pages_768')
       expect(Object.keys(migrated)).toContain('trigger:pages_after_delete_vec_pages_v06')
 
+      // workspaces CHECK allowlist drift 검출 (codex 019e658a 2차 NOTABLE — table_info 는 CHECK 미노출).
+      //   ALTER 재구성(migrate) vs inline(fresh) 의 구조 공백차만 다르고 CHECK 본문(embedding_model 1024/768
+      //   allowlist)은 동일 → 전체 공백 제거 후 비교하면 allowlist 텍스트 drift 는 검출되고 구조 공백차는 중화.
+      //   (workspaces DDL 의 문자열 리터럴에 공백/comma/paren 없음 — 전체 strip 안전.)
+      const wsSql = (fb: FlowbrowserDatabase): string =>
+        (
+          fb
+            .getDb()
+            .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='workspaces'`)
+            .get() as { sql: string }
+        ).sql.replace(/\s+/g, '')
+      expect(wsSql(fx.fb)).toEqual(wsSql(ref))
+      expect(wsSql(ref)).toContain("'ollama:nomic-embed-text:768'")
+      expect(wsSql(ref)).toContain("'openai:text-embedding-3-small:1024'")
+
       // workspaces semantic 동등 — 컬럼 name/type/notnull/default/pk 까지 (embedding_model 포함).
       const tableInfo = (fb: FlowbrowserDatabase): Array<Record<string, unknown>> =>
         (
@@ -446,7 +461,7 @@ describe('migrateV05ToV06 (Sprint 018 M2 T17a)', () => {
     }
   })
 
-  it('12. 부분/외부 변형 hard-fail — embedding_model 컬럼 + sentinel 부재 시 throw', async () => {
+  it('12a. 부분/외부 변형 hard-fail — embedding_model 컬럼 + sentinel 부재 시 throw', async () => {
     const fx = await setupV05Fresh()
     try {
       // 인위적 부분 상태 — embedding_model 컬럼만 추가 (vec 변환/sentinel 없이).
@@ -462,6 +477,25 @@ describe('migrateV05ToV06 (Sprint 018 M2 T17a)', () => {
       // 변환 미진행 — vec_pages 잔존, _1024 미생성.
       expect(tableExists(fx.fb, 'vec_pages')).toBe(true)
       expect(tableExists(fx.fb, 'vec_pages_1024')).toBe(false)
+    } finally {
+      await teardown(fx)
+    }
+  })
+
+  it('12b. 부분/외부 변형 hard-fail — v06 vec 테이블만 존재 (embedding_model 없이) + sentinel 부재 시 throw', async () => {
+    const fx = await setupV05Fresh()
+    try {
+      // 인위적 부분 상태 — embedding_model 컬럼 없이 vec_pages_1024 만 존재 (codex 019e658a 2차 — 흔적 전수 검사).
+      fx.fb
+        .getDb()
+        .exec(
+          `CREATE VIRTUAL TABLE vec_pages_1024 USING vec0(page_id TEXT, workspace_id TEXT partition key, embedding float[1024] distance_metric=cosine)`
+        )
+      await expect(
+        migrateV05ToV06({ userDataDir: fx.userDataDir, fb: fx.fb, freshInstall: true })
+      ).rejects.toThrow(/일관성 위반|sentinel|vec_pages_1024/i)
+      // embedding_model 컬럼은 추가되지 않음 (변환 미진행).
+      expect(columnNames(fx.fb, 'workspaces')).not.toContain('embedding_model')
     } finally {
       await teardown(fx)
     }
