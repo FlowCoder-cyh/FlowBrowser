@@ -19,6 +19,7 @@ import { VectorIndex, EMBEDDING_DIMENSIONS } from '../../../src/storage/VectorIn
 import { SearchService } from '../../../src/main/SearchService'
 import { parseTimeRange } from '../../../src/main/TimeRangeParser'
 import { formatTimeSignal } from '../../../src/renderer/src/search/timeSignal'
+import { applyV06Schema } from '../../helpers/v06Schema'
 
 function makeVec(components: Record<number, number>): Float32Array {
   const v = new Float32Array(EMBEDDING_DIMENSIONS)
@@ -47,7 +48,7 @@ interface Fx {
 
 function setup(): Fx {
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
+  applyV06Schema(fb)
   const ws = fb.ensureDefaultWorkspace()
   const vec = new VectorIndex(fb)
   const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
@@ -136,9 +137,9 @@ describe('시나리오 4 — 우연 재발견 회귀 셋', () => {
     })
 
     // 임베딩 — micro/mono 가 query 와 가까움 (dim 0 우세)
-    fx.vec.upsertPageEmbedding(microRecent.page.id, fx.wsId, makeVec({ 0: 1.0, 1: 0.4 }))
-    fx.vec.upsertPageEmbedding(monoOlder.page.id, fx.wsId, makeVec({ 0: 1.0, 1: 0.3 }))
-    fx.vec.upsertPageEmbedding(otherRecent.page.id, fx.wsId, makeVec({ 5: 1.0 }))
+    fx.vec.upsertPageEmbedding(microRecent.page.id, fx.wsId, makeVec({ 0: 1.0, 1: 0.4 }), 1024)
+    fx.vec.upsertPageEmbedding(monoOlder.page.id, fx.wsId, makeVec({ 0: 1.0, 1: 0.3 }), 1024)
+    fx.vec.upsertPageEmbedding(otherRecent.page.id, fx.wsId, makeVec({ 5: 1.0 }), 1024)
 
     const query = makeVec({ 0: 1.0, 1: 0.35 })
 
@@ -196,8 +197,8 @@ describe('시나리오 4 — 우연 재발견 회귀 셋', () => {
       dwell_ms: 30_000 // 30초
     })
 
-    fx.vec.upsertPageEmbedding(longDwell.page.id, fx.wsId, makeVec({ 0: 1.0 }))
-    fx.vec.upsertPageEmbedding(shortDwell.page.id, fx.wsId, makeVec({ 0: 1.0, 1: 0.1 }))
+    fx.vec.upsertPageEmbedding(longDwell.page.id, fx.wsId, makeVec({ 0: 1.0 }), 1024)
+    fx.vec.upsertPageEmbedding(shortDwell.page.id, fx.wsId, makeVec({ 0: 1.0, 1: 0.1 }), 1024)
 
     const hits = fx.search.search({
       workspaceId: fx.wsId,

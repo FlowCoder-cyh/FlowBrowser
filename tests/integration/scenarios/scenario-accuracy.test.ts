@@ -14,6 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { applyV06Schema } from '../../helpers/v06Schema'
 
 import { FlowbrowserDatabase } from '../../../src/storage/Database'
 import { IndexedPageStoreSqlite } from '../../../src/storage/IndexedPageStoreSqlite'
@@ -55,7 +56,7 @@ interface Fx {
 
 function setup(): Fx {
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
+  applyV06Schema(fb)
   const ws = fb.ensureDefaultWorkspace()
   const vec = new VectorIndex(fb)
   const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
@@ -91,7 +92,7 @@ async function seedPair(
     content: `${topic} authoritative content body.`,
     visited_at: now - daysAgo * DAY
   })
-  fx.vec.upsertPageEmbedding(expected.page.id, fx.wsId, makeVec({ [queryDim]: 1.0 }))
+  fx.vec.upsertPageEmbedding(expected.page.id, fx.wsId, makeVec({ [queryDim]: 1.0 }), 1024)
   // 노이즈 2건 — 분리된 차원 (100/101) 에 박아 cosine distance 매우 큼.
   for (let n = 0; n < 2; n++) {
     const noise = await fx.pageStore.recordVisit({
@@ -101,7 +102,7 @@ async function seedPair(
       content: 'unrelated body',
       visited_at: now - daysAgo * DAY - (n + 1) * 60_000
     })
-    fx.vec.upsertPageEmbedding(noise.page.id, fx.wsId, makeVec({ [100 + n]: 1.0 }))
+    fx.vec.upsertPageEmbedding(noise.page.id, fx.wsId, makeVec({ [100 + n]: 1.0 }), 1024)
   }
 
   const hits = fx.search.search({

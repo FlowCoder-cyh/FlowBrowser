@@ -25,6 +25,7 @@ import { tmpdir } from 'node:os'
 import { FlowbrowserDatabase } from '../../src/storage/Database'
 import { IndexedPageStoreSqlite } from '../../src/storage/IndexedPageStoreSqlite'
 import { VectorIndex, EMBEDDING_DIMENSIONS } from '../../src/storage/VectorIndex'
+import { applyV06Schema } from '../helpers/v06Schema'
 
 interface Fx {
   dbPath: string
@@ -46,7 +47,9 @@ function randomVec(seed: number): Float32Array {
 async function seedAndMeasure(pagesCount: number): Promise<Fx> {
   const tmpDir = mkdtempSync(join(tmpdir(), 'fb-perf-'))
   const dbPath = join(tmpDir, 'storage-bench.db')
-  const fb = FlowbrowserDatabase.bootstrap({ path: dbPath, enableWal: true })
+  // Sprint 018 M2 T17b — v06 schema (VectorIndex 가 dimension 별 테이블 타깃). bootstrap(v05) 대신 open + applyV06Schema.
+  const fb = FlowbrowserDatabase.open({ path: dbPath, enableWal: true })
+  applyV06Schema(fb)
   const ws = fb.ensureDefaultWorkspace()
   const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
   const vec = new VectorIndex(fb)
@@ -61,7 +64,7 @@ async function seedAndMeasure(pagesCount: number): Promise<Fx> {
       content: body,
       visited_at: base + i * 60_000
     })
-    vec.upsertPageEmbedding(page.id, ws.id, randomVec(i + 1))
+    vec.upsertPageEmbedding(page.id, ws.id, randomVec(i + 1), 1024)
   }
   fb.close()
   const fileSizeBytes = statSync(dbPath).size

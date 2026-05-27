@@ -89,6 +89,9 @@ import {
 //   Sprint 017 M1 T08 — `runHighlightRemoveVisual` + `runHighlightScrollTo` page context inject (visual UX).
 import { HighlightStore } from '../storage'
 import { migrateV04ToV05 } from '../storage'
+// Sprint 018 M2 T17b — v05 → v06 마이그레이션 체인 (로컬 임베딩 통합 — workspaces.embedding_model +
+//   dimension 별 vec0 테이블). query dimension 해소는 searchHandlers 내부 (embedding_model full id 전달만).
+import { migrateV05ToV06 } from '../storage'
 import { runHighlightRemoveVisual, runHighlightScrollTo } from './highlightRestore'
 import {
   handleHighlightCreate,
@@ -565,7 +568,18 @@ export async function initServices(): Promise<void> {
     //   fresh install 시 백업 skip + applySchema(v05) + sentinel 박힘.
     //   v04 DB 시 `<userDataDir>/backup/v04/<ISO_ts>/flowbrowser.db` 자동 백업 (WAL safe snapshot) + applySchema(v05) + sentinel.
     //   already_migrated 시 skip.
-    await migrateV04ToV05({ userDataDir, fb: flowbrowserDb })
+    const v05Result = await migrateV04ToV05({ userDataDir, fb: flowbrowserDb })
+    // Sprint 018 M2 T17b — V5 → V6 자동 마이그레이션 (G-014 dry-run + 백업 + sentinel).
+    //   workspaces.embedding_model 컬럼 + vec_pages/notes → _1024/_768 분리 + 트리거 갱신 (Schema v06 spec §3).
+    //   freshInstall 판정: 직전 migrateV04ToV05 status (workspace row count 판정 금지 — codex 019e6574).
+    //     fresh install 시 백업 skip (백업할 사용자 데이터 없음).
+    //   본 체인 후 schema 는 v06 — VectorIndex/SearchService 가 dimension 별 테이블 타깃 (이하 wiring).
+    //   ensureDefaultWorkspace 는 v06 schema 위에서 실행 (embedding_model DEFAULT 채움).
+    await migrateV05ToV06({
+      userDataDir,
+      fb: flowbrowserDb,
+      freshInstall: v05Result.status === 'fresh_install'
+    })
     const defaultWs = flowbrowserDb.ensureDefaultWorkspace()
     defaultWorkspaceId = defaultWs.id
     vectorIndex = new VectorIndex(flowbrowserDb)
@@ -952,7 +966,11 @@ function registerSearchIpc(): void {
       return handleSearchQuery(args, {
         getActiveWorkspaceId: () => getActiveWorkspaceId(),
         getEmbeddingProvider: () => providers.get('openai') ?? null,
-        getSearchService: () => searchService
+        getSearchService: () => searchService,
+        // Sprint 018 M2 T17b — 워크스페이스 embedding_model → query dimension 해소 (Schema v06 spec §5.2).
+        //   DB 미초기화 / 워크스페이스 부재 시 null → resolveEmbeddingDimensions 가 디폴트 1024.
+        getWorkspaceEmbeddingModel: (workspaceId: string) =>
+          flowbrowserDb?.findWorkspaceById(workspaceId)?.embedding_model ?? null
       })
     }
   )

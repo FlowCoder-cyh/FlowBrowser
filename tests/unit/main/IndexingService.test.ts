@@ -21,6 +21,7 @@ import { EmbeddingQueue } from '../../../src/storage/EmbeddingQueue'
 import { IndexingGate } from '../../../src/privacy/IndexingGate'
 import { IndexingService } from '../../../src/main/IndexingService'
 import type { IndexingStatusPayload } from '../../../src/main/IndexingService'
+import { applyV06Schema } from '../../helpers/v06Schema'
 
 interface Fx {
   fb: FlowbrowserDatabase
@@ -34,7 +35,7 @@ interface Fx {
 
 function setup(): Fx {
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
+  applyV06Schema(fb)
   const defaultWs = fb.ensureDefaultWorkspace()
   const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: defaultWs.id })
   const embeddingQueue = new EmbeddingQueue(fb)
@@ -116,7 +117,7 @@ describe('IndexingService — blocked paths', () => {
   it('user_block 차단 (codex M4-1 hotfix NB-2) — privacyExclusions[type=block]', async () => {
     // user_block 정합: gate 에 직접 exclusions 주입한 신규 인스턴스로 검증
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const defaultWs = fb.ensureDefaultWorkspace()
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: defaultWs.id })
     const embeddingQueue = new EmbeddingQueue(fb)
@@ -382,7 +383,7 @@ describe('IndexingService — override token', () => {
 describe('IndexingService — onStatusChange optional', () => {
   it('onStatusChange 미주입 시 정상 동작 (broadcast 콜백 안전)', async () => {
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const defaultWs = fb.ensureDefaultWorkspace()
     const service = new IndexingService({
       gate: new IndexingGate(),
@@ -504,7 +505,7 @@ describe('IndexingService — workspaceId broadcast payload (Sprint 016 M0 T05, 
 describe('IndexingService — gate stub 격리', () => {
   it('IndexingGate 호출지점 검증 (overrideToken 정확 전달)', async () => {
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const defaultWs = fb.ensureDefaultWorkspace()
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: defaultWs.id })
     const embeddingQueue = new EmbeddingQueue(fb)
@@ -679,7 +680,7 @@ describe('IndexingService — unchanged 분기 vector 회복 (Sprint 016 M0 T02-
   it('VectorIndex 주입 + vector 미존재 + unchanged → enqueue 회복', async () => {
     const { VectorIndex } = await import('../../../src/storage/VectorIndex')
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const wsId = fb.ensureDefaultWorkspace().id
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: wsId })
     const embeddingQueue = new EmbeddingQueue(fb)
@@ -722,7 +723,7 @@ describe('IndexingService — unchanged 분기 vector 회복 (Sprint 016 M0 T02-
   it('VectorIndex 주입 + vector 존재 + unchanged → enqueue skip (회복 안 함)', async () => {
     const { VectorIndex, EMBEDDING_DIMENSIONS } = await import('../../../src/storage/VectorIndex')
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const wsId = fb.ensureDefaultWorkspace().id
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: wsId })
     const embeddingQueue = new EmbeddingQueue(fb)
@@ -740,7 +741,7 @@ describe('IndexingService — unchanged 분기 vector 회복 (Sprint 016 M0 T02-
     // vector 영속 (worker 처리 완료 시뮬)
     const dummyVec = new Float32Array(EMBEDDING_DIMENSIONS)
     dummyVec[0] = 1.0
-    vectorIndex.upsertPageEmbedding(first.pageId, wsId, dummyVec)
+    vectorIndex.upsertPageEmbedding(first.pageId, wsId, dummyVec, 1024)
     expect(vectorIndex.hasPageEmbedding(first.pageId)).toBe(true)
 
     // 재방문 + 동일 content — vector 있음 → unchanged skip
@@ -761,7 +762,7 @@ describe('IndexingService — unchanged 분기 vector 회복 (Sprint 016 M0 T02-
 
   it('VectorIndex 미주입 (이전 동작 호환) — unchanged 항상 skip', async () => {
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const wsId = fb.ensureDefaultWorkspace().id
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: wsId })
     const embeddingQueue = new EmbeddingQueue(fb)

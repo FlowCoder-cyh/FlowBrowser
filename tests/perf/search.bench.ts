@@ -18,6 +18,7 @@ import { IndexedPageStoreSqlite } from '../../src/storage/IndexedPageStoreSqlite
 import { VectorIndex, EMBEDDING_DIMENSIONS } from '../../src/storage/VectorIndex'
 import { NoteStore } from '../../src/storage/NoteStore'
 import { SearchService } from '../../src/main/SearchService'
+import { applyV06Schema } from '../helpers/v06Schema'
 
 interface Fx {
   fb: FlowbrowserDatabase
@@ -43,7 +44,7 @@ function randomNormalizedVec(seed: number): Float32Array {
 
 async function setup(pagesCount: number): Promise<Fx> {
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
+  applyV06Schema(fb)
   const ws = fb.ensureDefaultWorkspace()
   const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
   const noteStore = new NoteStore(fb)
@@ -59,7 +60,7 @@ async function setup(pagesCount: number): Promise<Fx> {
       content: `body ${i}`,
       visited_at: base + i * 60_000
     })
-    vec.upsertPageEmbedding(page.id, ws.id, randomNormalizedVec(i + 1))
+    vec.upsertPageEmbedding(page.id, ws.id, randomNormalizedVec(i + 1), 1024)
   }
   return { fb, service, wsId: ws.id, queryVec: randomNormalizedVec(99_999) }
 }

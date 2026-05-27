@@ -129,7 +129,17 @@ export class EmbeddingClient {
 }
 
 export interface ProcessJobDeps {
-  client: EmbeddingClient
+  /**
+   * Sprint 018 M2 T17b — 워크스페이스별 EmbeddingClient + dimension 해소 (Schema v06 spec §5.1).
+   *
+   * upsert write path 가 임베딩 생성 _전_에 워크스페이스 embedding_model 을 해소해 (codex 019e6898 BLOCKING):
+   *   - `client` 는 해당 모델의 modelHint/dimensions 로 구성 (임베딩이 올바른 차원으로 생성)
+   *   - `dimensions` 는 VectorIndex 테이블 선택 + 검증 기준 (client 와 동일 값)
+   *
+   * provider 어댑터 매핑(openai vs ollama)은 T17c 위임 — T17b 는 modelHint/dimensions threading 까지.
+   * 생성된 vector 의 length 가 dimensions 와 불일치 시 VectorIndex 가 throw (silent corruption 차단 → markFailed).
+   */
+  resolveEmbeddingClient(workspaceId: string): { client: EmbeddingClient; dimensions: number }
   queue: EmbeddingQueue
   vectorIndex: VectorIndex
   pageStore: IndexedPageStoreSqlite
@@ -164,8 +174,10 @@ export async function processNextEmbeddingJob(deps: ProcessJobDeps): Promise<Pro
         deps.queue.markFailed(job.id, err)
         return { status: 'orphan', job, error: err }
       }
-      const vector = await deps.client.embedPage(page)
-      deps.vectorIndex.upsertPageEmbedding(page.id, page.workspace_id, vector)
+      // 워크스페이스 embedding_model 을 임베딩 _전_에 해소 — client(modelHint/dimensions) + dim 동일 값.
+      const { client, dimensions } = deps.resolveEmbeddingClient(page.workspace_id)
+      const vector = await client.embedPage(page)
+      deps.vectorIndex.upsertPageEmbedding(page.id, page.workspace_id, vector, dimensions)
     } else {
       const note = deps.noteStore.findById(job.target_id)
       if (!note) {
@@ -173,8 +185,9 @@ export async function processNextEmbeddingJob(deps: ProcessJobDeps): Promise<Pro
         deps.queue.markFailed(job.id, err)
         return { status: 'orphan', job, error: err }
       }
-      const vector = await deps.client.embedNote(note)
-      deps.vectorIndex.upsertNoteEmbedding(note.id, note.workspace_id, vector)
+      const { client, dimensions } = deps.resolveEmbeddingClient(note.workspace_id)
+      const vector = await client.embedNote(note)
+      deps.vectorIndex.upsertNoteEmbedding(note.id, note.workspace_id, vector, dimensions)
     }
     deps.queue.markSucceeded(job.id)
     return { status: 'succeeded', job }

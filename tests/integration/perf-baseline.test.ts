@@ -37,6 +37,7 @@ import { WorkspaceService } from '../../src/main/WorkspaceService'
 import { VectorIndex, EMBEDDING_DIMENSIONS } from '../../src/storage/VectorIndex'
 import { SearchService } from '../../src/main/SearchService'
 import { estimateMonthlyCostUsd } from '../perf/embeddingCostHelpers'
+import { applyV06Schema } from '../helpers/v06Schema'
 
 function randomVec(seed: number): Float32Array {
   const v = new Float32Array(EMBEDDING_DIMENSIONS)
@@ -87,7 +88,7 @@ function measureSync<T>(fn: () => T, iterations: number, warmup = 5): { mean: nu
 describe('Sprint 016 M0 T06 — perf baseline 매트릭스', () => {
   it('KI-011 MemoryStats < 20ms (1K pages)', async () => {
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const ws = fb.ensureDefaultWorkspace()
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
     const noteStore = new NoteStore(fb)
@@ -111,7 +112,7 @@ describe('Sprint 016 M0 T06 — perf baseline 매트릭스', () => {
 
   it('KI-011 MemoryStats < 20ms (10K pages)', async () => {
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const ws = fb.ensureDefaultWorkspace()
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
     const noteStore = new NoteStore(fb)
@@ -135,7 +136,7 @@ describe('Sprint 016 M0 T06 — perf baseline 매트릭스', () => {
 
   it('KI-012 IndexingService.indexPage < 500ms (1KB body, 신규 URL)', async () => {
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const ws = fb.ensureDefaultWorkspace()
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
     const embeddingQueue = new EmbeddingQueue(fb)
@@ -163,7 +164,7 @@ describe('Sprint 016 M0 T06 — perf baseline 매트릭스', () => {
 
   it('KI-013 SearchService.search < 200ms top-10 (1000 pages + 임베딩)', async () => {
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const ws = fb.ensureDefaultWorkspace()
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
     const noteStore = new NoteStore(fb)
@@ -178,7 +179,7 @@ describe('Sprint 016 M0 T06 — perf baseline 매트릭스', () => {
         content: `b${i}`,
         visited_at: base + i * 60_000
       })
-      vec.upsertPageEmbedding(page.id, ws.id, randomVec(i + 1))
+      vec.upsertPageEmbedding(page.id, ws.id, randomVec(i + 1), 1024)
     }
     const queryVec = randomVec(99_999)
     const r = measureSync(
@@ -192,7 +193,7 @@ describe('Sprint 016 M0 T06 — perf baseline 매트릭스', () => {
 
   it('KI-014 WorkspaceService.setActive < 1초 (10 ws × 10 tabs)', async () => {
     const fb = FlowbrowserDatabase.openInMemory()
-    fb.applySchema()
+    applyV06Schema(fb)
     const defaultWs = fb.ensureDefaultWorkspace()
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: defaultWs.id })
     const tmpDir = mkdtempSync(join(tmpdir(), 'fb-perf-ws-'))
@@ -241,7 +242,9 @@ describe('Sprint 016 M0 T06 — perf baseline 매트릭스', () => {
   it('KI-016 SQLite 파일 크기 < 200MB / 1만 페이지 + 임베딩', async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), 'fb-perf-size-'))
     const dbPath = join(tmpDir, 'storage-bench.db')
-    const fb = FlowbrowserDatabase.bootstrap({ path: dbPath, enableWal: true })
+    // Sprint 018 M2 T17b — v06 schema (VectorIndex dimension 별 테이블). bootstrap(v05) → open + applyV06Schema.
+    const fb = FlowbrowserDatabase.open({ path: dbPath, enableWal: true })
+    applyV06Schema(fb)
     const ws = fb.ensureDefaultWorkspace()
     const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
     const vec = new VectorIndex(fb)
@@ -255,7 +258,7 @@ describe('Sprint 016 M0 T06 — perf baseline 매트릭스', () => {
         content: body,
         visited_at: base + i * 60_000
       })
-      vec.upsertPageEmbedding(page.id, ws.id, randomVec(i + 1))
+      vec.upsertPageEmbedding(page.id, ws.id, randomVec(i + 1), 1024)
     }
     fb.close()
     const sizeBytes = statSync(dbPath).size

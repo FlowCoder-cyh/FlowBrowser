@@ -27,6 +27,7 @@ import { WorkspaceService } from '../../../src/main/WorkspaceService'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { applyV06Schema } from '../../helpers/v06Schema'
 
 /** 정규화된 sparse vector — cosine distance 결정성 보장. */
 function makeVec(components: Record<number, number>): Float32Array {
@@ -59,7 +60,7 @@ interface Fx {
 
 async function setup(): Promise<Fx> {
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
+  applyV06Schema(fb)
   const defaultWs = fb.ensureDefaultWorkspace()
   const altWs = fb.createWorkspace({ name: 'Other', icon: '🔬' })
   const vec = new VectorIndex(fb)
@@ -142,9 +143,9 @@ describe('시나리오 1 — 학술 리서치 회귀 셋', () => {
       visited_at: now - 2 * 86_400_000
     })
     // 임베딩 — il2 ↔ query 가장 가까움 (dim 0 우세)
-    fx.vec.upsertPageEmbedding(il2.page.id, fx.defaultId, makeVec({ 0: 1.0, 1: 0.2 }))
-    fx.vec.upsertPageEmbedding(struct.page.id, fx.defaultId, makeVec({ 2: 1.0 }))
-    fx.vec.upsertPageEmbedding(news.page.id, fx.defaultId, makeVec({ 3: 1.0 }))
+    fx.vec.upsertPageEmbedding(il2.page.id, fx.defaultId, makeVec({ 0: 1.0, 1: 0.2 }), 1024)
+    fx.vec.upsertPageEmbedding(struct.page.id, fx.defaultId, makeVec({ 2: 1.0 }), 1024)
+    fx.vec.upsertPageEmbedding(news.page.id, fx.defaultId, makeVec({ 3: 1.0 }), 1024)
     const query = makeVec({ 0: 1.0, 1: 0.3 })
     const hits = fx.search.search({
       workspaceId: fx.defaultId,
@@ -180,7 +181,7 @@ describe('시나리오 1 — 학술 리서치 회귀 셋', () => {
       content: 'Body content of article.',
       visited_at: now - 86_400_000
     })
-    fx.vec.upsertPageEmbedding(page.page.id, fx.defaultId, makeVec({ 0: 1.0 }))
+    fx.vec.upsertPageEmbedding(page.page.id, fx.defaultId, makeVec({ 0: 1.0 }), 1024)
 
     // 해당 visit 에 노트 + AI 대화 추가
     fx.noteStore.create({
@@ -325,7 +326,7 @@ describe('시나리오 1 — 학술 리서치 회귀 셋', () => {
       content: 'default content',
       visited_at: now
     })
-    fx.vec.upsertPageEmbedding(pageDefault.page.id, fx.defaultId, makeVec({ 0: 1.0 }))
+    fx.vec.upsertPageEmbedding(pageDefault.page.id, fx.defaultId, makeVec({ 0: 1.0 }), 1024)
     fx.noteStore.create({
       workspace_id: fx.defaultId,
       page_id: pageDefault.page.id,
@@ -343,7 +344,7 @@ describe('시나리오 1 — 학술 리서치 회귀 셋', () => {
       content: 'alt content',
       visited_at: now
     })
-    fx.vec.upsertPageEmbedding(pageAlt.page.id, fx.altId, makeVec({ 0: 1.0 }))
+    fx.vec.upsertPageEmbedding(pageAlt.page.id, fx.altId, makeVec({ 0: 1.0 }), 1024)
     fx.noteStore.create({
       workspace_id: fx.altId,
       page_id: pageAlt.page.id,

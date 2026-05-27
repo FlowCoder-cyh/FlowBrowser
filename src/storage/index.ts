@@ -65,9 +65,27 @@ export {
   VectorIndex,
   EMBEDDING_DIMENSIONS,
   embeddingToBuffer,
-  bufferToEmbedding
+  bufferToEmbedding,
+  selectVecPagesTable,
+  selectVecNotesTable
 } from './VectorIndex'
 export type { VectorSearchResult, EmbeddingInput } from './VectorIndex'
+
+// Sprint 018 M2 T17b — 임베딩 모델 레지스트리 SSOT (v06.sql CHECK ↔ vec0 테이블 ↔ UX 3자 일치).
+export {
+  EMBEDDING_MODELS,
+  DEFAULT_EMBEDDING_MODEL_ID,
+  SUPPORTED_EMBEDDING_DIMENSIONS,
+  isSupportedEmbeddingModel,
+  parseEmbeddingModel,
+  resolveEmbeddingModel,
+  resolveEmbeddingDimensions
+} from './embeddingModel'
+export type {
+  EmbeddingModelSpec,
+  EmbeddingModelId,
+  SupportedEmbeddingDimension
+} from './embeddingModel'
 
 export { IndexedPageStoreSqlite } from './IndexedPageStoreSqlite'
 export type { IndexedPageStoreSqliteOptions } from './IndexedPageStoreSqlite'
