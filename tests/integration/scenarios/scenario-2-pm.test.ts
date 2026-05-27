@@ -36,6 +36,7 @@ import type { ProviderAdapter } from '../../../src/ai/ProviderAdapter'
 import type { ChatRequest, ChatResponse, ProviderInfo } from '../../../src/ai/types'
 import { topKHitRate, TOP_K_HIT_RATE_THRESHOLD } from './accuracyHelpers'
 import type { RetrievalPair } from './accuracyHelpers'
+import { applyV06Schema } from '../../helpers/v06Schema'
 
 const DAY = 86_400_000
 
@@ -96,7 +97,7 @@ interface Fx {
 
 function setup(): Fx {
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
+  applyV06Schema(fb)
   const ws = fb.ensureDefaultWorkspace()
   const vec = new VectorIndex(fb)
   const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
@@ -334,7 +335,7 @@ describe('시나리오 2 — PM 경쟁 분석 회귀 셋', () => {
         expected.page.id,
         fx.wsId,
         makeVec({ [fx2.queryDim]: 1.0 })
-      )
+      , 1024)
       // 노이즈 페이지 2건 (의미적으로 거리 큼)
       const noise1 = await fx.pageStore.recordVisit({
         workspace_id: fx.wsId,
@@ -350,8 +351,8 @@ describe('시나리오 2 — PM 경쟁 분석 회귀 셋', () => {
         content: 'other body',
         visited_at: now - fx2.days * DAY - 120_000
       })
-      fx.vec.upsertPageEmbedding(noise1.page.id, fx.wsId, makeVec({ 100: 1.0 }))
-      fx.vec.upsertPageEmbedding(noise2.page.id, fx.wsId, makeVec({ 101: 1.0 }))
+      fx.vec.upsertPageEmbedding(noise1.page.id, fx.wsId, makeVec({ 100: 1.0 }), 1024)
+      fx.vec.upsertPageEmbedding(noise2.page.id, fx.wsId, makeVec({ 101: 1.0 }), 1024)
 
       const hits = fx.search.search({
         workspaceId: fx.wsId,

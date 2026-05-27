@@ -23,6 +23,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { applyV06Schema } from '../../helpers/v06Schema'
 
 import { FlowbrowserDatabase } from '../../../src/storage/Database'
 import { IndexedPageStoreSqlite } from '../../../src/storage/IndexedPageStoreSqlite'
@@ -63,7 +64,7 @@ interface Fx {
 
 function setup(): Fx {
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
+  applyV06Schema(fb)
   const wsA = fb.ensureDefaultWorkspace().id
   const wsB = fb.createWorkspace({ name: 'Other', icon: '🧪' }).id
   const vec = new VectorIndex(fb)
@@ -94,7 +95,7 @@ describe('SearchService — schema cosine metric 강제 (codex BLOCKING PR #154 
       content: 'b',
       visited_at: now
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
     const hits = fx.service.search({
       workspaceId: fx.wsA,
       queryEmbedding: makeVec({ 0: 1 }),
@@ -113,7 +114,7 @@ describe('SearchService — schema cosine metric 강제 (codex BLOCKING PR #154 
       visited_at: now
     })
     // [1,0,...] 등록 vs [0,1,...] 질의 → cosine distance = 1.0 (L2 였다면 √2 ≈ 1.414)
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
     const hits = fx.service.search({
       workspaceId: fx.wsA,
       queryEmbedding: makeVec({ 1: 1 }),
@@ -131,7 +132,7 @@ describe('SearchService — schema cosine metric 강제 (codex BLOCKING PR #154 
       content: 'b',
       visited_at: now
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
     // 질의 = [1,1,0,...] 정규화 = [1/√2, 1/√2, 0, ...]
     // cos(angle) = 1/√2 → cosine distance = 1 - 1/√2 ≈ 0.2929
     const hits = fx.service.search({
@@ -191,7 +192,7 @@ describe('SearchService — Page retrieval', () => {
       content: 'body',
       visited_at: visitedAt
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -230,7 +231,7 @@ describe('SearchService — Page retrieval', () => {
       workspace_id: fx.wsA,
       visited_at: recent
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -256,7 +257,7 @@ describe('SearchService — Page retrieval', () => {
       visited_at: now - MS_PER_DAY / 2,
       dwell_ms: 60_000
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -294,7 +295,7 @@ describe('SearchService — Note retrieval', () => {
       body: 'note body',
       created_at: now - 5 * MS_PER_DAY
     })
-    fx.vec.upsertNoteEmbedding(note.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertNoteEmbedding(note.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -324,7 +325,7 @@ describe('SearchService — Note retrieval', () => {
       created_by: 'migration',
       created_at: createdAt
     })
-    fx.vec.upsertNoteEmbedding(note.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertNoteEmbedding(note.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -345,7 +346,7 @@ describe('SearchService — Note retrieval', () => {
       workspace_id: fx.wsA,
       selected_text: 'only-selected'
     })
-    fx.vec.upsertNoteEmbedding(note.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertNoteEmbedding(note.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -370,7 +371,7 @@ describe('SearchService — Note retrieval', () => {
       selected_text: 'orphan',
       created_at: now - MS_PER_DAY
     })
-    fx.vec.upsertNoteEmbedding(note.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertNoteEmbedding(note.id, fx.wsA, makeVec({ 0: 1 }), 1024)
     // page 삭제 (visit ON DELETE CASCADE / vec_pages trigger / notes SET NULL / aichat SET NULL)
     fx.fb.getDb().prepare('DELETE FROM pages WHERE id = ?').run(page.id)
 
@@ -414,8 +415,8 @@ describe('SearchService — Page + Note 결합 정렬', () => {
       content: 'b',
       visited_at: now - 100 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(pA.id, fx.wsA, makeVec({ 0: 1 }))
-    fx.vec.upsertPageEmbedding(pB.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(pA.id, fx.wsA, makeVec({ 0: 1 }), 1024)
+    fx.vec.upsertPageEmbedding(pB.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const noteRecent = fx.noteStore.create({
       workspace_id: fx.wsA,
@@ -423,7 +424,7 @@ describe('SearchService — Page + Note 결합 정렬', () => {
       selected_text: 'note',
       created_at: now - 2 * MS_PER_DAY
     })
-    fx.vec.upsertNoteEmbedding(noteRecent.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertNoteEmbedding(noteRecent.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -450,8 +451,8 @@ describe('SearchService — Page + Note 결합 정렬', () => {
       content: 'b',
       visited_at: now - 1 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(pOld.id, fx.wsA, makeVec({ 0: 1 }))
-    fx.vec.upsertPageEmbedding(pNew.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(pOld.id, fx.wsA, makeVec({ 0: 1 }), 1024)
+    fx.vec.upsertPageEmbedding(pNew.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -477,9 +478,9 @@ describe('SearchService — Page + Note 결합 정렬', () => {
       content: 'b',
       visited_at: visitedAt
     })
-    fx.vec.upsertPageEmbedding(pSim.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(pSim.id, fx.wsA, makeVec({ 0: 1 }), 1024)
     // orthogonal vector → distance ≈ 1, cosineSim ≈ 0
-    fx.vec.upsertPageEmbedding(pFar.id, fx.wsA, makeVec({ 1: 1 }))
+    fx.vec.upsertPageEmbedding(pFar.id, fx.wsA, makeVec({ 1: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -501,7 +502,7 @@ describe('SearchService — Page + Note 결합 정렬', () => {
       content: 'b',
       visited_at: correctVisitedAt
     })
-    fx.vec.upsertPageEmbedding(correct.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(correct.id, fx.wsA, makeVec({ 0: 1 }), 1024)
     // 분산 페이지 5개 — 더 최근이지만 의미 distance 큼
     for (let i = 0; i < 5; i++) {
       const { page } = await fx.pageStore.recordVisit({
@@ -510,7 +511,7 @@ describe('SearchService — Page + Note 결합 정렬', () => {
         content: 'b',
         visited_at: now - i * MS_PER_DAY
       })
-      fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ [5 + i]: 1 }))
+      fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ [5 + i]: 1 }), 1024)
     }
 
     const hits = fx.service.search({
@@ -546,8 +547,8 @@ describe('SearchService — 시간 필터', () => {
       content: 'b',
       visited_at: now - 50 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(pIn.id, fx.wsA, makeVec({ 0: 1 }))
-    fx.vec.upsertPageEmbedding(pOut.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(pIn.id, fx.wsA, makeVec({ 0: 1 }), 1024)
+    fx.vec.upsertPageEmbedding(pOut.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -567,7 +568,7 @@ describe('SearchService — 시간 필터', () => {
       content: 'b',
       visited_at: now - 1000 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -586,7 +587,7 @@ describe('SearchService — 시간 필터', () => {
       content: 'b',
       visited_at: now + 10 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -611,8 +612,8 @@ describe('SearchService — 시간 필터', () => {
       content: 'b',
       visited_at: now
     })
-    fx.vec.upsertPageEmbedding(pOld.id, fx.wsA, makeVec({ 0: 1 }))
-    fx.vec.upsertPageEmbedding(pNew.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(pOld.id, fx.wsA, makeVec({ 0: 1 }), 1024)
+    fx.vec.upsertPageEmbedding(pNew.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -636,7 +637,7 @@ describe('SearchService — 시간 필터', () => {
       workspace_id: fx.wsA,
       visited_at: now - 5 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -657,7 +658,7 @@ describe('SearchService — 시간 필터', () => {
       content: 'b',
       visited_at: now - 100 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -683,7 +684,7 @@ describe('SearchService — 시간 필터', () => {
       selected_text: 'old',
       created_at: now - 100 * MS_PER_DAY
     })
-    fx.vec.upsertNoteEmbedding(note.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertNoteEmbedding(note.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -706,8 +707,8 @@ describe('SearchService — 시간 필터', () => {
       selected_text: 'ancient',
       created_at: now - 1000 * MS_PER_DAY
     })
-    fx.vec.upsertNoteEmbedding(recentNote.id, fx.wsA, makeVec({ 0: 1 }))
-    fx.vec.upsertNoteEmbedding(oldNote.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertNoteEmbedding(recentNote.id, fx.wsA, makeVec({ 0: 1 }), 1024)
+    fx.vec.upsertNoteEmbedding(oldNote.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -743,8 +744,8 @@ describe('SearchService — 워크스페이스 partition', () => {
       content: 'b',
       visited_at: now - MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(pageA.id, fx.wsA, makeVec({ 0: 1 }))
-    fx.vec.upsertPageEmbedding(pageB.id, fx.wsB, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(pageA.id, fx.wsA, makeVec({ 0: 1 }), 1024)
+    fx.vec.upsertPageEmbedding(pageB.id, fx.wsB, makeVec({ 0: 1 }), 1024)
 
     const noteA = fx.noteStore.create({
       workspace_id: fx.wsA,
@@ -758,8 +759,8 @@ describe('SearchService — 워크스페이스 partition', () => {
       selected_text: 'B',
       created_at: now - MS_PER_DAY
     })
-    fx.vec.upsertNoteEmbedding(noteA.id, fx.wsA, makeVec({ 0: 1 }))
-    fx.vec.upsertNoteEmbedding(noteB.id, fx.wsB, makeVec({ 0: 1 }))
+    fx.vec.upsertNoteEmbedding(noteA.id, fx.wsA, makeVec({ 0: 1 }), 1024)
+    fx.vec.upsertNoteEmbedding(noteB.id, fx.wsB, makeVec({ 0: 1 }), 1024)
 
     const hitsA = fx.service.search({
       workspaceId: fx.wsA,
@@ -850,7 +851,7 @@ describe('SearchService — 입력 검증', () => {
         visited_at: now - i * MS_PER_DAY
       })
       // 모두 동일 embedding → distance 모두 0 → topK 만큼만 잘림
-      fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+      fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
     }
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -879,7 +880,7 @@ describe('SearchService — e-folding 수학', () => {
       content: 'b',
       visited_at: now - 180 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -897,7 +898,7 @@ describe('SearchService — e-folding 수학', () => {
       content: 'b',
       visited_at: now
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const hits = fx.service.search({
       workspaceId: fx.wsA,
@@ -915,7 +916,7 @@ describe('SearchService — e-folding 수학', () => {
       content: 'b',
       visited_at: now - 30 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const service30 = new SearchService({
       vectorIndex: fx.vec,
@@ -939,7 +940,7 @@ describe('SearchService — e-folding 수학', () => {
       content: 'b',
       visited_at: now - 180 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.wsA, makeVec({ 0: 1 }), 1024)
 
     const service = new SearchService({
       vectorIndex: fx.vec,

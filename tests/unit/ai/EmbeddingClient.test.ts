@@ -18,6 +18,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { applyV06Schema } from '../../helpers/v06Schema'
 import { randomUUID } from 'node:crypto'
 
 import { FlowbrowserDatabase } from '../../../src/storage/Database'
@@ -90,7 +91,7 @@ interface Fx {
 
 function setup(): Fx {
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
+  applyV06Schema(fb)
   const wsId = fb.ensureDefaultWorkspace().id
   return {
     fb,
@@ -331,7 +332,7 @@ describe('processNextEmbeddingJob', () => {
   it('빈 큐 → idle', async () => {
     const client = new EmbeddingClient({ provider: fakeProvider({ hasEmbed: true }) })
     const result = await processNextEmbeddingJob({
-      client,
+      resolveEmbeddingClient: () => ({ client, dimensions: 1024 }),
       queue: fx.queue,
       vectorIndex: fx.vector,
       pageStore: fx.pageStore,
@@ -353,7 +354,7 @@ describe('processNextEmbeddingJob', () => {
     })
     const client = new EmbeddingClient({ provider: fakeProvider({ hasEmbed: true }) })
     const result = await processNextEmbeddingJob({
-      client,
+      resolveEmbeddingClient: () => ({ client, dimensions: 1024 }),
       queue: fx.queue,
       vectorIndex: fx.vector,
       pageStore: fx.pageStore,
@@ -362,6 +363,74 @@ describe('processNextEmbeddingJob', () => {
     expect(result.status).toBe('succeeded')
     expect(fx.vector.countPages(fx.wsId)).toBe(1)
     expect(fx.queue.stats().succeeded).toBe(1)
+  })
+
+  it('Sprint 018 T17b — 768 upsert 경로: 워크스페이스 모델/차원으로 client 구성 → vec_pages_768', async () => {
+    // resolveEmbeddingClient 가 임베딩 _전_에 워크스페이스 모델 해소 → 768 차원 client 구성 (codex 019e6898 BLOCKING).
+    //   fakeProvider 가 req.dimensions(768) 존중 → 768 벡터 → vec_pages_768 upsert 성공.
+    const { page } = await fx.pageStore.recordVisit({
+      url: 'https://x.test/768',
+      content: 'body',
+      workspace_id: fx.wsId
+    })
+    fx.queue.enqueue({ target_type: 'page', target_id: page.id, workspace_id: fx.wsId })
+    const spy = vi.fn()
+    const provider768 = fakeProvider({
+      hasEmbed: true,
+      embedImpl: (req) => {
+        spy(req)
+        return {
+          vectors: req.texts.map((_, i) => makeVector(i + 1, req.dimensions ?? EMBEDDING_DIMENSIONS)),
+          modelUsed: req.modelHint ?? DEFAULT_EMBEDDING_MODEL,
+          inputTokens: 1,
+          estimatedCostUsd: 0,
+          durationMs: 1
+        }
+      }
+    })
+    const client768 = new EmbeddingClient({
+      provider: provider768,
+      modelHint: 'nomic-embed-text',
+      dimensions: 768
+    })
+    const result = await processNextEmbeddingJob({
+      resolveEmbeddingClient: () => ({ client: client768, dimensions: 768 }),
+      queue: fx.queue,
+      vectorIndex: fx.vector,
+      pageStore: fx.pageStore,
+      noteStore: fx.noteStore
+    })
+    expect(result.status).toBe('succeeded')
+    // 임베딩 요청이 768 차원 + nomic-embed-text modelHint 로 나감 (분기가 cosmetic 아님).
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ dimensions: 768, modelHint: 'nomic-embed-text' })
+    )
+    expect(fx.vector.countPages(fx.wsId)).toBe(1)
+    // 1024 테이블은 비어 있음 (768 테이블에만 박힘).
+    expect(fx.vector.searchPages(fx.wsId, makeVector(1, 768), 5, 768).length).toBe(1)
+  })
+
+  it('Sprint 018 T17b — write-path dimension 가드: client(1024) ≠ 선언 dim(768) → markFailed', async () => {
+    // 비정상 구성 — client 가 1024 벡터를 생성하는데 dimensions 768 로 선언 →
+    //   VectorIndex.upsert 가 dimension mismatch throw → markFailed (silent corruption 차단, NOTABLE #3 write-path).
+    const { page } = await fx.pageStore.recordVisit({
+      url: 'https://x.test/mismatch',
+      content: 'body',
+      workspace_id: fx.wsId
+    })
+    fx.queue.enqueue({ target_type: 'page', target_id: page.id, workspace_id: fx.wsId })
+    const client1024 = new EmbeddingClient({ provider: fakeProvider({ hasEmbed: true }) }) // 1024 반환
+    const result = await processNextEmbeddingJob({
+      resolveEmbeddingClient: () => ({ client: client1024, dimensions: 768 }), // 선언만 768 (불일치)
+      queue: fx.queue,
+      vectorIndex: fx.vector,
+      pageStore: fx.pageStore,
+      noteStore: fx.noteStore
+    })
+    expect(result.status).toBe('failed')
+    expect(result.error).toMatch(/dimension mismatch/)
+    expect(fx.vector.countPages(fx.wsId)).toBe(0) // 양 테이블 모두 미생성
+    expect(fx.queue.stats().failed).toBe(1)
   })
 
   it('note 성공 — VectorIndex upsert + markSucceeded', async () => {
@@ -377,7 +446,7 @@ describe('processNextEmbeddingJob', () => {
     })
     const client = new EmbeddingClient({ provider: fakeProvider({ hasEmbed: true }) })
     const result = await processNextEmbeddingJob({
-      client,
+      resolveEmbeddingClient: () => ({ client, dimensions: 1024 }),
       queue: fx.queue,
       vectorIndex: fx.vector,
       pageStore: fx.pageStore,
@@ -396,7 +465,7 @@ describe('processNextEmbeddingJob', () => {
     })
     const client = new EmbeddingClient({ provider: fakeProvider({ hasEmbed: true }) })
     const result = await processNextEmbeddingJob({
-      client,
+      resolveEmbeddingClient: () => ({ client, dimensions: 1024 }),
       queue: fx.queue,
       vectorIndex: fx.vector,
       pageStore: fx.pageStore,
@@ -426,7 +495,7 @@ describe('processNextEmbeddingJob', () => {
     })
     const client = new EmbeddingClient({ provider })
     const result = await processNextEmbeddingJob({
-      client,
+      resolveEmbeddingClient: () => ({ client, dimensions: 1024 }),
       queue: fx.queue,
       vectorIndex: fx.vector,
       pageStore: fx.pageStore,
@@ -463,7 +532,7 @@ describe('processNextEmbeddingJob', () => {
     })
     const client = new EmbeddingClient({ provider: fakeProvider({ hasEmbed: true }) })
     const r1 = await processNextEmbeddingJob({
-      client,
+      resolveEmbeddingClient: () => ({ client, dimensions: 1024 }),
       queue: fx.queue,
       vectorIndex: fx.vector,
       pageStore: fx.pageStore,
@@ -471,7 +540,7 @@ describe('processNextEmbeddingJob', () => {
     })
     expect(r1.job?.id).toBe(jobB.id) // priority 5 우선
     const r2 = await processNextEmbeddingJob({
-      client,
+      resolveEmbeddingClient: () => ({ client, dimensions: 1024 }),
       queue: fx.queue,
       vectorIndex: fx.vector,
       pageStore: fx.pageStore,

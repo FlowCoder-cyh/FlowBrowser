@@ -14,6 +14,8 @@
 
 import type { ProviderAdapter } from '../ai/ProviderAdapter'
 import { EmbeddingClient } from '../ai/embedding/EmbeddingClient'
+// Sprint 018 M2 T17b — 워크스페이스 embedding_model → 검색 query 임베딩 모델/차원 해소 (Schema v06 spec §5.2 query path 소유).
+import { resolveEmbeddingModel } from '../storage/embeddingModel'
 import { parseTimeRange } from './TimeRangeParser'
 import {
   SearchService,
@@ -66,6 +68,12 @@ export interface SearchQueryDeps {
   getEmbeddingProvider(): ProviderAdapter | null
   /** SearchService — 인프라 (FlowbrowserDatabase / VectorIndex / ...) 미초기화 시 null. */
   getSearchService(): SearchService | null
+  /**
+   * Sprint 018 M2 T17b — 워크스페이스 embedding_model full id (`'<provider>:<model>:<dim>'`).
+   * query path 가 dimension 을 해소해 vec0 테이블을 선택 (Schema v06 spec §5.2). 미주입/null 시 디폴트(1024) 사용.
+   * (T17c 에서 provider 선택까지 확장 — 현재는 dimension 해소만, provider 는 getEmbeddingProvider 고정.)
+   */
+  getWorkspaceEmbeddingModel?(workspaceId: string): string | null
   /** deterministic 테스트용 — 시간 가중치 기준 시각. 미주입 시 Date.now(). */
   now?: () => number
 }
@@ -128,10 +136,31 @@ export async function handleSearchQuery(
     }
   }
 
-  // 5. query embedding
+  // 5. 워크스페이스 embedding_model 해소 — query embedding _전_ (Schema v06 spec §5.2, codex 019e6898 BLOCKING).
+  //    modelHint/dimensions 를 EmbeddingClient 에 넘겨 올바른 차원으로 query embedding 생성 + 같은 dim 으로 vec0 테이블 선택.
+  //    미주입(레거시 deps)/null 시 디폴트(OpenAI 1024). 미지원 모델 id 는 throw → error 응답.
+  //    provider 어댑터 매핑(openai vs ollama)은 T17c 위임 — 본 단계는 modelHint/dimensions threading.
+  let modelSpec
+  try {
+    modelSpec = resolveEmbeddingModel(
+      deps.getWorkspaceEmbeddingModel ? deps.getWorkspaceEmbeddingModel(workspaceId) : null
+    )
+  } catch (err) {
+    return {
+      results: [],
+      status: 'error',
+      error: err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  // 6. query embedding — 워크스페이스 모델/차원으로 생성.
   let queryEmbedding
   try {
-    const client = new EmbeddingClient({ provider })
+    const client = new EmbeddingClient({
+      provider,
+      modelHint: modelSpec.model,
+      dimensions: modelSpec.dimensions
+    })
     const result = await client.embedText(semanticQuery)
     queryEmbedding = result.vector
   } catch (err) {
@@ -142,7 +171,9 @@ export async function handleSearchQuery(
     }
   }
 
-  // 6. SearchService.search — topK = max(topN, DEFAULT_TOP_K) (PRD §9.7 내부 retrieval 디폴트 20)
+  // 7. SearchService.search — topK = max(topN, DEFAULT_TOP_K) (PRD §9.7 내부 retrieval 디폴트 20)
+  //    워크스페이스 dim 으로 vec0 테이블 선택 (query embedding 과 동일 차원).
+  const dimensions = modelSpec.dimensions
   const topK = Math.max(topN, DEFAULT_TOP_K)
   let hits: SearchHit[]
   try {
@@ -151,7 +182,8 @@ export async function handleSearchQuery(
       queryEmbedding,
       topK,
       timeRange: parsed.range,
-      now
+      now,
+      dimensions
     })
   } catch (err) {
     return {
@@ -161,9 +193,9 @@ export async function handleSearchQuery(
     }
   }
 
-  // 7. paginate — pageIndex=0, pageSize=topN (PRD §9.8 1차 표시)
+  // 8. paginate — pageIndex=0, pageSize=topN (PRD §9.8 1차 표시)
   const paged = paginate(hits, 0, topN)
-  // 8. SearchResultPayload 매핑 — 매칭 발췌는 의미 검색 query (remainingQuery) 기준
+  // 9. SearchResultPayload 매핑 — 매칭 발췌는 의미 검색 query (remainingQuery) 기준
   //    시간 표현 ("지난주") 만 입력 시 semanticQuery = rawQuery (fallback) — 매칭 0 건 가능
   const results = paged.hits.map((hit) => hitToPayload(hit, semanticQuery))
 

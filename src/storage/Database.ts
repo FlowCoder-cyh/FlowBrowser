@@ -42,6 +42,8 @@ import { randomUUID } from 'node:crypto'
 //   v04 DB 가 있는 사용자 경로 (services.ts) 는 `open` + `migrateV04ToV05` (백업 + schema 적용 + sentinel) +
 //   `ensureDefaultWorkspace` 로 분해하여 G-014 정합 (codex 019e4dd1 BLOCKING).
 import schemaSQL from './schema/v05.sql?raw'
+// Sprint 018 M2 T17b — workspaces.embedding_model DEFAULT SSOT (v06.sql CHECK allowlist 와 일치).
+import { DEFAULT_EMBEDDING_MODEL_ID } from './embeddingModel'
 
 /**
  * 기본 워크스페이스 메타. PRD §02 시나리오 + A3 §A4 정합.
@@ -78,6 +80,11 @@ export interface WorkspaceRow {
   icon: string
   created_at: number
   level_preference: LevelPreference
+  /**
+   * Sprint 018 M2 T17b — 워크스페이스 임베딩 모델 full id (`'<provider>:<model>:<dim>'`).
+   * v06 컬럼. v05 schema(컬럼 부재)에서는 접근자가 DEFAULT(`DEFAULT_EMBEDDING_MODEL_ID`)로 채움 (양립).
+   */
+  embedding_model: string
 }
 
 export interface CreateWorkspaceInput {
@@ -185,12 +192,16 @@ export class FlowbrowserDatabase {
 
   createWorkspace(input: CreateWorkspaceInput): WorkspaceRow {
     const id = input.id ?? randomUUID()
+    // Sprint 018 M2 T17b — INSERT 는 embedding_model 미지정 (v06 컬럼 DEFAULT 의존 — v05/v06 양쪽 안전).
+    //   사용자 선택 모델 INSERT 는 T17d (CreateWorkspaceInput.embedding_model 개방 시점).
+    //   반환 row 의 embedding_model 은 DEFAULT(SSOT) 로 채움 — v06 DB DEFAULT 와 동일 값.
     const row: WorkspaceRow = {
       id,
       name: input.name,
       icon: input.icon,
       created_at: Date.now(),
-      level_preference: input.level_preference ?? null
+      level_preference: input.level_preference ?? null,
+      embedding_model: DEFAULT_EMBEDDING_MODEL_ID
     }
     this.db
       .prepare(
@@ -201,26 +212,41 @@ export class FlowbrowserDatabase {
     return row
   }
 
+  /**
+   * Sprint 018 M2 T17b — workspaces row 정규화 (v05/v06 양립).
+   * `SELECT *` 결과에 embedding_model 컬럼이 없으면(v05 schema) DEFAULT 로 채움.
+   * v06 schema 에서는 컬럼 값 그대로. silent corruption 없음 — 미지원 값은 write/query path 가 검증.
+   */
+  private normalizeWorkspaceRow(raw: Record<string, unknown>): WorkspaceRow {
+    return {
+      id: raw.id as string,
+      name: raw.name as string,
+      icon: raw.icon as string,
+      created_at: raw.created_at as number,
+      level_preference: (raw.level_preference ?? null) as LevelPreference,
+      embedding_model: (raw.embedding_model as string | undefined) ?? DEFAULT_EMBEDDING_MODEL_ID
+    }
+  }
+
   findWorkspaceById(id: string): WorkspaceRow | null {
     const row = this.db
-      .prepare('SELECT id, name, icon, created_at, level_preference FROM workspaces WHERE id = ?')
-      .get(id) as WorkspaceRow | undefined
-    return row ?? null
+      .prepare('SELECT * FROM workspaces WHERE id = ?')
+      .get(id) as Record<string, unknown> | undefined
+    return row ? this.normalizeWorkspaceRow(row) : null
   }
 
   findWorkspaceByName(name: string): WorkspaceRow | null {
     const row = this.db
-      .prepare('SELECT id, name, icon, created_at, level_preference FROM workspaces WHERE name = ?')
-      .get(name) as WorkspaceRow | undefined
-    return row ?? null
+      .prepare('SELECT * FROM workspaces WHERE name = ?')
+      .get(name) as Record<string, unknown> | undefined
+    return row ? this.normalizeWorkspaceRow(row) : null
   }
 
   listWorkspaces(): WorkspaceRow[] {
-    return this.db
-      .prepare(
-        'SELECT id, name, icon, created_at, level_preference FROM workspaces ORDER BY created_at ASC'
-      )
-      .all() as WorkspaceRow[]
+    const rows = this.db
+      .prepare('SELECT * FROM workspaces ORDER BY created_at ASC')
+      .all() as Record<string, unknown>[]
+    return rows.map((r) => this.normalizeWorkspaceRow(r))
   }
 
   setSchemaMeta(key: string, value: string): void {

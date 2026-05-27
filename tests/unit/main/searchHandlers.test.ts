@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { applyV06Schema } from '../../helpers/v06Schema'
 
 import { FlowbrowserDatabase } from '../../../src/storage/Database'
 import { IndexedPageStoreSqlite } from '../../../src/storage/IndexedPageStoreSqlite'
@@ -94,7 +95,7 @@ interface Fx {
 
 function setup(): Fx {
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
+  applyV06Schema(fb)
   const ws = fb.ensureDefaultWorkspace()
   const vec = new VectorIndex(fb)
   const pageStore = new IndexedPageStoreSqlite(fb, { defaultWorkspaceId: ws.id })
@@ -213,7 +214,7 @@ describe('handleSearchQuery — happy path', () => {
       content: 'A 의 본문 내용',
       visited_at: now - MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }), 1024)
 
     const provider = makeMockProvider()
     const r = await handleSearchQuery(
@@ -258,7 +259,7 @@ describe('handleSearchQuery — happy path', () => {
       body: 'note body',
       created_at: now - MS_PER_DAY
     })
-    fx.vec.upsertNoteEmbedding(note.id, fx.workspaceId, makeVec({ 0: 1 }))
+    fx.vec.upsertNoteEmbedding(note.id, fx.workspaceId, makeVec({ 0: 1 }), 1024)
 
     const r = await handleSearchQuery(
       { query: 'foo' },
@@ -286,7 +287,7 @@ describe('handleSearchQuery — happy path', () => {
       content: 'recent body',
       visited_at: now - 3 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }), 1024)
 
     const r = await handleSearchQuery(
       { query: '지난주 본 자료' },
@@ -319,8 +320,8 @@ describe('handleSearchQuery — happy path', () => {
       content: 'out',
       visited_at: now - 30 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(pIn.id, fx.workspaceId, makeVec({ 0: 1 }))
-    fx.vec.upsertPageEmbedding(pOut.id, fx.workspaceId, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(pIn.id, fx.workspaceId, makeVec({ 0: 1 }), 1024)
+    fx.vec.upsertPageEmbedding(pOut.id, fx.workspaceId, makeVec({ 0: 1 }), 1024)
 
     const r = await handleSearchQuery(
       { query: '지난주' },
@@ -344,7 +345,7 @@ describe('handleSearchQuery — happy path', () => {
         content: `body ${i}`,
         visited_at: now - i * MS_PER_DAY
       })
-      fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }))
+      fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }), 1024)
     }
     const r = await handleSearchQuery(
       { query: 'foo' },
@@ -367,7 +368,7 @@ describe('handleSearchQuery — happy path', () => {
         content: `body ${i}`,
         visited_at: now - i * MS_PER_DAY
       })
-      fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }))
+      fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }), 1024)
     }
     const r = await handleSearchQuery(
       { query: 'foo', topN: 5 },
@@ -390,7 +391,7 @@ describe('handleSearchQuery — happy path', () => {
       content: longContent,
       visited_at: now
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }), 1024)
 
     const r = await handleSearchQuery(
       { query: 'foo' },
@@ -412,7 +413,7 @@ describe('handleSearchQuery — happy path', () => {
       content: 'b',
       visited_at: now - 3 * MS_PER_DAY
     })
-    fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }))
+    fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, makeVec({ 0: 1 }), 1024)
 
     const r = await handleSearchQuery(
       { query: '지난주' }, // 시간 표현만 입력 → remainingQuery = ''
@@ -426,6 +427,90 @@ describe('handleSearchQuery — happy path', () => {
     // remainingQuery '' → 원본 query '지난주' 그대로 의미 검색 (provider mock 이 결정성 vector 반환)
     expect(r.status).toBe('ok')
     expect(r.results).toHaveLength(1)
+  })
+})
+
+describe('Sprint 018 T17b — query path dimension 분기 (768 워크스페이스)', () => {
+  let fx: Fx
+  beforeEach(() => {
+    fx = setup()
+  })
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  /** 768-dim 정규화 벡터 (component 0 = 1). */
+  function vec768(): Float32Array {
+    const v = new Float32Array(768)
+    v[0] = 1
+    return v
+  }
+
+  it('embedding_model=ollama:768 → query embedding 이 768/nomic-embed-text 로 생성 + vec_pages_768 검색', async () => {
+    // 768 워크스페이스 데이터 시드 (vec_pages_768).
+    const now = 1_000_000_000_000
+    const { page } = await fx.pageStore.recordVisit({
+      workspace_id: fx.workspaceId,
+      url: 'https://ko.example',
+      content: '한국어 본문',
+      visited_at: now
+    })
+    fx.vec.upsertPageEmbedding(page.id, fx.workspaceId, vec768(), 768)
+
+    // provider 가 req 를 캡처 + req.dimensions 만큼의 벡터 반환 (768 존중).
+    let captured: EmbedRequest | null = null
+    const provider768: ProviderAdapter = {
+      info: makeMockProvider().info,
+      async validate() {
+        return { ok: true }
+      },
+      embed: async (req: EmbedRequest): Promise<EmbedResponse> => {
+        captured = req
+        const dim = req.dimensions ?? EMBEDDING_DIMENSIONS
+        const v = new Array<number>(dim).fill(0)
+        v[0] = 1
+        return {
+          vectors: req.texts.map(() => v),
+          modelUsed: req.modelHint ?? 'mock',
+          inputTokens: 1,
+          estimatedCostUsd: 0,
+          durationMs: 1
+        }
+      }
+    }
+
+    const r = await handleSearchQuery(
+      { query: '한국어' },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getEmbeddingProvider: () => provider768,
+        getSearchService: () => fx.service,
+        getWorkspaceEmbeddingModel: () => 'ollama:nomic-embed-text:768',
+        now: () => now
+      }
+    )
+    // query embedding 이 768 차원 + nomic-embed-text modelHint 로 요청됨 (분기가 cosmetic 아님).
+    expect(captured).not.toBeNull()
+    expect(captured!.dimensions).toBe(768)
+    expect(captured!.modelHint).toBe('nomic-embed-text')
+    // vec_pages_768 검색 결과로 시드 페이지 반환.
+    expect(r.status).toBe('ok')
+    expect(r.results).toHaveLength(1)
+    expect(r.results[0].pageId).toBe(page.id)
+  })
+
+  it('미지원 embedding_model id → error 응답 (silent fallback 금지)', async () => {
+    const r = await handleSearchQuery(
+      { query: 'x' },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getEmbeddingProvider: () => makeMockProvider(),
+        getSearchService: () => fx.service,
+        getWorkspaceEmbeddingModel: () => 'openai:text-embedding-3-large:3072'
+      }
+    )
+    expect(r.status).toBe('error')
+    expect(r.error).toMatch(/Unsupported embedding model/)
   })
 })
 

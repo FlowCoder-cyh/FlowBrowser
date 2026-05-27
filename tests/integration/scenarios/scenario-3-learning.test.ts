@@ -26,6 +26,7 @@ import { UserSettingStore } from '../../../src/storage/UserSettingStore'
 import { SearchService } from '../../../src/main/SearchService'
 import { WorkspaceService } from '../../../src/main/WorkspaceService'
 import { composeSystemPrompt } from '../../../src/ai/PromptComposer'
+import { applyV06Schema } from '../../helpers/v06Schema'
 
 const DAY = 86_400_000
 
@@ -59,7 +60,7 @@ interface Fx {
 
 async function setup(): Promise<Fx> {
   const fb = FlowbrowserDatabase.openInMemory()
-  fb.applySchema()
+  applyV06Schema(fb)
   const defaultWs = fb.ensureDefaultWorkspace()
   const altWs = fb.createWorkspace({ name: '학습-alt', icon: '📚' })
   const vec = new VectorIndex(fb)
@@ -220,8 +221,8 @@ describe('시나리오 3 — 학습 회귀 셋', () => {
       visited_at: now - 10 * DAY
     })
 
-    fx.vec.upsertPageEmbedding(ltPage.page.id, fx.defaultId, makeVec({ 0: 1.0, 1: 0.3 }))
-    fx.vec.upsertPageEmbedding(other.page.id, fx.defaultId, makeVec({ 5: 1.0 }))
+    fx.vec.upsertPageEmbedding(ltPage.page.id, fx.defaultId, makeVec({ 0: 1.0, 1: 0.3 }), 1024)
+    fx.vec.upsertPageEmbedding(other.page.id, fx.defaultId, makeVec({ 5: 1.0 }), 1024)
 
     // "Rust lifetime 헷갈렸던 글" → dim 0 vector
     const hits = fx.search.search({

@@ -27,6 +27,7 @@
  *   - 더 보기: topK=50 → 호출자가 slice(20, 50) 표시 (PRD §9.8 — 최대 50)
  */
 
+import { EMBEDDING_DIMENSIONS } from '../storage/VectorIndex'
 import type { EmbeddingInput, VectorIndex } from '../storage/VectorIndex'
 import type { IndexedPageStoreSqlite } from '../storage/IndexedPageStoreSqlite'
 import type { NoteRow, NoteStore } from '../storage/NoteStore'
@@ -61,6 +62,15 @@ export interface SearchOptions {
   timeRange?: SearchTimeRange | null
   /** deterministic 테스트용 — daysAgo 기준 시각. 미주입 시 Date.now(). */
   now?: number
+  /**
+   * Sprint 018 M2 T17b — 워크스페이스 embedding_model 차원 (vec0 테이블 선택 기준).
+   * 호출자(searchHandlers)가 워크스페이스 embedding_model 로 해소해 전달 (Schema v06 spec §5.2 — query path 소유).
+   * SearchService 자체는 branching owner 아님 (VectorIndex 로 passthrough).
+   *
+   * 미주입 시 디폴트 1024 — **직접 호출 테스트 편의용 fallback** (프로덕션 searchHandlers 는 항상 명시 전달).
+   * silent corruption 아님: VectorIndex.searchPages 가 queryEmbedding length ≠ dim 시 throw (codex 019e6898 NOTABLE).
+   */
+  dimensions?: number
 }
 
 export interface SearchHit {
@@ -141,9 +151,11 @@ export class SearchService {
     }
     const now = opts.now ?? Date.now()
     const range = opts.timeRange ?? null
+    // Sprint 018 M2 T17b — dimension passthrough (호출자 해소). 미주입 시 디폴트 1024.
+    const dimensions = opts.dimensions ?? EMBEDDING_DIMENSIONS
 
-    const pageResults = this.vec.searchPages(opts.workspaceId, opts.queryEmbedding, topK)
-    const noteResults = this.vec.searchNotes(opts.workspaceId, opts.queryEmbedding, topK)
+    const pageResults = this.vec.searchPages(opts.workspaceId, opts.queryEmbedding, topK, dimensions)
+    const noteResults = this.vec.searchNotes(opts.workspaceId, opts.queryEmbedding, topK, dimensions)
 
     const hits: SearchHit[] = []
 
