@@ -25,6 +25,8 @@ import {
   WorkspaceValidationError,
   validateWorkspaceIcon
 } from '../../../src/main/WorkspaceService'
+import { DEFAULT_EMBEDDING_MODEL_ID } from '../../../src/storage/embeddingModel'
+import { applyV06Schema } from '../../helpers/v06Schema'
 
 interface Harness {
   db: FlowbrowserDatabase
@@ -39,6 +41,21 @@ async function makeHarness(): Promise<Harness> {
   const settingPath = join(
     tmpdir(),
     `ws-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+  )
+  const userSetting = new UserSettingStore(settingPath)
+  await userSetting.load()
+  const defaultWs = db.ensureDefaultWorkspace()
+  const svc = new WorkspaceService({ db, userSettingStore: userSetting, defaultWorkspace: defaultWs })
+  return { db, userSetting, svc, defaultId: defaultWs.id, settingPath }
+}
+
+/** Sprint 018 M2 T17d — v06 schema harness (embedding_model 컬럼 존재 — 명시 INSERT 검증용). */
+async function makeHarnessV06(): Promise<Harness> {
+  const db = FlowbrowserDatabase.openInMemory()
+  applyV06Schema(db)
+  const settingPath = join(
+    tmpdir(),
+    `ws-v06-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
   )
   const userSetting = new UserSettingStore(settingPath)
   await userSetting.load()
@@ -226,6 +243,47 @@ describe('WorkspaceService', () => {
     expect(h.svc.list().length).toBe(1)
     await h.svc.create({ name: 'X', icon: '📚' })
     expect(h.svc.list().length).toBe(2)
+  })
+})
+
+// Sprint 018 M2 T17d — 사용자 선택 임베딩 모델 검증 + 영속.
+describe('WorkspaceService — embedding_model (T17d)', () => {
+  let h: Harness
+
+  afterEach(async () => {
+    if (h) await cleanup(h)
+  })
+
+  it('create() 미주입 → DEFAULT (v05 harness, 컬럼 부재 호환)', async () => {
+    h = await makeHarness()
+    const ws = await h.svc.create({ name: 'D', icon: '📚' })
+    expect(ws.embedding_model).toBe(DEFAULT_EMBEDDING_MODEL_ID)
+  })
+
+  it('create() embedding_model 명시 → 영속 (v06 harness)', async () => {
+    h = await makeHarnessV06()
+    const ws = await h.svc.create({
+      name: 'KO',
+      icon: '📚',
+      embedding_model: 'ollama:nomic-embed-text:768'
+    })
+    expect(ws.embedding_model).toBe('ollama:nomic-embed-text:768')
+    expect(h.db.findWorkspaceById(ws.id)?.embedding_model).toBe('ollama:nomic-embed-text:768')
+  })
+
+  it('create() 미지원 embedding_model → WorkspaceValidationError(invalid_embedding_model)', async () => {
+    h = await makeHarness()
+    await expect(
+      h.svc.create({ name: 'X', icon: '📚', embedding_model: 'openai:text-embedding-3-large:3072' })
+    ).rejects.toThrow(WorkspaceValidationError)
+  })
+
+  it('create() embedding_model="" / null → DEFAULT (검증 통과, 미주입 취급)', async () => {
+    h = await makeHarness()
+    const ws1 = await h.svc.create({ name: 'A', icon: '📚', embedding_model: '' })
+    const ws2 = await h.svc.create({ name: 'B', icon: '📚', embedding_model: null })
+    expect(ws1.embedding_model).toBe(DEFAULT_EMBEDDING_MODEL_ID)
+    expect(ws2.embedding_model).toBe(DEFAULT_EMBEDDING_MODEL_ID)
   })
 })
 

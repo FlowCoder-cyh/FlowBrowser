@@ -43,7 +43,12 @@ import { randomUUID } from 'node:crypto'
 //   `ensureDefaultWorkspace` 로 분해하여 G-014 정합 (codex 019e4dd1 BLOCKING).
 import schemaSQL from './schema/v05.sql?raw'
 // Sprint 018 M2 T17b — workspaces.embedding_model DEFAULT SSOT (v06.sql CHECK allowlist 와 일치).
-import { DEFAULT_EMBEDDING_MODEL_ID } from './embeddingModel'
+import {
+  DEFAULT_EMBEDDING_MODEL_ID,
+  isSupportedEmbeddingModel,
+  EMBEDDING_MODELS,
+  type EmbeddingModelId
+} from './embeddingModel'
 
 /**
  * 기본 워크스페이스 메타. PRD §02 시나리오 + A3 §A4 정합.
@@ -91,6 +96,12 @@ export interface CreateWorkspaceInput {
   name: string
   icon: string
   level_preference?: LevelPreference
+  /**
+   * Sprint 018 M2 T17d — 사용자 선택 임베딩 모델 (full id, 예: `'ollama:nomic-embed-text:768'`).
+   * 미주입 시 v06 컬럼 DEFAULT(`DEFAULT_EMBEDDING_MODEL_ID`) 의존 (v05/v06 양쪽 안전). 미지원 id 는 throw.
+   * 명시 INSERT 는 v06 schema 전제 (프로덕션은 migrateV05ToV06 후 항상 v06).
+   */
+  embedding_model?: EmbeddingModelId
   /** 명시 시 지정된 id 로 INSERT (테스트 / 마이그레이션 용). 미주입 시 crypto.randomUUID() */
   id?: string
 }
@@ -192,23 +203,41 @@ export class FlowbrowserDatabase {
 
   createWorkspace(input: CreateWorkspaceInput): WorkspaceRow {
     const id = input.id ?? randomUUID()
-    // Sprint 018 M2 T17b — INSERT 는 embedding_model 미지정 (v06 컬럼 DEFAULT 의존 — v05/v06 양쪽 안전).
-    //   사용자 선택 모델 INSERT 는 T17d (CreateWorkspaceInput.embedding_model 개방 시점).
-    //   반환 row 의 embedding_model 은 DEFAULT(SSOT) 로 채움 — v06 DB DEFAULT 와 동일 값.
+    // Sprint 018 M2 T17d — 사용자 선택 임베딩 모델 INSERT 개방 (T17b 의 DEFAULT 의존에서 확장).
+    //   embedding_model 미주입: 컬럼 미지정 INSERT (v06 DEFAULT 의존, v05/v06 양쪽 안전 — ensureDefaultWorkspace path).
+    //   embedding_model 명시: 지원 모델 검증(silent corruption 차단) + 컬럼 포함 INSERT (v06 schema 전제).
+    //   반환 row 의 embedding_model 은 명시값 또는 DEFAULT(SSOT) — v06 DB 컬럼 값과 동일.
+    const embeddingModel = input.embedding_model
+    if (embeddingModel !== undefined && !isSupportedEmbeddingModel(embeddingModel)) {
+      throw new Error(
+        `Unsupported embedding model: ${embeddingModel} (지원: ${Object.keys(EMBEDDING_MODELS).join(', ')})`
+      )
+    }
     const row: WorkspaceRow = {
       id,
       name: input.name,
       icon: input.icon,
       created_at: Date.now(),
       level_preference: input.level_preference ?? null,
-      embedding_model: DEFAULT_EMBEDDING_MODEL_ID
+      embedding_model: embeddingModel ?? DEFAULT_EMBEDDING_MODEL_ID
     }
-    this.db
-      .prepare(
-        `INSERT INTO workspaces(id, name, icon, created_at, level_preference)
-         VALUES (?, ?, ?, ?, ?)`
-      )
-      .run(row.id, row.name, row.icon, row.created_at, row.level_preference)
+    if (embeddingModel !== undefined) {
+      // 사용자 선택 모델 — embedding_model 컬럼 포함 (v06 schema 필요, CHECK allowlist 검증은 위 isSupported 가 선반영).
+      this.db
+        .prepare(
+          `INSERT INTO workspaces(id, name, icon, created_at, level_preference, embedding_model)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        )
+        .run(row.id, row.name, row.icon, row.created_at, row.level_preference, row.embedding_model)
+    } else {
+      // 디폴트 — 컬럼 미지정 (v05/v06 양립, DB DEFAULT 의존).
+      this.db
+        .prepare(
+          `INSERT INTO workspaces(id, name, icon, created_at, level_preference)
+           VALUES (?, ?, ?, ?, ?)`
+        )
+        .run(row.id, row.name, row.icon, row.created_at, row.level_preference)
+    }
     return row
   }
 

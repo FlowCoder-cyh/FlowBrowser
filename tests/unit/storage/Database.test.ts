@@ -25,6 +25,8 @@ import {
   V04_SCHEMA_VERSION,
   V05_SCHEMA_VERSION
 } from '../../../src/storage/Database'
+import { DEFAULT_EMBEDDING_MODEL_ID } from '../../../src/storage/embeddingModel'
+import { openInMemoryV06 } from '../../helpers/v06Schema'
 
 const EXPECTED_TABLES = [
   'workspaces',
@@ -216,6 +218,55 @@ describe('FlowbrowserDatabase', () => {
           )
           .run(randomUUID(), 'X', '🌶', Date.now(), 'invalid-level')
       ).toThrow()
+    })
+
+    it('createWorkspace 디폴트 — embedding_model 미주입 시 DEFAULT (v05 컬럼 부재 호환)', () => {
+      // fresh() = v05 schema (embedding_model 컬럼 없음). 컬럼 미지정 INSERT path → 접근자 DEFAULT 채움.
+      const ws = db.createWorkspace({ name: 'D', icon: '🟢' })
+      expect(ws.embedding_model).toBe(DEFAULT_EMBEDDING_MODEL_ID)
+      const reread = db.findWorkspaceById(ws.id)
+      expect(reread?.embedding_model).toBe(DEFAULT_EMBEDDING_MODEL_ID)
+    })
+  })
+
+  // Sprint 018 M2 T17d — 사용자 선택 임베딩 모델 INSERT (v06 schema — 컬럼 존재).
+  describe('createWorkspace embedding_model (T17d, v06)', () => {
+    let db: FlowbrowserDatabase
+
+    beforeEach(() => {
+      db = openInMemoryV06()
+    })
+
+    afterEach(() => {
+      db.close()
+    })
+
+    it('embedding_model 명시 → 컬럼 포함 INSERT + 영속 (ollama:768)', () => {
+      const ws = db.createWorkspace({
+        name: 'KO',
+        icon: '🇰🇷',
+        embedding_model: 'ollama:nomic-embed-text:768'
+      })
+      expect(ws.embedding_model).toBe('ollama:nomic-embed-text:768')
+      const reread = db.findWorkspaceById(ws.id)
+      expect(reread?.embedding_model).toBe('ollama:nomic-embed-text:768')
+    })
+
+    it('embedding_model 미주입 → DB DEFAULT (openai:1024)', () => {
+      const ws = db.createWorkspace({ name: 'EN', icon: '🇺🇸' })
+      const reread = db.findWorkspaceById(ws.id)
+      expect(reread?.embedding_model).toBe(DEFAULT_EMBEDDING_MODEL_ID)
+    })
+
+    it('미지원 embedding_model → throw (silent corruption 차단)', () => {
+      expect(() =>
+        db.createWorkspace({
+          name: 'X',
+          icon: '🧪',
+          // @ts-expect-error — 런타임 미지원 id 검증 (타입은 EmbeddingModelId 로 좁혀지나 IPC 경로는 string)
+          embedding_model: 'openai:text-embedding-3-large:3072'
+        })
+      ).toThrow(/Unsupported embedding model/)
     })
   })
 

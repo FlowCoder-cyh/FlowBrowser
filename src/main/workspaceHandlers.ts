@@ -23,6 +23,8 @@ export interface SerializedWorkspace {
   icon: string
   createdAt: number
   levelPreference: LevelPreference
+  /** Sprint 018 M2 T17d — 워크스페이스 임베딩 모델 full id (UX 표시 + 생성 시 선택값 반영). */
+  embeddingModel: string
 }
 
 export interface WorkspaceListResponse {
@@ -34,6 +36,8 @@ export interface WorkspaceCreateArgs {
   name: string
   icon: string
   levelPreference?: LevelPreference
+  /** Sprint 018 M2 T17d — 사용자 선택 임베딩 모델 full id. 미주입/null 시 DB DEFAULT. 미지원 id 는 invalid_input. */
+  embeddingModel?: string | null
 }
 
 export interface WorkspaceUpdateArgs {
@@ -190,7 +194,8 @@ export function serializeWorkspace(row: WorkspaceRow): SerializedWorkspace {
     name: row.name,
     icon: row.icon,
     createdAt: row.created_at,
-    levelPreference: row.level_preference
+    levelPreference: row.level_preference,
+    embeddingModel: row.embedding_model
   }
 }
 
@@ -221,7 +226,8 @@ export async function handleWorkspaceCreate(
     const row = await svc.create({
       name: args.name,
       icon: args.icon,
-      level_preference: args.levelPreference ?? null
+      level_preference: args.levelPreference ?? null,
+      embedding_model: args.embeddingModel ?? null
     })
     return { ok: true, workspace: serializeWorkspace(row) }
   } catch (err) {
