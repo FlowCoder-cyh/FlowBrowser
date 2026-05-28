@@ -256,3 +256,91 @@ describe('EmbeddingQueue — clearWorkspace (Sprint 016 M0 T02-followup, KI-006)
     expect(fx.q.stats().pending).toBe(2)
   })
 })
+
+/**
+ * Sprint 018 M2 write-path wiring — release / requeueInProgress.
+ *
+ * release(id): provider 미가용 시 단건 in_progress → pending (attempts 불변, no markFailed).
+ * requeueInProgress(): boot 시 orphan in_progress → pending 일괄 회복 (attempts 불변).
+ *   둘 다 status 가드 (in_progress 만) — 이미 succeeded/failed 면 되돌리지 않음.
+ */
+describe('EmbeddingQueue — release / requeueInProgress (Sprint 018 M2 write-path wiring)', () => {
+  let fx: Fx
+
+  beforeEach(() => {
+    fx = setup()
+  })
+
+  afterEach(() => {
+    fx.fb.close()
+  })
+
+  it('release(id) → in_progress 잡 pending 복귀 + attempts 불변 + 재claim 가능', () => {
+    const a = fx.q.enqueue({ target_type: 'page', target_id: 'a', workspace_id: fx.wsId })
+    fx.q.claimNext()
+    expect(fx.q.findById(a.id)?.status).toBe('in_progress')
+
+    expect(fx.q.release(a.id)).toBe(true)
+    const reread = fx.q.findById(a.id)!
+    expect(reread.status).toBe('pending')
+    expect(reread.attempts).toBe(0) // markFailed 와 달리 attempts 안 올림
+    expect(reread.last_error).toBeNull()
+    // 다시 claim 가능
+    expect(fx.q.claimNext()?.id).toBe(a.id)
+  })
+
+  it('release(id) → pending / succeeded / failed 잡은 no-op (false)', () => {
+    const pend = fx.q.enqueue({ target_type: 'page', target_id: 'p', workspace_id: fx.wsId })
+    expect(fx.q.release(pend.id)).toBe(false) // pending 은 in_progress 아님
+
+    const done = fx.q.enqueue({ target_type: 'page', target_id: 'd', workspace_id: fx.wsId, priority: 10 })
+    fx.q.claimNext() // done claim
+    fx.q.markSucceeded(done.id)
+    expect(fx.q.release(done.id)).toBe(false) // succeeded → 안 되돌림
+    expect(fx.q.findById(done.id)?.status).toBe('succeeded')
+
+    const failed = fx.q.enqueue({ target_type: 'page', target_id: 'f', workspace_id: fx.wsId, priority: 20 })
+    fx.q.claimNext() // failed claim
+    fx.q.markFailed(failed.id, 'permanent')
+    expect(fx.q.release(failed.id)).toBe(false) // failed → 안 되돌림
+    expect(fx.q.findById(failed.id)?.status).toBe('failed')
+  })
+
+  it('release(non-existent id) → false', () => {
+    expect(fx.q.release('no-such-job')).toBe(false)
+  })
+
+  it('requeueInProgress() → in_progress 만 pending 일괄 복귀 + 카운트 + attempts 불변', () => {
+    const j1 = fx.q.enqueue({ target_type: 'page', target_id: 'p1', workspace_id: fx.wsId })
+    const j2 = fx.q.enqueue({ target_type: 'page', target_id: 'p2', workspace_id: fx.wsId, priority: 10 })
+    const j3 = fx.q.enqueue({ target_type: 'page', target_id: 'p3', workspace_id: fx.wsId, priority: 20 })
+    const j4 = fx.q.enqueue({ target_type: 'page', target_id: 'p4', workspace_id: fx.wsId, priority: 30 })
+
+    // j4(claim, in_progress), j3(claim→success), j2(claim→fail), j1(pending)
+    fx.q.claimNext() // j4 in_progress
+    fx.q.claimNext()
+    fx.q.markSucceeded(j3.id)
+    fx.q.claimNext()
+    fx.q.markFailed(j2.id, 'err')
+    // j1 pending 유지
+
+    expect(fx.q.stats()).toEqual({ pending: 1, in_progress: 1, succeeded: 1, failed: 1 })
+
+    const requeued = fx.q.requeueInProgress()
+    expect(requeued).toBe(1) // j4 만
+
+    expect(fx.q.findById(j4.id)?.status).toBe('pending')
+    expect(fx.q.findById(j4.id)?.attempts).toBe(0)
+    // 나머지 보존
+    expect(fx.q.findById(j3.id)?.status).toBe('succeeded')
+    expect(fx.q.findById(j2.id)?.status).toBe('failed')
+    expect(fx.q.findById(j1.id)?.status).toBe('pending')
+    expect(fx.q.stats()).toEqual({ pending: 2, in_progress: 0, succeeded: 1, failed: 1 })
+  })
+
+  it('requeueInProgress() → in_progress 없으면 0 (no-op)', () => {
+    fx.q.enqueue({ target_type: 'page', target_id: 'p1', workspace_id: fx.wsId })
+    expect(fx.q.requeueInProgress()).toBe(0)
+    expect(fx.q.stats().pending).toBe(1)
+  })
+})

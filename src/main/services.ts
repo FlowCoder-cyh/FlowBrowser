@@ -152,6 +152,10 @@ import {
   OllamaProvider,
   DeviceCodeFlow,
   ProviderError,
+  // Sprint 018 M2 write-path wiring — embedding queue drainer + 워크스페이스별 client 해소.
+  EmbeddingWorker,
+  buildEmbeddingClientForModel,
+  processNextEmbeddingJob,
   type ProviderAdapter,
   type TranslationInput,
   type TranslationOutput,
@@ -222,6 +226,9 @@ let highlightStore: HighlightStore | null = null
 // onStatusChange 콜백이 status='indexed' 인 경우 broadcastMemoryInvalidated(workspaceId) 호출.
 let indexingGate: IndexingGate | null = null
 let indexingService: IndexingService | null = null
+// Sprint 018 M2 write-path wiring — EmbeddingQueue drainer. startEmbeddingWorker() 가 인스턴스화 + 시작
+// (main/index.ts 가 rebuildAllProviders 후 호출). stopEmbeddingWorker() 가 정지 (app before-quit / bootstrap 실패).
+let embeddingWorker: EmbeddingWorker | null = null
 // Sprint 015 M6 T28 — defaultWorkspaceId 는 fresh install 시 첫 워크스페이스 id (보통 "📥 기본").
 //                    activeWorkspaceId 는 사용자 전환 시점에 갱신 — `getActiveWorkspaceId` 로 통합 접근.
 let defaultWorkspaceId: string | null = null
@@ -652,8 +659,13 @@ export async function initServices(): Promise<void> {
       vectorIndex,
       onStatusChange: createIndexingBroadcastHandler(broadcastMemoryInvalidated)
     })
+    // Sprint 018 M2 write-path wiring — embedding worker 는 initServices 가 아니라 startEmbeddingWorker()
+    //   (main/index.ts 가 rebuildAllProviders 후 호출 — providers Map 채워진 뒤여야 resolveEmbeddingClient 정상).
+    //   인스턴스 생성도 거기서 (module state 읽음). bootstrap 실패 시 위 catch 에서 stopEmbeddingWorker().
   } catch (err) {
     // 인프라 미준비 — search / chat / note / memory / indexing 호출 시 graceful error 반환.
+    // Sprint 018 M2 write-path wiring — 재초기화 실패 시 직전 worker 가 stale 인프라 참조하지 않도록 정지.
+    stopEmbeddingWorker()
     flowbrowserDb = null
     vectorIndex = null
     indexedPageStore = null
@@ -1924,6 +1936,68 @@ export function rebuildAllProviders(): void {
   // Sprint 017 M3 T16 (codex 019e502d Q2) — Ollama 는 credentialsStore 에 row 없으므로 본 path 안 탐.
   //   credential 변동 무관하게 항상 박음 (사용자가 defaultProviderId='local' 시점에 대비).
   ensureLocalProvider()
+}
+
+/**
+ * Sprint 018 M2 write-path wiring — embedding worker 시작.
+ *
+ * main/index.ts 가 `await initServices()` + `rebuildAllProviders()` _후_ 호출 (providers Map 이 채워진 뒤여야
+ * resolveEmbeddingClient 가 정상 동작 — 미충족 시 provider_unavailable 로 release/backoff 자동 회복하지만
+ * 불필요한 첫 backoff 회피). bootstrap 실패(인프라 null) 시 graceful no-op.
+ *
+ * **호출 계약 = one-shot (codex 019e6ea0 NEEDS_CHANGES 해소)**: `initServices` / `startEmbeddingWorker` 는
+ * 앱 부팅 시 `app.whenReady` 에서 정확히 1회만 호출되고 prod 에 재초기화 경로가 없다 (index.ts 단일 호출 지점).
+ * 따라서 아래 module-state 캡처(queue/vector/pages/notes/db)는 stale 될 수 없다. `if (embeddingWorker) return`
+ * 는 그 계약 위에서의 방어적 idempotent 가드(중복 호출 무해). 만약 향후 재초기화 경로를 도입한다면 본 함수에
+ * 명시적 restart 경계(기존 worker stop → 새 인스턴스)를 추가해야 하며, in-flight embed 비취소 잔여(아래 worker
+ * 주석)도 함께 다뤄야 한다. bootstrap _실패_ 재시도는 initServices catch 의 stopEmbeddingWorker() 가 커버.
+ *
+ * worker 의 resolveEmbeddingClient deps = 워크스페이스 embedding_model → buildEmbeddingClientForModel
+ * (query path searchHandlers 와 동일 체인). provider 미가용은 EmbeddingProviderUnavailableError 로
+ * processNextEmbeddingJob 이 release(→pending) 후 backoff (markFailed 안 함).
+ */
+export function startEmbeddingWorker(): void {
+  if (embeddingWorker) return
+  // bootstrap 실패 시 모두 null — worker 시작 안 함 (검색/인덱싱 graceful disable 정합).
+  if (!embeddingQueue || !vectorIndex || !indexedPageStore || !noteStore || !flowbrowserDb) {
+    return
+  }
+  const queue = embeddingQueue
+  const vector = vectorIndex
+  const pages = indexedPageStore
+  const notes = noteStore
+  const db = flowbrowserDb
+  embeddingWorker = new EmbeddingWorker({
+    processJob: () =>
+      processNextEmbeddingJob({
+        // 워크스페이스 embedding_model → client/dimensions (미지원 모델 throw → failed / provider 미가용 → unavailable).
+        resolveEmbeddingClient: (workspaceId) =>
+          buildEmbeddingClientForModel(
+            db.findWorkspaceById(workspaceId)?.embedding_model ?? null,
+            (credType) => providers.get(credType) ?? null
+          ),
+        queue,
+        vectorIndex: vector,
+        pageStore: pages,
+        noteStore: notes
+      }),
+    requeueStaleOnStart: () => queue.requeueInProgress(),
+    log: (message) => console.log(message),
+    onError: (err) =>
+      console.warn(
+        '[services] embedding worker drain 예외:',
+        err instanceof Error ? err.message : String(err)
+      )
+  })
+  embeddingWorker.start()
+}
+
+/** Sprint 018 M2 write-path wiring — embedding worker 정지 (app before-quit / bootstrap 실패 / 재초기화). */
+export function stopEmbeddingWorker(): void {
+  if (embeddingWorker) {
+    embeddingWorker.stop()
+    embeddingWorker = null
+  }
 }
 
 export function extractDomain(url: string): string {

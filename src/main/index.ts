@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import {
   initServices,
   rebuildAllProviders,
+  startEmbeddingWorker,
+  stopEmbeddingWorker,
   reconcileWorkspacePartitions,
   WebContentsRegistry,
   executeTranslateRequest,
@@ -1282,6 +1284,9 @@ function installApplicationMenu(): void {
 app.whenReady().then(async () => {
   await initServices()
   rebuildAllProviders()
+  // Sprint 018 M2 write-path wiring — providers Map 채워진 _후_ embedding worker 시작 (enqueue 된 잡 drain).
+  //   bootstrap 실패 시 graceful no-op. before-quit 에서 정지.
+  startEmbeddingWorker()
   // Sprint 017 M2 T11 (KI-021) — 워크스페이스 partition cleanup reconcile.
   // fire-and-forget — UI 부팅 지연 회피 (codex 019e4f65 Q4 권고). 모든 throw graceful.
   void reconcileWorkspacePartitions().catch((err: unknown) => {
@@ -1298,6 +1303,12 @@ app.whenReady().then(async () => {
       void createMainWindow()
     }
   })
+})
+
+// Sprint 018 M2 write-path wiring — 종료 시 embedding worker 타이머 해제 (진행 중 embed 는 in_progress 로 남아
+//   다음 boot requeueInProgress 가 회복). 모든 platform 공통 — macOS 는 window-all-closed 후에도 quit 시 발화.
+app.on('before-quit', () => {
+  stopEmbeddingWorker()
 })
 
 app.on('window-all-closed', () => {
