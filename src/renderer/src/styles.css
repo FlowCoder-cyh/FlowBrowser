@@ -2192,7 +2192,8 @@ body {
 
 .workspace-modal__name-input,
 .workspace-modal__custom-icon,
-.workspace-modal__level {
+.workspace-modal__level,
+.workspace-modal__embedding-model {
   padding: 8px 10px;
   background: #0f0f0f;
   border: 1px solid #2f2f2f;
@@ -2203,7 +2204,8 @@ body {
 
 .workspace-modal__name-input:focus,
 .workspace-modal__custom-icon:focus,
-.workspace-modal__level:focus {
+.workspace-modal__level:focus,
+.workspace-modal__embedding-model:focus {
   outline: 1px solid #4a9eff;
   outline-offset: 0;
 }
