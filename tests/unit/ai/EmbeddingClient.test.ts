@@ -370,6 +370,41 @@ describe('EmbeddingClient', () => {
     })
     expect(spy).toHaveBeenCalledWith('only-sel')
   })
+
+  // Sprint 018 M3 T22 gap-fill — embedNote 빈-source 가드 (embedPage 대칭). NoteStore.create 가
+  //   빈 문자열만 막고 whitespace('   ')는 통과시키므로, embedNote 가 빈 문자열을 provider 로 보내지 않도록 방어.
+  it('embedNote whitespace-only selected_text + 빈 body → throw (빈 문자열 임베딩 요청 차단)', async () => {
+    const spy = vi.fn()
+    const provider = fakeProvider({
+      hasEmbed: true,
+      embedImpl: (req) => {
+        spy(req.texts[0])
+        return {
+          vectors: [makeVector(0)],
+          modelUsed: 'm',
+          inputTokens: 1,
+          estimatedCostUsd: 0,
+          durationMs: 1
+        }
+      }
+    })
+    const client = new EmbeddingClient({ provider })
+    await expect(
+      client.embedNote({
+        id: 'n-ws',
+        page_id: null,
+        visit_id: null,
+        workspace_id: 'ws',
+        selected_text: '   ', // whitespace-only — NoteStore.create 는 통과 (빈 문자열 아님)
+        body: null,
+        ai_tags: null,
+        created_at: 0,
+        created_by: 'user'
+      })
+    ).rejects.toThrow(/empty selected_text \+ body/)
+    // 가드가 embedText 도달 전에 throw — provider 는 호출되지 않음 (빈 문자열 미전송).
+    expect(spy).not.toHaveBeenCalled()
+  })
 })
 
 describe('processNextEmbeddingJob', () => {
@@ -528,6 +563,59 @@ describe('processNextEmbeddingJob', () => {
     expect(result.status).toBe('orphan')
     expect(result.error).toMatch(/page not found/)
     expect(fx.queue.stats().failed).toBe(1)
+  })
+
+  // Sprint 018 M3 T22 gap-fill — note orphan 대칭 (page orphan 만 커버돼 있던 비대칭 해소).
+  it('orphan note — target 미존재 → markFailed (orphan)', async () => {
+    const fakeNoteId = randomUUID()
+    fx.queue.enqueue({
+      target_type: 'note',
+      target_id: fakeNoteId,
+      workspace_id: fx.wsId
+    })
+    const client = new EmbeddingClient({ provider: fakeProvider({ hasEmbed: true }) })
+    const result = await processNextEmbeddingJob({
+      resolveEmbeddingClient: () => ({ client, dimensions: 1024 }),
+      queue: fx.queue,
+      vectorIndex: fx.vector,
+      pageStore: fx.pageStore,
+      noteStore: fx.noteStore
+    })
+    expect(result.status).toBe('orphan')
+    expect(result.error).toMatch(/note not found/)
+    expect(fx.queue.stats().failed).toBe(1)
+    expect(fx.vector.countNotes(fx.wsId)).toBe(0)
+  })
+
+  // Sprint 018 M3 T22 gap-fill — resolveEmbeddingClient 가 일반 Error(예: DB 에 잘못된 embedding_model →
+  //   resolveEmbeddingModel throw)면 영구 failed(markFailed). provider 환경 문제(EmbeddingProviderUnavailableError)
+  //   의 release/provider_unavailable 와 반드시 분리 — 재시도해도 회복 불가한 데이터/계약 문제라 release 무한루프 금지.
+  it('resolveEmbeddingClient 가 일반 Error → failed (markFailed, release/provider_unavailable 아님)', async () => {
+    const { page } = await fx.pageStore.recordVisit({
+      url: 'https://x.test/bad-model',
+      content: 'body',
+      workspace_id: fx.wsId
+    })
+    fx.queue.enqueue({
+      target_type: 'page',
+      target_id: page.id,
+      workspace_id: fx.wsId
+    })
+    const result = await processNextEmbeddingJob({
+      // 미지원 embedding_model 이 DB 에 박힌 상황 시뮬레이션 — resolveEmbeddingModel 이 일반 Error throw.
+      resolveEmbeddingClient: () => {
+        throw new Error('Unsupported embedding model: mystery:model:512')
+      },
+      queue: fx.queue,
+      vectorIndex: fx.vector,
+      pageStore: fx.pageStore,
+      noteStore: fx.noteStore
+    })
+    expect(result.status).toBe('failed') // provider_unavailable 아님
+    expect(result.error).toMatch(/Unsupported embedding model/)
+    expect(fx.queue.stats().failed).toBe(1) // markFailed — release 면 pending 으로 돌아가 failed=0
+    expect(fx.queue.stats().pending).toBe(0) // release 무한루프 금지 검증
+    expect(fx.vector.countPages(fx.wsId)).toBe(0)
   })
 
   it('embed 호출 실패 → markFailed', async () => {
