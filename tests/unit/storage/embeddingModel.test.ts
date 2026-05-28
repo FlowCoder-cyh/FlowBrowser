@@ -12,7 +12,8 @@ import {
   SUPPORTED_EMBEDDING_DIMENSIONS,
   isSupportedEmbeddingModel,
   parseEmbeddingModel,
-  resolveEmbeddingDimensions
+  resolveEmbeddingDimensions,
+  embeddingProviderToCredentialProvider
 } from '../../../src/storage/embeddingModel'
 import { selectVecPagesTable, selectVecNotesTable } from '../../../src/storage/VectorIndex'
 
@@ -72,5 +73,22 @@ describe('embeddingModel 레지스트리', () => {
     expect(() => resolveEmbeddingDimensions('mystery:model:512')).toThrow(
       /Unsupported embedding model/
     )
+  })
+})
+
+describe('Sprint 018 M2 T17c — embeddingProviderToCredentialProvider', () => {
+  it("'openai' namespace → 'openai' credential type", () => {
+    expect(embeddingProviderToCredentialProvider('openai')).toBe('openai')
+  })
+
+  it("'ollama' namespace → 'local' credential type (OllamaProvider 가 providers.set('local'))", () => {
+    expect(embeddingProviderToCredentialProvider('ollama')).toBe('local')
+  })
+
+  it('레지스트리 모든 모델의 provider namespace 가 매핑 가능 (4자 일치 — registry ↔ credential)', () => {
+    for (const [, spec] of Object.entries(EMBEDDING_MODELS)) {
+      const credential = embeddingProviderToCredentialProvider(spec.provider)
+      expect(['openai', 'local']).toContain(credential)
+    }
   })
 })

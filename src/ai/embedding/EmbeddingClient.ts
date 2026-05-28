@@ -61,7 +61,8 @@ export class EmbeddingClient {
   async embedTexts(texts: string[]): Promise<EmbedTextsResult> {
     if (!this.provider.embed) {
       throw new Error(
-        `EmbeddingClient: provider ${this.provider.info.providerType} does not support embed (PRD §08 BYOK OpenAI 디폴트)`
+        `EmbeddingClient: provider ${this.provider.info.providerType} does not support embed ` +
+          `(임베딩 지원 provider: OpenAIApiKeyProvider / OllamaProvider — Sprint 018 M2 T17c)`
       )
     }
     if (texts.length === 0) {

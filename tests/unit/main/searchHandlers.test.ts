@@ -179,6 +179,27 @@ describe('handleSearchQuery — graceful error 매트릭스', () => {
     expect(r.error).toMatch(/임베딩을 지원하지 않습니다/)
   })
 
+  it('supportsEmbed=false 인데 embed() 메서드는 존재 → status=error (계약 = info.supportsEmbed 확인, codex 019e6e00)', async () => {
+    // CodexLoginProvider 류 — embed() 가 있으나 supportsEmbed=false (throw 전제). info 플래그로 차단해야 함.
+    const provider: ProviderAdapter = {
+      ...makeMockProvider({ type: 'codex', supportsEmbed: false }),
+      info: { ...makeMockProvider({ type: 'codex' }).info, supportsEmbed: false },
+      embed: async () => {
+        throw new Error('unsupported — should not be reached')
+      }
+    }
+    const r = await handleSearchQuery(
+      { query: 'hello' },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getEmbeddingProvider: () => provider,
+        getSearchService: () => fx.service
+      }
+    )
+    expect(r.status).toBe('error')
+    expect(r.error).toMatch(/임베딩을 지원하지 않습니다/)
+  })
+
   it('embed 호출 자체가 throw → status=error (catch 후 message 전달)', async () => {
     const provider = makeMockProvider({
       embedThrows: new Error('rate limit')
@@ -479,16 +500,23 @@ describe('Sprint 018 T17b — query path dimension 분기 (768 워크스페이�
       }
     }
 
+    // Sprint 018 M2 T17c — ollama 워크스페이스는 'local' credential provider 가 선택돼야 함.
+    let requestedProviderType: string | null = null
     const r = await handleSearchQuery(
       { query: '한국어' },
       {
         getActiveWorkspaceId: () => fx.workspaceId,
-        getEmbeddingProvider: () => provider768,
+        getEmbeddingProvider: (providerType) => {
+          requestedProviderType = providerType
+          return provider768
+        },
         getSearchService: () => fx.service,
         getWorkspaceEmbeddingModel: () => 'ollama:nomic-embed-text:768',
         now: () => now
       }
     )
+    // T17c — ollama:768 → 'local' 어댑터 선택 (provider 고정 아님).
+    expect(requestedProviderType).toBe('local')
     // query embedding 이 768 차원 + nomic-embed-text modelHint 로 요청됨 (분기가 cosmetic 아님).
     expect(captured).not.toBeNull()
     expect(captured!.dimensions).toBe(768)
@@ -497,6 +525,41 @@ describe('Sprint 018 T17b — query path dimension 분기 (768 워크스페이�
     expect(r.status).toBe('ok')
     expect(r.results).toHaveLength(1)
     expect(r.results[0].pageId).toBe(page.id)
+  })
+
+  it('embedding_model=openai:1024 → "openai" credential provider 선택', async () => {
+    let requestedProviderType: string | null = null
+    const r = await handleSearchQuery(
+      { query: '질의' },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getEmbeddingProvider: (providerType) => {
+          requestedProviderType = providerType
+          return makeMockProvider()
+        },
+        getSearchService: () => fx.service,
+        getWorkspaceEmbeddingModel: () => 'openai:text-embedding-3-small:1024'
+      }
+    )
+    expect(requestedProviderType).toBe('openai')
+    expect(r.status).not.toBe('error')
+  })
+
+  it('ollama 워크스페이스 + local provider 미등록(null) → 로컬 provider 안내 error', async () => {
+    const r = await handleSearchQuery(
+      { query: '질의' },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        // 'local' 조회 시 null (Ollama 미초기화 시뮬).
+        getEmbeddingProvider: () => null,
+        getSearchService: () => fx.service,
+        getWorkspaceEmbeddingModel: () => 'ollama:nomic-embed-text:768'
+      }
+    )
+    expect(r.status).toBe('error')
+    // OpenAI API Key 안내가 아니라 Ollama/local 안내여야 함 (provider-aware 메시지).
+    expect(r.error).toContain('로컬')
+    expect(r.error).not.toContain('OpenAI API Key')
   })
 
   it('미지원 embedding_model id → error 응답 (silent fallback 금지)', async () => {

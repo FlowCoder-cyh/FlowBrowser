@@ -79,12 +79,14 @@ export {
   isSupportedEmbeddingModel,
   parseEmbeddingModel,
   resolveEmbeddingModel,
-  resolveEmbeddingDimensions
+  resolveEmbeddingDimensions,
+  embeddingProviderToCredentialProvider
 } from './embeddingModel'
 export type {
   EmbeddingModelSpec,
   EmbeddingModelId,
-  SupportedEmbeddingDimension
+  SupportedEmbeddingDimension,
+  EmbeddingCredentialProvider
 } from './embeddingModel'
 
 export { IndexedPageStoreSqlite } from './IndexedPageStoreSqlite'

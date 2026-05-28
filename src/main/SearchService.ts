@@ -19,7 +19,7 @@
  *
  * 가정:
  *   - vec_pages / vec_notes 가 `distance_metric=cosine` 으로 정의됨 (PRD §9.4 정정 — L2 사용 시 score scale 깨짐)
- *   - queryEmbedding 은 1024 차원 (EMBEDDING_DIMENSIONS) — 위반 시 VectorIndex 가 throw
+ *   - queryEmbedding 차원 = 워크스페이스 embedding_model dim (OpenAI 1024 / Ollama 768, Sprint 018 M2 T17b/c) — 위반 시 VectorIndex 가 throw
  *   - workspace_id partition 은 VectorIndex 가 강제 (다른 워크스페이스 누설 차단)
  *
  * Pagination 호출자 책임:
@@ -54,7 +54,7 @@ export interface SearchTimeRange {
 export interface SearchOptions {
   /** 현재 활성 워크스페이스 UUID. VectorIndex partition key. */
   workspaceId: string
-  /** 질의 임베딩 (1024 차원). EmbeddingClient.embedText() 결과. */
+  /** 질의 임베딩 (워크스페이스 embedding_model dim — 1024 OpenAI / 768 Ollama). EmbeddingClient.embedText() 결과. */
   queryEmbedding: EmbeddingInput
   /** Phase 1 디폴트 20 (PRD §9.7). 호출자 Pagination 단계에 따라 20 / 50 주입. */
   topK?: number
