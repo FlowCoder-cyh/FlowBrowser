@@ -15,7 +15,9 @@
 import type { ProviderAdapter } from '../ai/ProviderAdapter'
 import { EmbeddingClient } from '../ai/embedding/EmbeddingClient'
 // Sprint 018 M2 T17b — 워크스페이스 embedding_model → 검색 query 임베딩 모델/차원 해소 (Schema v06 spec §5.2 query path 소유).
-import { resolveEmbeddingModel } from '../storage/embeddingModel'
+//   Sprint 018 M2 T17c — embeddingProviderToCredentialProvider 추가 (spec.provider 별 어댑터 선택).
+import { resolveEmbeddingModel, embeddingProviderToCredentialProvider } from '../storage/embeddingModel'
+import type { CredentialProviderType } from '../storage'
 import { parseTimeRange } from './TimeRangeParser'
 import {
   SearchService,
@@ -64,14 +66,19 @@ export interface SearchQueryArgs {
 export interface SearchQueryDeps {
   /** default workspace UUID. M6 워크스페이스 사이드바 도입 전까지는 항상 default. */
   getActiveWorkspaceId(): string | null
-  /** OpenAI provider (BYOK 디폴트 — G-003 강화) — query embedding 호출용. 미초기화 시 null. */
-  getEmbeddingProvider(): ProviderAdapter | null
+  /**
+   * Sprint 018 M2 T17c — credential provider type 별 임베딩 어댑터 조회.
+   * 호출자(handleSearchQuery)가 워크스페이스 embedding_model.provider 를 `embeddingProviderToCredentialProvider`
+   * 로 매핑(`'openai'`/`'local'`)한 뒤 전달. `'openai'`=BYOK OpenAIApiKeyProvider(G-003), `'local'`=OllamaProvider.
+   * 미등록/미초기화 시 null.
+   */
+  getEmbeddingProvider(providerType: CredentialProviderType): ProviderAdapter | null
   /** SearchService — 인프라 (FlowbrowserDatabase / VectorIndex / ...) 미초기화 시 null. */
   getSearchService(): SearchService | null
   /**
    * Sprint 018 M2 T17b — 워크스페이스 embedding_model full id (`'<provider>:<model>:<dim>'`).
-   * query path 가 dimension 을 해소해 vec0 테이블을 선택 (Schema v06 spec §5.2). 미주입/null 시 디폴트(1024) 사용.
-   * (T17c 에서 provider 선택까지 확장 — 현재는 dimension 해소만, provider 는 getEmbeddingProvider 고정.)
+   * query path 가 model/dimension/provider 를 해소해 어댑터 + vec0 테이블을 선택 (Schema v06 spec §5.2).
+   * 미주입/null 시 디폴트(`openai:text-embedding-3-small:1024`) 사용.
    */
   getWorkspaceEmbeddingModel?(workspaceId: string): string | null
   /** deterministic 테스트용 — 시간 가중치 기준 시각. 미주입 시 Date.now(). */
@@ -119,27 +126,9 @@ export async function handleSearchQuery(
     }
   }
 
-  // 4. embedding provider — BYOK 디폴트 (G-003 강화). Codex OAuth 는 embed 미지원.
-  const provider = deps.getEmbeddingProvider()
-  if (!provider) {
-    return {
-      results: [],
-      status: 'error',
-      error: 'OpenAI API Key 가 등록되지 않았습니다. 설정에서 등록해 주세요.'
-    }
-  }
-  if (!provider.embed) {
-    return {
-      results: [],
-      status: 'error',
-      error: `Provider ${provider.info.providerType} 는 임베딩을 지원하지 않습니다. OpenAI API Key 로 변경해 주세요.`
-    }
-  }
-
-  // 5. 워크스페이스 embedding_model 해소 — query embedding _전_ (Schema v06 spec §5.2, codex 019e6898 BLOCKING).
+  // 4. 워크스페이스 embedding_model 해소 — provider 선택 _전_ (Schema v06 spec §5.2, codex 019e6898 BLOCKING / 019e6e00).
   //    modelHint/dimensions 를 EmbeddingClient 에 넘겨 올바른 차원으로 query embedding 생성 + 같은 dim 으로 vec0 테이블 선택.
   //    미주입(레거시 deps)/null 시 디폴트(OpenAI 1024). 미지원 모델 id 는 throw → error 응답.
-  //    provider 어댑터 매핑(openai vs ollama)은 T17c 위임 — 본 단계는 modelHint/dimensions threading.
   let modelSpec
   try {
     modelSpec = resolveEmbeddingModel(
@@ -150,6 +139,29 @@ export async function handleSearchQuery(
       results: [],
       status: 'error',
       error: err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  // 5. embedding provider — 워크스페이스 embedding_model.provider 별 어댑터 (T17c).
+  //    spec.provider('openai'|'ollama') → credential type('openai'|'local') 매핑 → providers Map 조회.
+  //    'openai' = BYOK OpenAIApiKeyProvider(G-003 강화) / 'ollama' = OllamaProvider(local). Codex OAuth 는 embed 미지원.
+  const credentialProvider = embeddingProviderToCredentialProvider(modelSpec.provider)
+  const provider = deps.getEmbeddingProvider(credentialProvider)
+  if (!provider) {
+    return {
+      results: [],
+      status: 'error',
+      error:
+        credentialProvider === 'openai'
+          ? 'OpenAI API Key 가 등록되지 않았습니다. 설정에서 등록해 주세요.'
+          : `로컬 임베딩 provider(${credentialProvider}) 가 초기화되지 않았습니다. Ollama 가 실행 중인지 확인해 주세요.`
+    }
+  }
+  if (!provider.embed) {
+    return {
+      results: [],
+      status: 'error',
+      error: `Provider ${provider.info.providerType} 는 임베딩을 지원하지 않습니다. 워크스페이스 임베딩 모델(${modelSpec.provider}:${modelSpec.model})을 지원하는 provider 로 변경해 주세요.`
     }
   }
 

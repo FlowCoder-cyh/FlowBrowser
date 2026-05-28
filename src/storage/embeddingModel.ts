@@ -13,6 +13,8 @@
  * 회귀 셋이 강제. 본 헬퍼는 그 write/query path 가 dim 을 해소하는 단일 진입점.
  */
 
+import type { ProviderType as CredentialProviderType } from './Credentials'
+
 /** v06 범위 = OpenAI 1024 / Ollama 768 고정 (codex 019e653c — DB CHECK ↔ vec0 테이블 ↔ UX 3자 일치). */
 export interface EmbeddingModelSpec {
   /** 임베딩 provider 네임스페이스 (credential provider type 과 별개 — T17c 가 'ollama' → local provider 매핑). */
@@ -86,4 +88,34 @@ export function resolveEmbeddingModel(modelId: string | null | undefined): Embed
  */
 export function resolveEmbeddingDimensions(modelId: string | null | undefined): SupportedEmbeddingDimension {
   return resolveEmbeddingModel(modelId).dimensions
+}
+
+/**
+ * Sprint 018 M2 T17c — 임베딩 provider namespace → credential provider type 매핑.
+ *
+ * `EmbeddingModelSpec.provider`(`'openai'|'ollama'`)는 **임베딩 모델 네임스페이스**로, `providers` Map 의
+ * 키인 `CredentialProviderType`(`'openai'|'local'|...`)과 별개다 (본 파일 §EmbeddingModelSpec.provider 주석).
+ * query/write path 가 spec.provider 로 어댑터를 고를 때 이 매핑으로 credential type 을 해소한다:
+ *   - `'openai'` → `'openai'` (OpenAIApiKeyProvider)
+ *   - `'ollama'` → `'local'`  (OllamaProvider — `ensureLocalProvider()` 가 `providers.set('local', ...)`)
+ *
+ * 신규 임베딩 provider 추가 시 본 매핑 + `EMBEDDING_MODELS` + v06.sql CHECK + vec0 테이블 동반 변경 필수
+ * (registry ↔ CHECK ↔ vec0 ↔ credential 4자 일치). 매핑 누락은 컴파일 타임에 `satisfies` 로 차단.
+ */
+const EMBEDDING_PROVIDER_TO_CREDENTIAL = {
+  openai: 'openai',
+  ollama: 'local'
+} as const satisfies Record<EmbeddingModelSpec['provider'], CredentialProviderType>
+
+export type EmbeddingCredentialProvider =
+  (typeof EMBEDDING_PROVIDER_TO_CREDENTIAL)[EmbeddingModelSpec['provider']]
+
+/**
+ * 임베딩 provider namespace → `providers` Map 조회용 credential provider type.
+ * 미지원 namespace 는 TS union 상 도달 불가 — 런타임 fallback 없음 (silent 오선택 차단).
+ */
+export function embeddingProviderToCredentialProvider(
+  provider: EmbeddingModelSpec['provider']
+): EmbeddingCredentialProvider {
+  return EMBEDDING_PROVIDER_TO_CREDENTIAL[provider]
 }

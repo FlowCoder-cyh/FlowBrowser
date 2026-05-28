@@ -1,13 +1,15 @@
 /**
  * Sprint 017 M3 T14 — Ollama 로컬 LLM provider spike 단위 회귀.
+ *   Sprint 018 M2 T17c — embed() 실 구현 회귀 추가 (supportsEmbed=true + `/api/embed`).
  *
- * cover (codex 019e500b 권고 매트릭스 정합):
- *   - info — providerType='local' + supportsChat=true + supportsEmbed=false + 디폴트 모델 llama3.2:3b
+ * cover (codex 019e500b T14 / 019e6e00 T17c 권고 매트릭스 정합):
+ *   - info — providerType='local' + supportsChat=true + supportsEmbed=true + 디폴트 모델 llama3.2:3b
  *   - validate() — 200 OK / non-200 / fetch throw 3 path
  *   - chat() — 정상 응답 / 404 (모델 미설치) / 429 / 5xx / 4xx / network throw / 빈 messages / format=json
  *   - chat() — modelHint / temperature / maxOutputTokens 매핑 정합
  *   - chat() — token mapping (prompt_eval_count / eval_count) + estimatedCostUsd=0
- *   - embed() — 항상 ProviderError('unsupported') (T14 spike scope 정합)
+ *   - embed() — 정상(batch) / endpoint=POST /api/embed / modelHint 디폴트 nomic-embed-text / dimensions 무시
+ *               / 빈 texts / 404(모델 미설치) / network / count mismatch / prompt_eval_count fallback
  *   - baseUrl trailing slash strip + 주입 fetchImpl 사용
  */
 
@@ -40,11 +42,12 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('OllamaProvider — info', () => {
-  it('providerType=local + supportsChat=true + supportsEmbed=false + defaultModel=llama3.2:3b', () => {
+  it('providerType=local + supportsChat=true + supportsEmbed=true + defaultModel=llama3.2:3b', () => {
     const p = new OllamaProvider()
     expect(p.info.providerType).toBe('local')
     expect(p.info.supportsChat).toBe(true)
-    expect(p.info.supportsEmbed).toBe(false)
+    // Sprint 018 M2 T17c — Schema v06 dimension 분리 위에서 로컬 임베딩 활성.
+    expect(p.info.supportsEmbed).toBe(true)
     expect(p.info.defaultModel).toBe('llama3.2:3b')
     expect(p.info.availableModels).toContain('llama3.2:3b')
     expect(p.info.displayName).toBe('Ollama (Local)')
@@ -291,17 +294,150 @@ describe('OllamaProvider — chat 오류 path', () => {
   })
 })
 
-describe('OllamaProvider — embed (T14 spike scope 외)', () => {
-  it('항상 ProviderError(unsupported) — supportsEmbed=false 정합', async () => {
+describe('OllamaProvider — embed (Sprint 018 M2 T17c)', () => {
+  /** 768-dim mock 벡터 (component 0 = 1). */
+  function vec768(seed = 1): number[] {
+    const v = new Array<number>(768).fill(0)
+    v[0] = seed
+    return v
+  }
+
+  it('정상 batch — vectors + inputTokens(prompt_eval_count) + cost=0 매핑', async () => {
+    const spy = makeFetchSpy(async () =>
+      jsonResponse({
+        model: 'nomic-embed-text',
+        embeddings: [vec768(1), vec768(2)],
+        prompt_eval_count: 9
+      })
+    )
+    const p = new OllamaProvider({ fetchImpl: spy.fn })
+    const result = await p.embed({ texts: ['a', 'b'] })
+    expect(result.vectors).toHaveLength(2)
+    expect(result.vectors[0]).toHaveLength(768)
+    expect(result.modelUsed).toBe('nomic-embed-text')
+    expect(result.inputTokens).toBe(9)
+    expect(result.estimatedCostUsd).toBe(0)
+    expect(result.durationMs).toBeGreaterThanOrEqual(0)
+  })
+
+  it('endpoint 정확 = POST /api/embed + body { model, input } (dimensions 미포함)', async () => {
+    const spy = makeFetchSpy(async () =>
+      jsonResponse({ model: 'nomic-embed-text', embeddings: [vec768()] })
+    )
+    const p = new OllamaProvider({ fetchImpl: spy.fn })
+    // dimensions=768 을 넘겨도 Ollama body 에는 포함되지 않아야 함 (nomic 768 고정).
+    await p.embed({ texts: ['x'], dimensions: 768 })
+    expect(spy.calls[0]?.url).toBe('http://localhost:11434/api/embed')
+    expect(spy.calls[0]?.init?.method).toBe('POST')
+    const body = JSON.parse(spy.calls[0]!.init!.body as string)
+    expect(body.model).toBe('nomic-embed-text')
+    expect(body.input).toEqual(['x'])
+    expect(body.dimensions).toBeUndefined()
+  })
+
+  it('modelHint 미주입 → DEFAULT_EMBED_MODEL=nomic-embed-text', async () => {
+    const spy = makeFetchSpy(async () =>
+      jsonResponse({ model: 'nomic-embed-text', embeddings: [vec768()] })
+    )
+    const p = new OllamaProvider({ fetchImpl: spy.fn })
+    await p.embed({ texts: ['x'] })
+    const body = JSON.parse(spy.calls[0]!.init!.body as string)
+    expect(body.model).toBe('nomic-embed-text')
+  })
+
+  it('modelHint 주입 시 그대로 model 매핑', async () => {
+    const spy = makeFetchSpy(async () =>
+      jsonResponse({ model: 'mxbai-embed-large', embeddings: [vec768()] })
+    )
+    const p = new OllamaProvider({ fetchImpl: spy.fn })
+    await p.embed({ texts: ['x'], modelHint: 'mxbai-embed-large' })
+    const body = JSON.parse(spy.calls[0]!.init!.body as string)
+    expect(body.model).toBe('mxbai-embed-large')
+  })
+
+  it('빈 texts → ProviderError(bad_request)', async () => {
     const p = new OllamaProvider()
+    await expect(p.embed({ texts: [] })).rejects.toThrow(ProviderError)
+    await expect(p.embed({ texts: [] })).rejects.toThrow(/texts/)
+  })
+
+  it('404 (임베딩 모델 미설치) → ProviderError(bad_request) + ollama pull 안내', async () => {
+    const spy = makeFetchSpy(async () => new Response('model not found', { status: 404 }))
+    const p = new OllamaProvider({ fetchImpl: spy.fn })
     try {
-      await p.embed({ texts: ['hi'] })
+      await p.embed({ texts: ['x'] })
       throw new Error('should throw')
     } catch (err) {
       expect(err).toBeInstanceOf(ProviderError)
       const pe = err as ProviderError
-      expect(pe.code).toBe('unsupported')
-      expect(pe.message).toContain('T15')
+      expect(pe.code).toBe('bad_request')
+      expect(pe.message).toContain('ollama pull nomic-embed-text')
     }
+  })
+
+  it('429 → ProviderError(rate_limit, retryable=true)', async () => {
+    const spy = makeFetchSpy(async () => new Response('rate limit', { status: 429 }))
+    const p = new OllamaProvider({ fetchImpl: spy.fn })
+    try {
+      await p.embed({ texts: ['x'] })
+      throw new Error('should throw')
+    } catch (err) {
+      const pe = err as ProviderError
+      expect(pe.code).toBe('rate_limit')
+      expect(pe.retryable).toBe(true)
+    }
+  })
+
+  it('5xx → ProviderError(server_error, retryable=true)', async () => {
+    const spy = makeFetchSpy(async () => new Response('boom', { status: 503 }))
+    const p = new OllamaProvider({ fetchImpl: spy.fn })
+    try {
+      await p.embed({ texts: ['x'] })
+      throw new Error('should throw')
+    } catch (err) {
+      const pe = err as ProviderError
+      expect(pe.code).toBe('server_error')
+      expect(pe.retryable).toBe(true)
+    }
+  })
+
+  it('fetch throw (network) → ProviderError(network, retryable=true)', async () => {
+    const spy = makeFetchSpy(async () => {
+      throw new Error('ECONNREFUSED')
+    })
+    const p = new OllamaProvider({ fetchImpl: spy.fn })
+    try {
+      await p.embed({ texts: ['x'] })
+      throw new Error('should throw')
+    } catch (err) {
+      const pe = err as ProviderError
+      expect(pe.code).toBe('network')
+      expect(pe.retryable).toBe(true)
+    }
+  })
+
+  it('embeddings 길이 불일치 → ProviderError(server_error)', async () => {
+    const spy = makeFetchSpy(async () =>
+      // 2 texts 요청했는데 1 벡터만 반환.
+      jsonResponse({ model: 'nomic-embed-text', embeddings: [vec768()] })
+    )
+    const p = new OllamaProvider({ fetchImpl: spy.fn })
+    try {
+      await p.embed({ texts: ['a', 'b'] })
+      throw new Error('should throw')
+    } catch (err) {
+      const pe = err as ProviderError
+      expect(pe.code).toBe('server_error')
+      expect(pe.message).toContain('불일치')
+    }
+  })
+
+  it('prompt_eval_count 누락 시 inputTokens=0 fallback', async () => {
+    const spy = makeFetchSpy(async () =>
+      jsonResponse({ model: 'nomic-embed-text', embeddings: [vec768()] })
+    )
+    const p = new OllamaProvider({ fetchImpl: spy.fn })
+    const result = await p.embed({ texts: ['x'] })
+    expect(result.inputTokens).toBe(0)
   })
 })

@@ -965,10 +965,12 @@ function registerSearchIpc(): void {
     async (_event, args: SearchQueryArgs): Promise<SearchQueryResponse> => {
       return handleSearchQuery(args, {
         getActiveWorkspaceId: () => getActiveWorkspaceId(),
-        getEmbeddingProvider: () => providers.get('openai') ?? null,
+        // Sprint 018 M2 T17c — 워크스페이스 embedding_model.provider 별 어댑터 선택 (searchHandlers 가
+        //   credential type 으로 매핑 후 전달). 'openai' = OpenAIApiKeyProvider / 'local' = OllamaProvider.
+        getEmbeddingProvider: (providerType) => providers.get(providerType) ?? null,
         getSearchService: () => searchService,
-        // Sprint 018 M2 T17b — 워크스페이스 embedding_model → query dimension 해소 (Schema v06 spec §5.2).
-        //   DB 미초기화 / 워크스페이스 부재 시 null → resolveEmbeddingDimensions 가 디폴트 1024.
+        // Sprint 018 M2 T17b — 워크스페이스 embedding_model → query model/dimension/provider 해소 (Schema v06 spec §5.2).
+        //   DB 미초기화 / 워크스페이스 부재 시 null → resolveEmbeddingModel 가 디폴트(openai:1024).
         getWorkspaceEmbeddingModel: (workspaceId: string) =>
           flowbrowserDb?.findWorkspaceById(workspaceId)?.embedding_model ?? null
       })

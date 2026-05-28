@@ -1,31 +1,37 @@
 /**
  * Sprint 017 M3 T14 (KI 없음, Phase 3 spike) — Ollama 로컬 LLM provider adapter.
+ *   Sprint 018 M2 T17c — 로컬 임베딩 통합 (`/api/embed` + `nomic-embed-text` 768-dim + supportsEmbed=true).
  *
  * 책임:
- *   - Ollama REST API (디폴트 http://localhost:11434) 의 `/api/chat` endpoint 호출
- *   - ProviderAdapter 인터페이스 정합 (chat / validate / dispose)
+ *   - Ollama REST API (디폴트 http://localhost:11434) 의 `/api/chat` + `/api/embed` endpoint 호출
+ *   - ProviderAdapter 인터페이스 정합 (chat / embed / validate / dispose)
  *   - providerType='local' — UserSetting.providerPreference 분기에 사용 (M3 T16 통합)
  *
+ * 임베딩 (Sprint 018 M2 T17c — Schema v06 dimension 분기 위에서 활성화):
+ *   - T14 spike 시점엔 supportsEmbed=false 였음 — 768(nomic) vs 1024(OpenAI) dimension mismatch +
+ *     semantic space 차이로 같은 vec_pages 에 박을 수 없었던 게 이유. Schema v06(T17a/T17b)이 vec0 테이블을
+ *     `vec_pages_{dim}`/`vec_notes_{dim}` 으로 분리 → 768 전용 테이블 확보. 따라서 본 PR 부터 embed 활성.
+ *   - 디폴트 임베딩 모델 `nomic-embed-text` (768 dim 고정 — OpenAI 처럼 dimensions 축소 파라미터 없음).
+ *     `EmbedRequest.dimensions` 는 무시(요청 body 미포함) — 실제 차원 검증은 호출자(`EmbeddingClient.toFloat32`)
+ *     가 워크스페이스 embedding_model 의 dim(768) 과 대조해 강제 (silent corruption 차단).
+ *
  * 비책임:
- *   - 임베딩 (embed) — codex 019e500b Q4/Q5 권고: `supportsEmbed:false` 박음. Ollama 디폴트 임베딩
- *     모델 (`nomic-embed-text` 768 dim) 이 OpenAI text-embedding-3-small 의 1024 dim 과 mismatch +
- *     semantic space 가 달라 같은 vec_pages 에 박을 수 없음. 별도 vec_pages_local 테이블 / dimension
- *     별 분리 / embedding_space_id 도입은 T15 sentence-transformers spec 시 종합 결정.
  *   - chatStream — Ollama 가 NDJSON streaming 지원하나 본 spike scope 외 (codex Q8 권고).
  *   - 사용자 인증 — Ollama 는 localhost 신뢰 모델 (API key 없음). OS Keychain 위임 (G-005) 무관.
  *   - 모델 설치 — `ollama pull <model>` 은 사용자 책임. validate() 가 server 도달성 + 모델 목록만 확인.
+ *     임베딩 모델 미설치 시 `/api/embed` 가 404 → 본 PR 이 `ollama pull nomic-embed-text` 안내.
  *
  * dependency:
  *   - 본 PR 은 `ollama` npm package 미사용 — raw fetch + fetchImpl 주입 패턴 (codex Q1 권고 정합,
  *     기존 OpenAIApiKeyProvider / CodexLoginProvider 와 일치). 향후 streaming 도입 시 공식 패키지
  *     도입 재검토.
  *
- * codex 사전 협의 019e500b 정합:
+ * codex 사전 협의 019e500b (T14) / 019e6e00 (T17c) 정합:
  *   - Q1 raw fetch (npm 의존성 회피)
  *   - Q2 connection refused → ProviderError('network') / validate reason wording
  *   - Q3 defaultModel='llama3.2:3b' (작고 빠름)
- *   - Q4/Q5 supportsEmbed=false + embed throw 'unsupported'
- *   - Q6 estimatedCostUsd=0 + tokens = prompt_eval_count + eval_count
+ *   - T17c — supportsEmbed=true + `/api/embed` (batch input) + dimensions 무시 + length 검증 caller 위임
+ *   - Q6 estimatedCostUsd=0 + tokens = prompt_eval_count (+ eval_count, chat 한정)
  *   - Q7 fetchImpl 주입 mock
  *   - Q8 chatStream defer
  *   - Q9 BYOK 무관 (localhost)
@@ -51,6 +57,12 @@ const AVAILABLE_MODELS: ReadonlyArray<string> = [
   'mistral:7b'
 ]
 
+/**
+ * Sprint 018 M2 T17c — 디폴트 임베딩 모델. `embeddingModel.ts` 의 `ollama:nomic-embed-text:768` 과 정합
+ * (registry ↔ CHECK ↔ vec0 테이블 ↔ credential 4자 일치). 768 dim 고정.
+ */
+const DEFAULT_EMBED_MODEL = 'nomic-embed-text'
+
 interface OllamaChatResponse {
   model: string
   message: { role: string; content: string }
@@ -59,6 +71,16 @@ interface OllamaChatResponse {
   prompt_eval_count?: number
   /** output tokens. */
   eval_count?: number
+}
+
+/**
+ * Sprint 018 M2 T17c — `/api/embed` 응답 (batch). `embeddings` 는 input texts 와 1:1 매핑된 벡터 배열.
+ * `prompt_eval_count` 는 input 토큰 수 (Ollama 공식 명명, 누락 시 0).
+ */
+interface OllamaEmbedResponse {
+  model: string
+  embeddings: number[][]
+  prompt_eval_count?: number
 }
 
 export interface OllamaProviderOptions {
@@ -85,11 +107,10 @@ export class OllamaProvider implements ProviderAdapter {
     availableModels: AVAILABLE_MODELS,
     supportsChat: true,
     /**
-     * codex 019e500b Q4/Q5 — 768 dim vs vec_pages 1024 dim mismatch + semantic space 차이.
-     * embed() 호출 시 ProviderError('unsupported') throw. T15 spec 시 vec_pages_local 또는
-     * embedding_space_id 도입 종합 결정.
+     * Sprint 018 M2 T17c — Schema v06 dimension 분리(`vec_pages_768`) 위에서 로컬 임베딩 활성.
+     * `nomic-embed-text` 768-dim. 호출자(EmbeddingClient)가 워크스페이스 embedding_model dim 과 대조 검증.
      */
-    supportsEmbed: false
+    supportsEmbed: true
   }
 
   private readonly baseUrl: string
@@ -218,23 +239,92 @@ export class OllamaProvider implements ProviderAdapter {
   }
 
   /**
-   * codex 019e500b Q4/Q5 권고 — T14 spike 에서는 embed 미지원.
+   * Sprint 018 M2 T17c — Ollama `/api/embed` 호출 (batch).
    *
-   * 이유:
-   *   - Ollama 디폴트 임베딩 모델 `nomic-embed-text` (768 dim) 가 `vec_pages.embedding float[1024]` 와
-   *     dimension mismatch. 같은 테이블에 박을 수 없음.
-   *   - 차원이 같아도 OpenAI text-embedding-3-small 과 다른 semantic space — mixed 검색 품질 저하.
+   * Request 매핑:
+   *   - texts → input (string[] — `/api/embed` batch 지원)
+   *   - modelHint → model (미주입 시 DEFAULT_EMBED_MODEL='nomic-embed-text')
+   *   - dimensions 무시 — nomic-embed-text 는 768 고정 (OpenAI 처럼 축소 파라미터 없음, codex 019e6e00 Q4).
+   *     실제 차원 검증은 호출자(EmbeddingClient.toFloat32)가 워크스페이스 dim 과 대조해 강제.
    *
-   * 향후 T15 sentence-transformers spec 시점에 `vec_pages_local` / `embedding_space_id` /
-   * dimension 별 분리 정책 종합 결정. 본 spike 는 `'unsupported'` throw 박음 (info.supportsEmbed=false
-   * 와 정합).
+   * Response 매핑:
+   *   - embeddings → vectors (input 과 length 일치 검증)
+   *   - prompt_eval_count → inputTokens (누락 시 0)
+   *   - estimatedCostUsd=0 (로컬, codex Q6)
+   *
+   * 오류 (chat() 패턴 정합):
+   *   - 빈 texts → bad_request
+   *   - network throw → network(retryable)
+   *   - 404 (모델 미설치) → bad_request + `ollama pull <model>` 안내
+   *   - 429 → rate_limit(retryable) / 5xx → server_error(retryable) / 기타 4xx → bad_request
+   *   - embeddings 길이 불일치 → server_error
    */
-  async embed(_request: EmbedRequest): Promise<EmbedResponse> {
-    throw new ProviderError(
-      'Ollama embed: 본 spike 에서는 미지원. T15 sentence-transformers spec 박힘 후 결정.',
-      'unsupported',
-      false
-    )
+  async embed(request: EmbedRequest): Promise<EmbedResponse> {
+    if (request.texts.length === 0) {
+      throw new ProviderError('Ollama embed: texts 가 비어 있습니다.', 'bad_request', false)
+    }
+    const startedAt = Date.now()
+    const model = request.modelHint ?? DEFAULT_EMBED_MODEL
+    // dimensions 는 의도적으로 미포함 — nomic-embed-text 768 고정 (codex 019e6e00 Q4).
+    const body = {
+      model,
+      input: request.texts
+    }
+
+    let res: Response
+    try {
+      res = await this.fetchImpl(`${this.baseUrl}/api/embed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+    } catch (err) {
+      throw new ProviderError(
+        `Ollama embed 네트워크 오류: ${err instanceof Error ? err.message : String(err)}`,
+        'network',
+        true
+      )
+    }
+
+    if (res.status === 404) {
+      const errBody = await safeText(res)
+      throw new ProviderError(
+        `Ollama embed: 임베딩 모델 '${model}' 가 설치돼 있지 않습니다 (ollama pull ${model}). 상세: ${errBody}`,
+        'bad_request',
+        false
+      )
+    }
+    if (res.status === 429) {
+      throw new ProviderError(`Ollama embed: rate limit 발생`, 'rate_limit', true)
+    }
+    if (res.status >= 500) {
+      throw new ProviderError(`Ollama embed 서버 오류: HTTP ${res.status}`, 'server_error', true)
+    }
+    if (!res.ok) {
+      const errBody = await safeText(res)
+      throw new ProviderError(
+        `Ollama embed 요청 실패: ${res.status} ${errBody}`,
+        'bad_request',
+        false
+      )
+    }
+
+    const data = (await res.json()) as OllamaEmbedResponse
+    if (!Array.isArray(data.embeddings) || data.embeddings.length !== request.texts.length) {
+      throw new ProviderError(
+        `Ollama embed 응답 길이 불일치 (expected=${request.texts.length}, got=${data.embeddings?.length ?? 0})`,
+        'server_error',
+        true
+      )
+    }
+    return {
+      vectors: data.embeddings,
+      modelUsed: data.model ?? model,
+      inputTokens: data.prompt_eval_count ?? 0,
+      // codex Q6 — 로컬 실행이라 비용 0 고정.
+      estimatedCostUsd: 0,
+      durationMs: Date.now() - startedAt
+    }
   }
 }
 
