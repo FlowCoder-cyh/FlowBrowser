@@ -16,9 +16,10 @@
  *
  * Schema:
  *   - version: 1 (변경 시 마이그레이션 로직 추가)
- *   - schemaVersion: 'v05' (Sprint 017 M1 T07 V4→V5 + T09 highlights 정합)
+ *   - schemaVersion: 'v06' (Sprint 018 M2 T17d — workspaces.embedding_model 포함. 직전 v05 = T07 V4→V5 + T09 highlights)
  *     - v04 payload (Sprint 016 M3 T17 산출물) 도 graceful import — highlights[] 가 없으면 빈 배열로 normalize.
- *     - codex 019e4f02 Q1 권고: A — v05 bump + v04 graceful BC.
+ *     - v04/v05 payload 는 embedding_model 부재 → import 시 DB DEFAULT. 미지원/미래 모델 id 는 drop (DEFAULT fallback).
+ *     - codex 019e4f02 Q1 권고: A — bump + 하위 버전 graceful BC ([v04, v05, v06] accepted).
  *
  * 단위 회귀: tests/unit/main/WorkspaceExportImportService.test.ts
  * PRD 인용: §11.5.6 (Phase 1, M6) — Workspace JSON Export/Import. §11.11 highlights.
@@ -28,11 +29,17 @@ import { randomUUID } from 'node:crypto'
 import type { Database as BetterDatabase } from 'better-sqlite3'
 import type { FlowbrowserDatabase, WorkspaceRow, LevelPreference } from '../storage/Database'
 import type { EmbeddingQueue } from '../storage/EmbeddingQueue'
+// Sprint 018 M2 T17d — export/import 가 워크스페이스 embedding_model 보존 (round-trip 손실 차단, codex 019e6e62).
+import { isSupportedEmbeddingModel } from '../storage/embeddingModel'
 
 export const WORKSPACE_EXPORT_VERSION = 1 as const
-export const WORKSPACE_EXPORT_SCHEMA_VERSION = 'v05' as const
-/** Sprint 017 M1 T09 — v04 payload (highlights[] 미포함) 도 graceful import 허용. */
-export const WORKSPACE_EXPORT_SCHEMA_VERSIONS_ACCEPTED = ['v04', 'v05'] as const
+// Sprint 018 M2 T17d — workspaces.embedding_model (v06 컬럼) 포함 → export schema v05 → v06 bump.
+export const WORKSPACE_EXPORT_SCHEMA_VERSION = 'v06' as const
+/**
+ * Sprint 017 M1 T09 — v04 payload (highlights[] 미포함) 도 graceful import 허용.
+ * Sprint 018 M2 T17d — v06 추가 (embedding_model 포함). v04/v05 payload 는 embedding_model 부재 → import 시 DEFAULT.
+ */
+export const WORKSPACE_EXPORT_SCHEMA_VERSIONS_ACCEPTED = ['v04', 'v05', 'v06'] as const
 export type WorkspaceExportSchemaVersion = (typeof WORKSPACE_EXPORT_SCHEMA_VERSIONS_ACCEPTED)[number]
 
 export interface ExportedWorkspace {
@@ -41,6 +48,11 @@ export interface ExportedWorkspace {
   icon: string
   created_at: number
   level_preference: LevelPreference
+  /**
+   * Sprint 018 M2 T17d — 워크스페이스 임베딩 모델 full id. v04/v05 payload 에는 부재 (optional) →
+   * import 시 DEFAULT. 미지원 id 는 import 정규화에서 drop (DEFAULT fallback — 생성 후 변경 불가라 graceful).
+   */
+  embedding_model?: string
 }
 
 export interface ExportedPage {
@@ -283,7 +295,9 @@ export class WorkspaceExportImportService {
         name: ws.name,
         icon: ws.icon,
         created_at: ws.created_at,
-        level_preference: ws.level_preference
+        level_preference: ws.level_preference,
+        // Sprint 018 M2 T17d — 임베딩 모델 보존 (import 시 동일 모델로 재생성).
+        embedding_model: ws.embedding_model
       },
       pages,
       visits,
@@ -328,9 +342,22 @@ export class WorkspaceExportImportService {
     for (const t of data.tags) tagIdMap.set(t.id, randomUUID())
     // visitIdMap / noteIdMap 은 실제 INSERT 시점에 박힘 (skip 정합)
 
-    const insertWs = this.db.prepare(
-      `INSERT INTO workspaces(id, name, icon, created_at, level_preference) VALUES (?, ?, ?, ?, ?)`
-    )
+    // Sprint 018 M2 T17d — embedding_model 보존. 정규화 단계에서 지원 모델만 통과(미지원/부재 → undefined).
+    //   schema-aware: 대상 DB 에 embedding_model 컬럼이 있을 때만 (v06) 포함. v05 DB(컬럼 부재)면 미지정
+    //   (read 시 normalizeWorkspaceRow 가 DEFAULT 백필). 프로덕션 import 는 항상 v06 DB.
+    //   조건부 컬럼 INSERT 는 createWorkspace 와 동일 패턴.
+    const hasEmbeddingColumn = (
+      this.db.prepare(`PRAGMA table_info(workspaces)`).all() as Array<{ name: string }>
+    ).some((c) => c.name === 'embedding_model')
+    const wsEmbeddingModel = hasEmbeddingColumn ? data.workspace.embedding_model : undefined
+    const insertWs = wsEmbeddingModel
+      ? this.db.prepare(
+          `INSERT INTO workspaces(id, name, icon, created_at, level_preference, embedding_model)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        )
+      : this.db.prepare(
+          `INSERT INTO workspaces(id, name, icon, created_at, level_preference) VALUES (?, ?, ?, ?, ?)`
+        )
     const insertPage = this.db.prepare(
       `INSERT INTO pages(id, workspace_id, url, title, content, content_hash, lang, visited_count, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -378,13 +405,24 @@ export class WorkspaceExportImportService {
     const queue = this.embeddingQueue
 
     const tx = this.db.transaction((): ImportResultSummary => {
-      insertWs.run(
-        newWorkspaceId,
-        data.workspace.name,
-        data.workspace.icon,
-        now,
-        data.workspace.level_preference
-      )
+      if (wsEmbeddingModel) {
+        insertWs.run(
+          newWorkspaceId,
+          data.workspace.name,
+          data.workspace.icon,
+          now,
+          data.workspace.level_preference,
+          wsEmbeddingModel
+        )
+      } else {
+        insertWs.run(
+          newWorkspaceId,
+          data.workspace.name,
+          data.workspace.icon,
+          now,
+          data.workspace.level_preference
+        )
+      }
 
       for (const p of data.pages) {
         const newPageId = pageIdMap.get(p.id)!
@@ -616,7 +654,13 @@ export class WorkspaceExportImportService {
         name: ws.name,
         icon: ws.icon,
         created_at: typeof ws.created_at === 'number' ? ws.created_at : Date.now(),
-        level_preference: (ws.level_preference ?? null) as WorkspaceRow['level_preference']
+        level_preference: (ws.level_preference ?? null) as WorkspaceRow['level_preference'],
+        // Sprint 018 M2 T17d — 지원 모델만 보존. v04/v05 payload(부재) 또는 미지원/미래 모델 → undefined(import DEFAULT).
+        //   생성 후 변경 불가 모델이라 hard-fail 대신 graceful DEFAULT fallback (forward-compat).
+        embedding_model:
+          typeof ws.embedding_model === 'string' && isSupportedEmbeddingModel(ws.embedding_model)
+            ? ws.embedding_model
+            : undefined
       },
       pages: (Array.isArray(obj.pages) ? obj.pages : []) as ExportedPage[],
       visits: (Array.isArray(obj.visits) ? obj.visits : []) as ExportedVisit[],
@@ -629,9 +673,9 @@ export class WorkspaceExportImportService {
       noteTags: (Array.isArray(obj.noteTags) ? obj.noteTags : []) as ExportedNoteTag[],
       // codex 019e4f19 NEEDS_CHANGES #1 hotfix — v04 payload 는 highlights 필드가 있어도 무시 (forward-compat 위배 차단).
       //   v04 가 highlights 를 박았다는 것은 corrupt payload (Sprint 016 M3 T17 산출물은 highlights 키 자체 없음).
-      //   v05 일 때만 highlights 를 읽어 INSERT 대상으로.
+      //   Sprint 018 M2 T17d — v05 부터 highlights 보유 → `!== 'v04'` 로 정정 (v06 bump 후 v05-한정 게이트가 v06 highlights 를 누락시키던 회귀 차단).
       highlights:
-        obj.schemaVersion === 'v05' && Array.isArray(obj.highlights)
+        obj.schemaVersion !== 'v04' && Array.isArray(obj.highlights)
           ? (obj.highlights as ExportedHighlight[])
           : []
     }

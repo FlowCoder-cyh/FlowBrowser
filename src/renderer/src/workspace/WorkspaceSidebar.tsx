@@ -12,7 +12,12 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { WORKSPACE_ICON_PRESETS, isValidUserEmoji } from './presets'
+import {
+  WORKSPACE_ICON_PRESETS,
+  isValidUserEmoji,
+  EMBEDDING_MODEL_OPTIONS,
+  DEFAULT_EMBEDDING_MODEL_OPTION_ID
+} from './presets'
 
 type LevelPreference = 'novice' | 'intermediate' | 'advanced' | null
 
@@ -22,6 +27,8 @@ interface SerializedWorkspace {
   icon: string
   createdAt: number
   levelPreference: LevelPreference
+  /** Sprint 018 M2 T17d — 워크스페이스 임베딩 모델 full id. */
+  embeddingModel: string
 }
 
 interface WorkspaceSidebarProps {
@@ -184,6 +191,8 @@ function CreateWorkspaceModal({ onClose, onCreated }: CreateWorkspaceModalProps)
   const [icon, setIcon] = useState<string>(WORKSPACE_ICON_PRESETS[0])
   const [customIcon, setCustomIcon] = useState('')
   const [level, setLevel] = useState<LevelPreference>(null)
+  // Sprint 018 M2 T17d — 임베딩 모델 선택 (생성 후 변경 불가 — vec0 차원 고정).
+  const [embeddingModel, setEmbeddingModel] = useState<string>(DEFAULT_EMBEDDING_MODEL_OPTION_ID)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -207,7 +216,8 @@ function CreateWorkspaceModal({ onClose, onCreated }: CreateWorkspaceModalProps)
       const res = await window.workspaceApi.create({
         name: name.trim(),
         icon: finalIcon,
-        levelPreference: level
+        levelPreference: level,
+        embeddingModel
       })
       if (res.ok) {
         await onCreated()
@@ -285,6 +295,20 @@ function CreateWorkspaceModal({ onClose, onCreated }: CreateWorkspaceModalProps)
             <option value="novice">초보 — 어려운 용어 풀어 설명, 비유</option>
             <option value="intermediate">중급 — 핵심만 간결</option>
             <option value="advanced">고급 — 세부 기술, 한계, trade-off</option>
+          </select>
+        </label>
+        <label className="workspace-modal__label">
+          임베딩 모델 (생성 후 변경 불가)
+          <select
+            value={embeddingModel}
+            onChange={(e) => setEmbeddingModel(e.target.value)}
+            className="workspace-modal__embedding-model"
+          >
+            {EMBEDDING_MODEL_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </label>
         {error && <div className="workspace-modal__error">{error}</div>}

@@ -120,6 +120,22 @@ describe('workspaceHandlers', () => {
     expect(res.errorCode).toBe('infra_unavailable')
   })
 
+  // Sprint 018 M2 T17d — embeddingModel 직렬화 + 검증 매핑.
+  it('create serializes embeddingModel (미주입 → DEFAULT)', async () => {
+    const res = await handleWorkspaceCreate({ name: 'X', icon: '📚' }, { getService: () => h.svc })
+    expect(res.ok).toBe(true)
+    expect(res.workspace?.embeddingModel).toBe('openai:text-embedding-3-small:1024')
+  })
+
+  it('create returns invalid_input on unsupported embeddingModel (검증은 INSERT 전)', async () => {
+    const res = await handleWorkspaceCreate(
+      { name: 'X', icon: '📚', embeddingModel: 'openai:text-embedding-3-large:3072' },
+      { getService: () => h.svc }
+    )
+    expect(res.ok).toBe(false)
+    expect(res.errorCode).toBe('invalid_input')
+  })
+
   it('switch updates active + returns serialized active', async () => {
     const ws = await h.svc.create({ name: 'A', icon: '📚' })
     const res = await handleWorkspaceSwitch({ id: ws.id }, { getService: () => h.svc })

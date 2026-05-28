@@ -25,6 +25,8 @@
 import type { FlowbrowserDatabase, LevelPreference, WorkspaceRow } from '../storage/Database'
 import { DEFAULT_WORKSPACE_ICON, DEFAULT_WORKSPACE_NAME } from '../storage/Database'
 import type { UserSettingStore } from '../storage/UserSettingStore'
+// Sprint 018 M2 T17d — 워크스페이스 생성 시 사용자 선택 임베딩 모델 검증 (SSOT 정합).
+import { isSupportedEmbeddingModel, type EmbeddingModelId } from '../storage/embeddingModel'
 
 /**
  * PRD §11 + state.md L68 + v04-direction.md §17 P2-7 정합 — preset 12종.
@@ -58,6 +60,11 @@ export interface CreateWorkspaceArgs {
   name: string
   icon: string
   level_preference?: LevelPreference
+  /**
+   * Sprint 018 M2 T17d — 사용자 선택 임베딩 모델 (full id). 미주입/null 시 DB DEFAULT.
+   * 미지원 id 는 `WorkspaceValidationError('invalid_embedding_model')`.
+   */
+  embedding_model?: string | null
 }
 
 export interface UpdateWorkspaceArgs {
@@ -78,7 +85,14 @@ export interface DeleteResult {
 }
 
 export class WorkspaceValidationError extends Error {
-  constructor(public readonly code: 'invalid_name' | 'invalid_icon' | 'not_found' | 'no_change') {
+  constructor(
+    public readonly code:
+      | 'invalid_name'
+      | 'invalid_icon'
+      | 'not_found'
+      | 'no_change'
+      | 'invalid_embedding_model'
+  ) {
     super(code)
     this.name = 'WorkspaceValidationError'
   }
@@ -193,6 +207,16 @@ function validateLevelPreference(raw: unknown): LevelPreference {
   throw new WorkspaceValidationError('invalid_name') // PRD 미정 — 'novice/intermediate/advanced/null' 만 허용
 }
 
+/**
+ * Sprint 018 M2 T17d — 임베딩 모델 검증. undefined/null 시 undefined 반환 (DB DEFAULT 의존).
+ * 비어 있지 않은 미지원 id 는 throw (silent corruption 차단 — EMBEDDING_MODELS SSOT 정합).
+ */
+function validateEmbeddingModel(raw: unknown): EmbeddingModelId | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  if (typeof raw === 'string' && isSupportedEmbeddingModel(raw)) return raw
+  throw new WorkspaceValidationError('invalid_embedding_model')
+}
+
 export class WorkspaceService {
   private readonly db: FlowbrowserDatabase
   private readonly userSettingStore: UserSettingStore
@@ -260,7 +284,9 @@ export class WorkspaceService {
     const name = validateName(args.name)
     const icon = validateWorkspaceIcon(args.icon)
     const level_preference = validateLevelPreference(args.level_preference)
-    const row = this.db.createWorkspace({ name, icon, level_preference })
+    // Sprint 018 M2 T17d — undefined 면 db.createWorkspace 가 컬럼 미지정(DEFAULT) path.
+    const embedding_model = validateEmbeddingModel(args.embedding_model)
+    const row = this.db.createWorkspace({ name, icon, level_preference, embedding_model })
     this.cachedList = null
     return row
   }

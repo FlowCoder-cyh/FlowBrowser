@@ -582,6 +582,8 @@ interface SerializedWorkspacePayload {
   icon: string
   createdAt: number
   levelPreference: WorkspaceLevelPreference
+  /** Sprint 018 M2 T17d — 워크스페이스 임베딩 모델 full id. */
+  embeddingModel: string
 }
 
 interface WorkspaceListResponsePayload {
@@ -662,6 +664,8 @@ const workspaceApi = {
     name: string
     icon: string
     levelPreference?: WorkspaceLevelPreference
+    /** Sprint 018 M2 T17d — 사용자 선택 임베딩 모델 full id. 미주입 시 DB DEFAULT. */
+    embeddingModel?: string | null
   }): Promise<WorkspaceMutationResponsePayload> => ipcRenderer.invoke('workspace:create', args),
   update: (args: {
     id: string

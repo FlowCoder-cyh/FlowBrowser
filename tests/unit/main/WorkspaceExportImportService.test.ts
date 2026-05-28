@@ -22,6 +22,8 @@ import {
   type WorkspaceExportV1,
   type ExportedHighlight
 } from '../../../src/main/WorkspaceExportImportService'
+import { DEFAULT_EMBEDDING_MODEL_ID } from '../../../src/storage/embeddingModel'
+import { applyV06Schema } from '../../helpers/v06Schema'
 
 interface Harness {
   fb: FlowbrowserDatabase
@@ -31,6 +33,15 @@ interface Harness {
 
 function makeHarness(): Harness {
   const fb = FlowbrowserDatabase.bootstrap({ path: ':memory:', enableWal: false })
+  const ws = fb.ensureDefaultWorkspace()
+  const svc = new WorkspaceExportImportService({ fb })
+  return { fb, svc, defaultId: ws.id }
+}
+
+/** Sprint 018 M2 T17d — v06 harness (embedding_model 컬럼 — round-trip 보존 검증용). */
+function makeHarnessV06(): Harness {
+  const fb = FlowbrowserDatabase.openInMemory()
+  applyV06Schema(fb)
   const ws = fb.ensureDefaultWorkspace()
   const svc = new WorkspaceExportImportService({ fb })
   return { fb, svc, defaultId: ws.id }
@@ -98,13 +109,13 @@ describe('WorkspaceExportImportService', () => {
   })
 
   describe('상수 export', () => {
-    it('version=1 + schemaVersion=v05 (Sprint 017 M1 T09 bump)', () => {
+    it('version=1 + schemaVersion=v06 (Sprint 018 M2 T17d bump — embedding_model 포함)', () => {
       expect(WORKSPACE_EXPORT_VERSION).toBe(1)
-      expect(WORKSPACE_EXPORT_SCHEMA_VERSION).toBe('v05')
+      expect(WORKSPACE_EXPORT_SCHEMA_VERSION).toBe('v06')
     })
 
-    it('accepted schema versions = [v04, v05] (BC)', () => {
-      expect(WORKSPACE_EXPORT_SCHEMA_VERSIONS_ACCEPTED).toEqual(['v04', 'v05'])
+    it('accepted schema versions = [v04, v05, v06] (BC)', () => {
+      expect(WORKSPACE_EXPORT_SCHEMA_VERSIONS_ACCEPTED).toEqual(['v04', 'v05', 'v06'])
     })
   })
 
@@ -112,7 +123,7 @@ describe('WorkspaceExportImportService', () => {
     it('빈 워크스페이스 export — child 배열 모두 빈 배열 (highlights 포함)', () => {
       const payload = h.svc.exportWorkspace(h.defaultId)
       expect(payload.version).toBe(1)
-      expect(payload.schemaVersion).toBe('v05')
+      expect(payload.schemaVersion).toBe('v06')
       expect(payload.workspace.id).toBe(h.defaultId)
       expect(payload.workspace.name).toBe('기본')
       expect(payload.pages).toEqual([])
@@ -1148,5 +1159,86 @@ describe('WorkspaceExportImportService', () => {
       // 기존 default workspace 1 개만 — 새 import 한 거 안 박힘
       expect(wsRows.c).toBe(1)
     })
+  })
+})
+
+// Sprint 018 M2 T17d — embedding_model export/import round-trip (codex 019e6e62 NC).
+describe('WorkspaceExportImportService — embedding_model (T17d)', () => {
+  let h: Harness
+
+  afterEach(() => {
+    cleanup(h)
+  })
+
+  it('export 가 워크스페이스 embedding_model 포함 (v06 default → openai:1024)', () => {
+    h = makeHarnessV06()
+    const payload = h.svc.exportWorkspace(h.defaultId)
+    expect(payload.workspace.embedding_model).toBe(DEFAULT_EMBEDDING_MODEL_ID)
+  })
+
+  it('round-trip — ollama:768 워크스페이스 export → import 시 모델 보존', () => {
+    h = makeHarnessV06()
+    const ws = h.fb.createWorkspace({
+      name: 'KO',
+      icon: '🇰🇷',
+      embedding_model: 'ollama:nomic-embed-text:768'
+    })
+    const payload = h.svc.exportWorkspace(ws.id)
+    expect(payload.workspace.embedding_model).toBe('ollama:nomic-embed-text:768')
+
+    const summary = h.svc.importWorkspace(payload)
+    const imported = h.fb.findWorkspaceById(summary.workspaceId)
+    expect(imported?.embedding_model).toBe('ollama:nomic-embed-text:768')
+  })
+
+  it('v05 payload (embedding_model 부재) import → DEFAULT (backward compat)', () => {
+    // v05 harness — 컬럼 미지정 import path. payload 에 embedding_model 없음.
+    h = makeHarness()
+    const v05Payload: WorkspaceExportV1 = {
+      version: 1,
+      schemaVersion: 'v05',
+      exportedAt: Date.now(),
+      workspace: { id: randomUUID(), name: 'Legacy', icon: '📦', created_at: Date.now(), level_preference: null },
+      pages: [],
+      visits: [],
+      notes: [],
+      aiChatHistory: [],
+      tags: [],
+      pageTags: [],
+      noteTags: [],
+      highlights: []
+    }
+    const summary = h.svc.importWorkspace(v05Payload)
+    const imported = h.fb.findWorkspaceById(summary.workspaceId)
+    // v05 schema 접근자가 컬럼 부재 시 DEFAULT 백필.
+    expect(imported?.embedding_model).toBe(DEFAULT_EMBEDDING_MODEL_ID)
+  })
+
+  it('import 시 미지원 embedding_model 은 drop → DEFAULT (forward-compat graceful)', () => {
+    h = makeHarnessV06()
+    const payload: WorkspaceExportV1 = {
+      version: 1,
+      schemaVersion: 'v06',
+      exportedAt: Date.now(),
+      workspace: {
+        id: randomUUID(),
+        name: 'Future',
+        icon: '🔮',
+        created_at: Date.now(),
+        level_preference: null,
+        embedding_model: 'future:mystery-model:512'
+      },
+      pages: [],
+      visits: [],
+      notes: [],
+      aiChatHistory: [],
+      tags: [],
+      pageTags: [],
+      noteTags: [],
+      highlights: []
+    }
+    const summary = h.svc.importWorkspace(payload)
+    const imported = h.fb.findWorkspaceById(summary.workspaceId)
+    expect(imported?.embedding_model).toBe(DEFAULT_EMBEDDING_MODEL_ID)
   })
 })

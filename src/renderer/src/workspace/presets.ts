@@ -26,6 +26,31 @@ export const WORKSPACE_ICON_PRESETS = [
 export type WorkspaceIconPreset = (typeof WORKSPACE_ICON_PRESETS)[number]
 
 /**
+ * Sprint 018 M2 T17d — 워크스페이스 생성 모달 임베딩 모델 선택 옵션.
+ *
+ * `id` 는 main `EMBEDDING_MODELS`(SSOT, src/storage/embeddingModel.ts) 키와 **정확히 일치**해야 함
+ * (renderer 별도 import 미지원 — main / renderer 코드 분리 정책, WORKSPACE_ICON_PRESETS 와 동일).
+ * 정합 검증은 단위 테스트 (`tests/unit/renderer/workspacePresets.test.ts`) 에서 강제 — id 집합 ↔ 레지스트리 키 ↔
+ * 디폴트 일치. 미주입 시 main DB DEFAULT 의존이므로 본 옵션은 UX 편의 (잘못된 id 는 main 이 invalid_input fallback).
+ */
+export const EMBEDDING_MODEL_OPTIONS = [
+  {
+    id: 'openai:text-embedding-3-small:1024',
+    label: 'OpenAI · text-embedding-3-small (1024차원 · API Key 필요)'
+  },
+  {
+    id: 'ollama:nomic-embed-text:768',
+    label: 'Ollama · nomic-embed-text (768차원 · 로컬, Ollama 실행 필요)'
+  }
+] as const
+
+export type EmbeddingModelOptionId = (typeof EMBEDDING_MODEL_OPTIONS)[number]['id']
+
+/** 디폴트 선택 — main `DEFAULT_EMBEDDING_MODEL_ID`(openai 1024) 와 일치 (테스트가 검증). */
+export const DEFAULT_EMBEDDING_MODEL_OPTION_ID: EmbeddingModelOptionId =
+  'openai:text-embedding-3-small:1024'
+
+/**
  * 이모지 1 grapheme 검증 — codex hotfix (NEEDS_CHANGES #2) 정합.
  *
  * main `validateWorkspaceIcon` 와 동일 정책:

@@ -9,13 +9,20 @@
 import { describe, it, expect } from 'vitest'
 import {
   WORKSPACE_ICON_PRESETS,
-  isValidUserEmoji
+  isValidUserEmoji,
+  EMBEDDING_MODEL_OPTIONS,
+  DEFAULT_EMBEDDING_MODEL_OPTION_ID
 } from '../../../src/renderer/src/workspace/presets'
 import {
   WORKSPACE_PRESET_ICONS,
   validateWorkspaceIcon,
   WorkspaceValidationError
 } from '../../../src/main/WorkspaceService'
+import {
+  EMBEDDING_MODELS,
+  DEFAULT_EMBEDDING_MODEL_ID,
+  isSupportedEmbeddingModel
+} from '../../../src/storage/embeddingModel'
 
 describe('renderer workspace presets', () => {
   it('matches main WORKSPACE_PRESET_ICONS verbatim (12종 SSOT 정합)', () => {
@@ -82,5 +89,30 @@ describe('renderer workspace presets', () => {
   it('accepts skin tone modified base on both sides', () => {
     expect(isValidUserEmoji('👋🏻')).toBe(true)
     expect(validateWorkspaceIcon('👋🏻')).toBe('👋🏻')
+  })
+})
+
+// Sprint 018 M2 T17d — renderer 임베딩 모델 옵션 ↔ main EMBEDDING_MODELS(SSOT) 정합.
+describe('renderer embedding model options (T17d)', () => {
+  it('옵션 id 집합이 EMBEDDING_MODELS 키와 정확히 일치 (분리 SSOT 동기)', () => {
+    const optionIds = EMBEDDING_MODEL_OPTIONS.map((o) => o.id).sort()
+    const registryIds = Object.keys(EMBEDDING_MODELS).sort()
+    expect(optionIds).toEqual(registryIds)
+  })
+
+  it('모든 옵션 id 가 main isSupportedEmbeddingModel 통과', () => {
+    for (const opt of EMBEDDING_MODEL_OPTIONS) {
+      expect(isSupportedEmbeddingModel(opt.id)).toBe(true)
+    }
+  })
+
+  it('디폴트 옵션 id 가 main DEFAULT_EMBEDDING_MODEL_ID 와 일치', () => {
+    expect(DEFAULT_EMBEDDING_MODEL_OPTION_ID).toBe(DEFAULT_EMBEDDING_MODEL_ID)
+  })
+
+  it('옵션 label 이 비어있지 않음 (UX 표시)', () => {
+    for (const opt of EMBEDDING_MODEL_OPTIONS) {
+      expect(opt.label.length).toBeGreaterThan(0)
+    }
   })
 })
