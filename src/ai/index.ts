@@ -34,11 +34,16 @@ export type {
 export {
   EmbeddingClient,
   DEFAULT_EMBEDDING_MODEL,
-  processNextEmbeddingJob
+  processNextEmbeddingJob,
+  buildEmbeddingClientForModel,
+  EmbeddingProviderUnavailableError
 } from './embedding/EmbeddingClient'
 export type {
   EmbeddingClientOptions,
   EmbedTextsResult,
   ProcessJobDeps,
-  ProcessJobResult
+  ProcessJobResult,
+  ResolvedEmbeddingClient
 } from './embedding/EmbeddingClient'
+export { EmbeddingWorker } from './embedding/EmbeddingWorker'
+export type { EmbeddingWorkerOptions, EmbeddingWorkerTimer } from './embedding/EmbeddingWorker'

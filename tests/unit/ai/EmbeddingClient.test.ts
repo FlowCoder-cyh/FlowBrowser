@@ -29,8 +29,11 @@ import { NoteStore } from '../../../src/storage/NoteStore'
 import {
   EmbeddingClient,
   DEFAULT_EMBEDDING_MODEL,
-  processNextEmbeddingJob
+  processNextEmbeddingJob,
+  buildEmbeddingClientForModel,
+  EmbeddingProviderUnavailableError
 } from '../../../src/ai/embedding/EmbeddingClient'
+import { ProviderError } from '../../../src/ai/ProviderAdapter'
 import type {
   ProviderAdapter,
   ProviderInfo,
@@ -161,6 +164,57 @@ describe('EmbeddingClient', () => {
     })
     const client = new EmbeddingClient({ provider })
     await expect(client.embedTexts(['a', 'b', 'c'])).rejects.toThrow(/returned 1 vectors for 3 texts/)
+  })
+
+  // Sprint 018 M2 write-path wiring — ProviderError 환경 문제(키/네트워크/rate limit)를 EmbeddingProviderUnavailableError 로 래핑.
+  it.each([
+    ['auth_invalid', 'OpenAI embed 인증 실패'],
+    ['network', 'Ollama embed 연결 실패'],
+    ['rate_limit', 'rate limit 발생']
+  ] as const)(
+    'embedTexts ProviderError code=%s → EmbeddingProviderUnavailableError (message 보존)',
+    async (code, msg) => {
+      const provider = fakeProvider({
+        hasEmbed: true,
+        embedImpl: () => {
+          throw new ProviderError(msg, code)
+        }
+      })
+      const client = new EmbeddingClient({ provider })
+      const err = await client.embedTexts(['x']).catch((e) => e)
+      expect(err).toBeInstanceOf(EmbeddingProviderUnavailableError)
+      expect((err as Error).message).toBe(msg) // 원본 message 보존 → query path 거동 불변
+      expect((err as Error).cause).toBeInstanceOf(ProviderError)
+    }
+  )
+
+  it.each(['bad_request', 'server_error', 'unsupported'] as const)(
+    'embedTexts ProviderError code=%s → 영구 실패 (EmbeddingProviderUnavailableError 아님)',
+    async (code) => {
+      const provider = fakeProvider({
+        hasEmbed: true,
+        embedImpl: () => {
+          throw new ProviderError(`embed ${code}`, code)
+        }
+      })
+      const client = new EmbeddingClient({ provider })
+      const err = await client.embedTexts(['x']).catch((e) => e)
+      expect(err).toBeInstanceOf(ProviderError)
+      expect(err).not.toBeInstanceOf(EmbeddingProviderUnavailableError)
+    }
+  )
+
+  it('embedTexts 일반 Error(ProviderError 아님) → 그대로 throw (영구 실패)', async () => {
+    const provider = fakeProvider({
+      hasEmbed: true,
+      embedImpl: () => {
+        throw new Error('boom')
+      }
+    })
+    const client = new EmbeddingClient({ provider })
+    const err = await client.embedTexts(['x']).catch((e) => e)
+    expect(err).not.toBeInstanceOf(EmbeddingProviderUnavailableError)
+    expect((err as Error).message).toBe('boom')
   })
 
   it('custom dimensions + modelHint 전달', async () => {
@@ -548,5 +602,161 @@ describe('processNextEmbeddingJob', () => {
     })
     expect(r2.job?.id).toBe(jobA.id)
     expect(fx.vector.countPages(fx.wsId)).toBe(2)
+  })
+
+  // Sprint 018 M2 write-path wiring — provider 미가용 → release(→pending) + 'provider_unavailable' (markFailed 안 함).
+  it('resolveEmbeddingClient 가 EmbeddingProviderUnavailableError → release + provider_unavailable (재claim 가능)', async () => {
+    const { page } = await fx.pageStore.recordVisit({
+      url: 'https://x.test/a',
+      content: 'body',
+      workspace_id: fx.wsId
+    })
+    const job = fx.queue.enqueue({
+      target_type: 'page',
+      target_id: page.id,
+      workspace_id: fx.wsId
+    })
+    const result = await processNextEmbeddingJob({
+      resolveEmbeddingClient: () => {
+        throw new EmbeddingProviderUnavailableError('OpenAI API Key 미등록')
+      },
+      queue: fx.queue,
+      vectorIndex: fx.vector,
+      pageStore: fx.pageStore,
+      noteStore: fx.noteStore
+    })
+    expect(result.status).toBe('provider_unavailable')
+    expect(result.error).toMatch(/API Key 미등록/)
+    // markFailed 아님 — pending 복귀 + attempts 불변
+    const reread = fx.queue.findById(job.id)!
+    expect(reread.status).toBe('pending')
+    expect(reread.attempts).toBe(0)
+    expect(fx.queue.stats().failed).toBe(0)
+    expect(fx.vector.countPages(fx.wsId)).toBe(0)
+    // 환경 복구 후 다음 drain 에서 재claim 가능
+    expect(fx.queue.claimNext()?.id).toBe(job.id)
+  })
+
+  it('embed 런타임 ProviderError(network) → provider_unavailable (release, markFailed 아님)', async () => {
+    const { page } = await fx.pageStore.recordVisit({
+      url: 'https://x.test/b',
+      content: 'body',
+      workspace_id: fx.wsId
+    })
+    const job = fx.queue.enqueue({
+      target_type: 'page',
+      target_id: page.id,
+      workspace_id: fx.wsId
+    })
+    const client = new EmbeddingClient({
+      provider: fakeProvider({
+        hasEmbed: true,
+        embedImpl: () => {
+          throw new ProviderError('Ollama 미실행', 'network')
+        }
+      })
+    })
+    const result = await processNextEmbeddingJob({
+      resolveEmbeddingClient: () => ({ client, dimensions: 1024 }),
+      queue: fx.queue,
+      vectorIndex: fx.vector,
+      pageStore: fx.pageStore,
+      noteStore: fx.noteStore
+    })
+    expect(result.status).toBe('provider_unavailable')
+    expect(fx.queue.findById(job.id)?.status).toBe('pending')
+    expect(fx.queue.stats().failed).toBe(0)
+  })
+})
+
+/**
+ * Sprint 018 M2 write-path wiring — buildEmbeddingClientForModel (query path 와 동일 체인의 순수 함수).
+ *
+ * modelId → spec(resolveEmbeddingModel) → credType(embeddingProviderToCredentialProvider) → getProvider → client.
+ *   - 미지원 모델 id → 일반 throw (데이터 오류 → 영구 failed)
+ *   - provider 미등록 / supportsEmbed=false → EmbeddingProviderUnavailableError (→ release/backoff)
+ */
+describe('buildEmbeddingClientForModel (Sprint 018 M2 write-path wiring)', () => {
+  function embedProvider(opts: { providerType?: string; supportsEmbed?: boolean }): ProviderAdapter {
+    const info: ProviderInfo = {
+      providerType: (opts.providerType ?? 'openai') as ProviderInfo['providerType'],
+      displayName: 'Fake',
+      supportedRequestTypes: ['selection'],
+      defaultModel: 'm',
+      availableModels: ['m'],
+      supportsChat: true,
+      supportsEmbed: opts.supportsEmbed ?? true
+    }
+    const p: ProviderAdapter = {
+      info,
+      async validate() {
+        return { ok: true }
+      }
+    }
+    if (opts.supportsEmbed ?? true) {
+      p.embed = async (req) => ({
+        vectors: req.texts.map(() => makeVector(1, req.dimensions ?? EMBEDDING_DIMENSIONS)),
+        modelUsed: req.modelHint ?? 'm',
+        inputTokens: 1,
+        estimatedCostUsd: 0,
+        durationMs: 1
+      })
+    }
+    return p
+  }
+
+  it('modelId null → 디폴트 OpenAI 1024 + getProvider("openai") 조회', () => {
+    const calls: string[] = []
+    const { client, dimensions } = buildEmbeddingClientForModel(null, (credType) => {
+      calls.push(credType)
+      return embedProvider({ providerType: 'openai' })
+    })
+    expect(dimensions).toBe(1024)
+    expect(calls).toEqual(['openai'])
+    expect(client).toBeInstanceOf(EmbeddingClient)
+  })
+
+  it('modelId ollama:nomic-embed-text:768 → 768 + getProvider("local") 조회', () => {
+    const calls: string[] = []
+    const { dimensions } = buildEmbeddingClientForModel('ollama:nomic-embed-text:768', (credType) => {
+      calls.push(credType)
+      return embedProvider({ providerType: 'local' })
+    })
+    expect(dimensions).toBe(768)
+    expect(calls).toEqual(['local'])
+  })
+
+  it('미지원 모델 id → 일반 throw (EmbeddingProviderUnavailableError 아님 → 영구 failed)', () => {
+    let thrown: unknown
+    try {
+      buildEmbeddingClientForModel('openai:made-up-model:9999', () => embedProvider({}))
+    } catch (e) {
+      thrown = e
+    }
+    expect(thrown).toBeInstanceOf(Error)
+    expect(thrown).not.toBeInstanceOf(EmbeddingProviderUnavailableError)
+    expect((thrown as Error).message).toMatch(/Unsupported embedding model/)
+  })
+
+  it('provider 미등록(null) → EmbeddingProviderUnavailableError', () => {
+    expect(() => buildEmbeddingClientForModel(null, () => null)).toThrow(
+      EmbeddingProviderUnavailableError
+    )
+  })
+
+  it('supportsEmbed=false → EmbeddingProviderUnavailableError', () => {
+    expect(() =>
+      buildEmbeddingClientForModel(null, () => embedProvider({ supportsEmbed: false }))
+    ).toThrow(EmbeddingProviderUnavailableError)
+  })
+
+  it('해소된 client 가 워크스페이스 차원(768)으로 임베딩', async () => {
+    const { client, dimensions } = buildEmbeddingClientForModel(
+      'ollama:nomic-embed-text:768',
+      () => embedProvider({ providerType: 'local' })
+    )
+    expect(dimensions).toBe(768)
+    const { vector } = await client.embedText('hello')
+    expect(vector.length).toBe(768)
   })
 })

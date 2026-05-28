@@ -61,6 +61,10 @@ export class EmbeddingQueue {
   private readonly stmtClaimNext: Stmt<EmbeddingJobRow>
   private readonly stmtUpdateStatus: Stmt
   private readonly stmtMarkFailed: Stmt
+  /** Sprint 018 M2 write-path wiring — provider 미가용 시 단건 in_progress → pending 복귀 (attempts 불변). */
+  private readonly stmtRelease: Stmt
+  /** Sprint 018 M2 write-path wiring — boot 시 orphan in_progress (직전 종료/크래시) 일괄 pending 복귀 (attempts 불변). */
+  private readonly stmtRequeueInProgress: Stmt
   private readonly stmtCountByStatus: Stmt<{ status: EmbeddingJobStatus; c: number }>
   private readonly stmtDeleteSucceeded: Stmt
   private readonly stmtCancel: Stmt
@@ -105,6 +109,13 @@ export class EmbeddingQueue {
     )
     this.stmtClearWorkspacePending = this.db.prepare(
       `DELETE FROM embedding_queue WHERE workspace_id = ? AND status = 'pending'`
+    )
+    // status 가드 (id + in_progress) — 이미 succeeded/failed 로 전이된 잡을 되돌리지 않음 (codex 019e6ea0 C2).
+    this.stmtRelease = this.db.prepare(
+      `UPDATE embedding_queue SET status = 'pending', updated_at = ? WHERE id = ? AND status = 'in_progress'`
+    )
+    this.stmtRequeueInProgress = this.db.prepare(
+      `UPDATE embedding_queue SET status = 'pending', updated_at = ? WHERE status = 'in_progress'`
     )
     // 단일 TX — race condition 방지 (UPDATE WHERE status='pending' 동시 claim 안전)
     this.claimTxn = this.db.transaction((): EmbeddingJobRow | null => {
@@ -156,6 +167,31 @@ export class EmbeddingQueue {
 
   markSucceeded(id: string): void {
     this.stmtUpdateStatus.run('succeeded', Date.now(), id)
+  }
+
+  /**
+   * Sprint 018 M2 write-path wiring — claim 한 잡을 다시 pending 으로 되돌림 (attempts 불변).
+   *
+   * provider 미가용(API key 미설정 / Ollama 미실행 / rate limit 등 환경 문제)으로 잡을 처리할 수 없을 때
+   * markFailed(영구 실패) 대신 사용 — 사용자가 환경을 고치면 다음 drain 에서 자동 회복 (codex 019e6ea0 Q3).
+   * 데이터/계약 오류(미지원 모델 / orphan target / dimension mismatch)는 markFailed 가 맞음.
+   *
+   * @returns in_progress 였던 잡을 pending 으로 되돌렸으면 true. 이미 succeeded/failed 면 false (no-op).
+   */
+  release(id: string): boolean {
+    return this.stmtRelease.run(Date.now(), id).changes > 0
+  }
+
+  /**
+   * Sprint 018 M2 write-path wiring — boot 시 orphan in_progress 잡 일괄 회복.
+   *
+   * 앱이 embed 진행 중(in_progress) 종료/크래시되면 그 잡은 claimNext(pending 만 집음) 가 다시 안 집어
+   * 영구 stuck 된다. worker.start() 직전 1회 호출해 pending 으로 되돌린다 (attempts 불변 — 정상 재시도).
+   *
+   * @returns 회복된 row 수
+   */
+  requeueInProgress(): number {
+    return this.stmtRequeueInProgress.run(Date.now()).changes
   }
 
   /**
