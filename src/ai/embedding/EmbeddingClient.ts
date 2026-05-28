@@ -155,7 +155,13 @@ export class EmbeddingClient {
   async embedNote(note: NoteRow): Promise<EmbeddingInput> {
     const parts = [note.selected_text.trim()]
     if (note.body && note.body.trim()) parts.push(note.body.trim())
-    const source = parts.join('\n\n')
+    const source = parts.join('\n\n').trim()
+    // embedPage 대칭 — whitespace-only selected_text + 빈 body 면 빈 문자열 임베딩 요청 차단.
+    //   NoteStore.create 는 빈 문자열만 막고 whitespace('   ')는 통과시키므로(truthy), 여기서 방어
+    //   (Sprint 018 M3 T22 gap-fill — embedPage 는 가드 있고 embedNote 는 부재하던 비대칭 해소).
+    if (!source) {
+      throw new Error(`EmbeddingClient.embedNote: empty selected_text + body (note_id=${note.id})`)
+    }
     const { vector } = await this.embedText(source)
     return vector
   }
