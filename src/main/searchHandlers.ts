@@ -157,7 +157,9 @@ export async function handleSearchQuery(
           : `로컬 임베딩 provider(${credentialProvider}) 가 초기화되지 않았습니다. Ollama 가 실행 중인지 확인해 주세요.`
     }
   }
-  if (!provider.embed) {
+  // ProviderAdapter 계약 — 호출자는 info.supportsEmbed 로 능력 확인 후 embed() 호출 (codex 019e6e00 NOTABLE).
+  //   CodexLoginProvider 처럼 supportsEmbed=false 인데 embed() 메서드는 존재(throw)하는 구현 방어.
+  if (!provider.info.supportsEmbed || !provider.embed) {
     return {
       results: [],
       status: 'error',

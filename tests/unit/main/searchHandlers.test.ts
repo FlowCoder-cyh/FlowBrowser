@@ -179,6 +179,27 @@ describe('handleSearchQuery — graceful error 매트릭스', () => {
     expect(r.error).toMatch(/임베딩을 지원하지 않습니다/)
   })
 
+  it('supportsEmbed=false 인데 embed() 메서드는 존재 → status=error (계약 = info.supportsEmbed 확인, codex 019e6e00)', async () => {
+    // CodexLoginProvider 류 — embed() 가 있으나 supportsEmbed=false (throw 전제). info 플래그로 차단해야 함.
+    const provider: ProviderAdapter = {
+      ...makeMockProvider({ type: 'codex', supportsEmbed: false }),
+      info: { ...makeMockProvider({ type: 'codex' }).info, supportsEmbed: false },
+      embed: async () => {
+        throw new Error('unsupported — should not be reached')
+      }
+    }
+    const r = await handleSearchQuery(
+      { query: 'hello' },
+      {
+        getActiveWorkspaceId: () => fx.workspaceId,
+        getEmbeddingProvider: () => provider,
+        getSearchService: () => fx.service
+      }
+    )
+    expect(r.status).toBe('error')
+    expect(r.error).toMatch(/임베딩을 지원하지 않습니다/)
+  })
+
   it('embed 호출 자체가 throw → status=error (catch 후 message 전달)', async () => {
     const provider = makeMockProvider({
       embedThrows: new Error('rate limit')
