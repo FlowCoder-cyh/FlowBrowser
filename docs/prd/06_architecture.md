@@ -30,7 +30,7 @@
 │  ┌─ Provider Adapter (외부 API) ────────────────────────────────┐  │
 │  │ OpenAIApiKeyProvider — BYOK 디폴트 (인덱싱·태깅·임베딩 자동)  │  │
 │  │ CodexLoginProvider — 사용자 명시 동의 시 (G-003 강화)        │  │
-│  │ (Phase 3) LocalLLMProvider — Ollama 등                       │  │
+│  │ (Phase 3) OllamaProvider — Ollama 등  (chat+embed)         │  │
 │  └─────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────┘
                 ↑ IPC (electron contextBridge)
@@ -146,7 +146,7 @@ src/main/index.ts (IPC handler 등록 + WindowManager)
   │   ├─ Provider Adapter
   │   │   ├─ OpenAIApiKeyProvider
   │   │   ├─ CodexLoginProvider
-  │   │   └─ (Phase 3) LocalLLMProvider
+  │   │   └─ (Phase 3) OllamaProvider (로컬 chat+embed)
   │   ├─ Credentials (safeStorage)
   │   ├─ UserSettingStore (JSON, v0.4 마이그레이션 schema)
   │   ├─ ConsentGate / DomainPolicyStore / TransmissionLogger
@@ -325,10 +325,9 @@ src/main/index.ts (IPC handler 등록 + WindowManager)
 
 ### 6.7.2 Phase 3 추가 모듈
 
-- **LocalLLMProvider** (Ollama) — Provider Adapter 확장
-- **LocalEmbeddingProvider** — sentence-transformers 등
-- **ExportArtifactBuilder** — Notion / Markdown / JSON 출력
-- **SharedWorkspaceFormat** — 워크스페이스 import/export 포맷
+- **`OllamaProvider`** (Ollama, chat+embed 단일 클래스) — Provider Adapter 확장. ✅ wiring 박힘 (chat S017 T14 / embed S018 T17c, chatStream defer). ※ v0.4.x 가 분리 명시했던 `LocalLLMProvider`/`LocalEmbeddingProvider` 는 단일 `OllamaProvider` 로 수렴 (§12.8 정합)
+- **Export** — JSON ✅ (`WorkspaceExportImportService`) / Markdown ✅ (`MarkdownExportService`) **이미 구현**. **`ExportArtifactBuilder`** (planned, Sprint 020) = Notion 경로 전용 (📝 spec)
+- **SharedWorkspaceFormat** — 워크스페이스 단방향 공유 포맷 (📝 spec, Sprint 021)
 
 ## 6.8 SSOT 인용
 
@@ -343,3 +342,4 @@ src/main/index.ts (IPC handler 등록 + WindowManager)
 
 - 2026-05-16 (PR b4): stub → 본문 작성. 프로세스 모델 (Main/Renderer/Web Contents/Workers) + IPC 표면 약 80개 정확 카운트 + 컴포넌트 트리 + 외부 의존 + 부팅 시퀀스 + Phase 2/3 확장점. v04-dependency-graph §A3 SSOT 갱신 동반 (유지 IPC 47개 → 56개, 실측 grep 정정).
 - 2026-05-16 (PR b4.1): codex 15건 + evaluator 4건 핫픽스. **실제 코드 사실 정정**: (1) Electron 30.x+ → ^39.0.0 (package.json 실측). (2) better-sqlite3/sqlite-vec/OpenAI Node SDK → "계획 의존성, M3 도입" 분리 + 현재 fetch 기반 명시. (3) 부팅 함수명 `rebuildAllStores` → `initServices()`, `ProviderRegistry.rebuildAll()` → `rebuildAllProviders()` (실제 코드). (4) WebContents = "객체/컨테이너" 명시 (프로세스 X, Chromium site isolation 정책). (5) Workers = "Phase 1 main event loop 비동기 큐 / Phase 2+ worker_threads 검토" 명시. (6) services 추가 7개 정확 분류 (privacy 3 추가 + pageResult 2 GENERALIZE + cache 1 + glossary 1 DEPRECATE). (7) "📥 기본" Workspace 생성 시점 분리 (fresh install path / migration path). (8) §6.6 운영 부담·리스크 신규 (WebContentsView 메모리 / Provider rate limit / native build / sqlite-vec extension / 본문 캐시 LRU / 마이그레이션 revert). (9) §6.5 부팅 BYOK 디폴트 + TX 외부 명시. (10) §6.2.1 services.ts 표 라벨 정정 (multiline 잘못된 설명 삭제, 7개 핸들러 정확 분류). v04-dependency-graph §통계 요약 동반 정정 (47 → 56).
+- 2026-05-29 (v0.5.0, Sprint 018 M4 T10): **로컬 LLM 컴포넌트 명칭 정정**. §6.1 박스 다이어그램 + §6.3 컴포넌트 트리 + §6.7.2 Phase 3 모듈 — `LocalLLMProvider`/`LocalEmbeddingProvider` 분리 → 실 구현 단일 `OllamaProvider` (chat+embed) 로 수렴 + wiring 박힘 표기 (§12.8 정합). ExportArtifactBuilder/SharedWorkspaceFormat 구현 상태(✅/📝 spec) 명시. codex 019e718f round-2 NOTABLE (같은 릴리스 §12/§16 정합).

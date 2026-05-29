@@ -166,3 +166,37 @@ Sprint 016 M0~M5 종결 시점 발행. M0 KI MEDIUM batch + LOW perf bench + M1 
 - 작성 완료: 2026-05-21 (본 docs PR 머지 시점)
 - 종합 evaluator: 2026-05-21 (Sprint 016 M5 T25 시점)
 - 다음 발행 예고: v0.4.2 또는 v0.5.0 (Sprint 017 Phase 3 진입 — 로컬 LLM / Notion Export / 공유 / T20 renderer UI overlay / 옵션 B SQLite swap)
+
+## 0.8 v0.5.0 — Phase 3 진입 (로컬 임베딩 통합 + Schema v06 + Notion/공유 설계) (2026-05-29)
+
+Sprint 017~018 종결 시점 발행. Phase 2 (격리 강화 + 정형 출력) 종료 후 **Phase 3 (외부 통합 + 운영성)** 진입. v0.4.1 시점 "Phase 3 future" 로 표기됐던 로컬 임베딩·로컬 LLM·Schema v06 가 **실 코드로 박힘** + Notion Export / 워크스페이스 공유는 **설계 spec 완료 (구현 Sprint 020/021 위임)**.
+
+> **본 발행은 "shipped drift 정정 + 메타 bump + 로드맵 재정렬"** (codex 019e718f 정합). Notion·공유·LocalLLM 의 Sprint 020+ 구현 상세를 본문에 선반영하지 않음 — 실 구현 시점에 해당 섹션 갱신.
+
+### 0.8.1 v0.5.0 발행 메타
+
+- 발행일: 2026-05-29 (Sprint 018 M4 T10 시점)
+- Sprint: 018 M0~M4 (mini-milestone β PR B/C + T19/Schema v06 spec + T17a~e + T21 spike + T22/T09 cover + 본 v0.5.0 docs PR)
+- 누적 PR: first-parent 머지 누적 **267** (최신 #269 state sync, 본 v0.5.0 docs PR 예정 **#270**)
+- 누적 단위 테스트: **1950 PASS** (104 파일 — 실측. Sprint 016 v0.4.1 시점 1436 → Sprint 017~018 +514 누적; 본 v0.5.0 은 docs-only 라 무변동)
+- 시나리오 회귀 셋 cover: Phase 1 평균 **95%** (S1 학술 100% / S2 PM 90% / S3 학습 90% / S4 재발견 100% — §16.5 Phase 1 열). Phase 2 평균 97.5% / Phase 3 평균 100% 는 §16.5 목표열 (MVP 최종 측정값).
+- KI: 누적 **31 등록 / 23 closed / 잔여 8** (헤더 status 실측 — HIGH 0 / **MEDIUM 3** [KI-001 in-progress·KI-004·KI-006] / **LOW 5** [KI-023·KI-025·KI-028·KI-029·KI-030] — Phase 3 종료 후 MVP 직전 batch 정리 대상). 본 발행 KI 변동 0. ⚠️ `known-issues.md` §통계 표기 "총 잔여 9" 는 Phase 1 open LOW off-by-one (실 header 카운트 8) → Sprint 018 종합(T12) 시점 §통계 정정 대상.
+- 가드레일 활성: G-001~G-018 + **G-021** (docs PR dual review 실 호출 강제) + **G-022** (사용자 마무리 의도 후 진입 차단, Sprint 018 M0 PreToolUse blocking 전환).
+- 작성 패턴: 기존 19 섹션 유지 (신규 섹션 추가 X — 로컬 LLM 은 §12/§06, Notion Export 는 §11.5.6, 공유는 §11 신규 소절, Schema v06 은 §04, 진행/매핑은 §16 에 반영). 로컬 LLM 명칭 `LocalLLMProvider`/`LocalEmbeddingProvider` → 단일 `OllamaProvider` (chat+embed) 수렴. §05/§09/§15 의 `vec_pages` 단수 SQL 예시는 dimension family 총칭 (§4.3.8 umbrella note) — 전면 dimension-aware 정합은 후속 drift sweep (구현 시점 동반).
+
+### 0.8.2 v0.5.0 주요 변경 — Phase 3 진입
+
+1. **Schema v06 구현 완료** (Sprint 018 T17a, `V06_SCHEMA_VERSION=3`) — `workspaces.embedding_model TEXT NOT NULL DEFAULT 'openai:text-embedding-3-small:1024'` (CHECK 1024/768 allowlist) + vec0 dimension 분리 `vec_pages_1024`/`vec_pages_768`/`vec_notes_1024`/`vec_notes_768`. `migrateV05ToV06` (G-014 dry-run + 자동 백업 `<userDataDir>/backup/v05/<ISO_ts>/` + sentinel idempotent). [§04 §4.3.1/§4.3.8](./04_data_model.md) 반영.
+2. **로컬 임베딩 통합** (Sprint 018 T17 라인 — T17a~e + write-path wiring) — `OllamaProvider.embed()` (`/api/embed`, `nomic-embed-text` 768 dim, `supportsEmbed=true`) + 워크스페이스 생성 시 임베딩 모델 선택 UX + query/write path 가 워크스페이스 `embedding_model` 따라 provider·dimension 해소 (provider-aware). E2E 격리 검증 (`tests/integration/t17e-embedding-isolation.test.ts`). [§08 §8.3](./08_indexing.md) + [§12 §12.2](./12_provider_adapter.md) 반영.
+3. **로컬 LLM 채팅 wiring** (Sprint 017 T14 chat + Sprint 018 T17c embed) — `OllamaProvider` (`providerType='local'`) 가 `providers.set('local', ...)` 로 등록 + `defaultProviderId='local'` 채팅 경로 (OpenAI fallback 금지 — 비용/프라이버시 surprise 회피) + 검색 embed 경로. **`chatStream` 은 defer** (Phase 3 후속). 로드맵 §16.4.1 의 미래 명칭 `LocalLLMProvider`/`LocalEmbeddingProvider` 는 실 구현에서 단일 `OllamaProvider` (chat+embed) 로 수렴 — §16.4.1 명칭 정정 동반.
+4. **Notion Export 설계 spec** 완료 (Sprint 018 T19, 옵션 C spec only) — `.flowset/specs/sprint-018-notion-export-spec.md`. canonical JSON (`WorkspaceExportV1`) round-trip + Notion presentation projection 분리. **구현 Sprint 020 위임** (G-013 단계별). [§11 §11.5.6](./11_workspace.md) 상태 반영.
+5. **SharedWorkspaceFormat 설계 spec** 완료 (Sprint 018 T21) — `.flowset/specs/v05-collab-spike.md`. 단방향 파일 공유 (`.fbworkspace` = gzip(envelope) + Ed25519 TOFU 서명 + untrusted import validator P0). **구현 Sprint 021 위임**. [§11 §11.12](./11_workspace.md) 신규 소절.
+6. **백그라운드 번역 + 하이라이트 SQLite 영속화** (Sprint 016~017) — `highlights` 테이블 v05 도입 (§11.11 Phase 2 옵션 B SQLite swap 실효). v0.4.1 에 일부 반영, 본 발행에서 Schema 정합 명시.
+
+### 0.8.3 v0.5.0 작성 메타
+
+- 작성 시작: 2026-05-29 (Sprint 018 M4 T10 진입, 사용자 명시 entry 후 — G-022)
+- 작성 완료: 2026-05-29 (본 docs PR 머지 시점)
+- 사전 설계 협의: codex `019e718f-0901-7443-989a-320f2011b111` (read-only — 섹션 불일치/scope/PR 구성/Phase 3 종료 검토 4문항)
+- 다음: Phase 3 종료 검토 체크리스트 (S018-T11, `.flowset/specs/phase3-exit-checklist.md`) → Sprint 018 종합 + Sprint 019 시안 (M5)
+- 다음 발행 예고: v0.5.1 또는 v0.6.0 (Sprint 020 Notion Export 구현 + Sprint 021 워크스페이스 공유 구현 + Phase 3 종료 임계 충족 시 MVP 최종)

@@ -2,7 +2,7 @@
 
 > [← PRD 목차](./README.md)
 
-본 섹션은 외부 AI Provider 추상화 — 실제 코드 `src/ai/ProviderAdapter.ts` 인터페이스 + 구현체 (OpenAIApiKeyProvider / CodexLoginProvider / Phase 3 LocalLLMProvider). [§01 §1.4.2](./01_overview.md#142-동작-원칙) BYOK vs 능동 호출 정합.
+본 섹션은 외부 AI Provider 추상화 — 실제 코드 `src/ai/ProviderAdapter.ts` 인터페이스 + 구현체 (OpenAIApiKeyProvider / CodexLoginProvider / Phase 3 `OllamaProvider` [로컬 chat+embed]). [§01 §1.4.2](./01_overview.md#142-동작-원칙) BYOK vs 능동 호출 정합.
 
 ## 12.1 ProviderAdapter 인터페이스 (v0.3 현재 + v0.4 마이그레이션)
 
@@ -52,10 +52,11 @@ export interface ProviderAdapter {
 | `chatStream()` | ✗ | ✗ | ✗ | ✓ (M5 PoC, ChatPanel streaming) |
 | `embed()` | ✗ | ✗ | ✓ (OpenAIApiKeyProvider 신규 메서드, text-embedding-3-small) | (유지) |
 
-**현재 (PR b7.1 시점) 코드 사실**:
+**PR b7.1 시점 코드 사실 (Phase 1 도입 전)**:
 - `CodexLoginProvider.translate()` 단일 메서드 — 내부에서 SSE 누적 후 `TranslationOutput` 반환 (`src/ai/providers/CodexLoginProvider.ts:123`, `accumulateResponsesStream`)
 - `OpenAIApiKeyProvider.translate()` 단일 메서드 — `fetch /chat/completions stream:false` (`src/ai/providers/OpenAIApiKeyProvider.ts`)
-- 두 Provider 모두 `chat()` / `embed()` 메서드 **부재** — M2 / M3 PR 도입 예정
+
+> **v0.5.0 갱신 (도입 완료)**: 위 §12.1.3 의 M2/M3/M5 "도입 예정" 은 실 코드로 박힘 — OpenAI/Codex `chat()` (M2), OpenAI `embed()` (M3) 구현 완료. Phase 3 에서 `OllamaProvider.chat()`+`embed()` 추가 (§12.8). `chatStream()` 만 미도입 (defer). 본 §12.1.3 표는 도입 _순서_ 기록으로 유지.
 
 ## 12.2 Provider 구현체 매트릭스
 
@@ -63,7 +64,7 @@ export interface ProviderAdapter {
 |---|---|---|---|---|---|---|
 | **OpenAI API Key (BYOK)** | gpt-4o-mini (저가 디폴트) / text-embedding-3-small | translate (v0.3 현재) / chat·embed (M2/M3 신규) / chatStream (M5) | API Key (OS Keychain) | external | 1 | 자동 인덱싱·태깅·임베딩 (BYOK 디폴트) + 사용자 능동 채팅 옵션 |
 | **Codex OAuth** | gpt-5.5 (디폴트) / gpt-5.4-mini / gpt-5.2 (`AVAILABLE_MODELS` 정합) — gpt-5 는 코드 주석에 "not supported" 명시 | translate (v0.3 현재, SSE 내부 누적) / chat (M2 신규 wrap) / chatStream (M5) | OAuth device-code (PKCE, OS Keychain) | external | 1 | 사용자 능동 채팅 (명시 동의). 자동 호출 X (G-003 강화) |
-| **(Phase 3) Local LLM** | Ollama 기본 모델 + 사용자 선택 (M? PoC) — LM Studio / llama.cpp server / vLLM 도 비교 후보 | chat / chatStream / embed (옵션) | endpoint 설정 (Ollama 기본 `http://localhost:11434/api`) | local | 3 | 오프라인 / 민감 페이지 / Privacy First |
+| **(Phase 3 ✅ wiring 박힘) Local LLM — `OllamaProvider`** | chat: `llama3.2:3b` 디폴트 (+ llama3.1:8b/qwen2.5:7b/mistral:7b) / embed: `nomic-embed-text` 768 | **chat ✅ (Sprint 017 T14) / embed ✅ (Sprint 018 T17c, `supportsEmbed=true`) / chatStream ✗ defer** | endpoint (Ollama 기본 `http://localhost:11434`, raw fetch — `ollama` npm 미사용) | local | 3 | 오프라인 / 민감 페이지 / Privacy First. `providerType='local'`, `defaultProviderId='local'` 시 OpenAI fallback 금지 |
 
 ## 12.3 BYOK 디폴트 정책 (G-003 강화)
 
@@ -240,21 +241,34 @@ Codex 는 ChatGPT 구독 한도 기반이라 USD 비용 0 (`CodexLoginProvider.t
 | 사용자 동의 | 자동 호출에 Codex 사용은 UserSetting 명시 토글 필요 |
 | 결격사유 0 | 사이트와 무관한 사용자 본인 credential 사용 (G-003 + G-011 정합) |
 
-## 12.8 Phase 3 LocalLLMProvider (간략)
+## 12.8 Local LLM — `OllamaProvider` (Phase 3, chat+embed wiring 박힘)
 
-상세는 [§06 §6.7.2 Phase 3](./06_architecture.md#672-phase-3-추가-모듈) + Phase 3 contract 작성 시. 본 §12 는 Phase 1 base.
+> **v0.5.0 갱신**: v0.4.x 의 "Phase 3 LocalLLMProvider (미래)" 는 실 구현에서 **`src/ai/providers/OllamaProvider.ts` 단일 클래스 (chat + embed)** 로 수렴. 로드맵 §16.4.1 의 미래 명칭 `LocalLLMProvider`/`LocalEmbeddingProvider` 분리는 채택 안 됨 (한 런타임이 chat·embed 모두 제공). chat=Sprint 017 T14 / embed=Sprint 018 T17c 머지. `chatStream` 만 defer (Phase 3 후속).
 
-### 12.8.1 도입 의의
+### 12.8.1 구현 현황 (실 코드)
 
-- **오프라인 가능** — 인터넷 없이 AI 채팅 사용
+| 메서드 | 상태 | 엔드포인트 |
+|---|---|---|
+| `chat()` | ✅ Sprint 017 T14 | `POST /api/chat` (non-streaming) — `llama3.2:3b` 디폴트 |
+| `embed()` | ✅ Sprint 018 T17c (`supportsEmbed=true`) | `POST /api/embed` (batch) — `nomic-embed-text` 768 dim |
+| `chatStream()` | ✗ defer | Ollama NDJSON streaming 지원하나 scope 외 (codex Q8) |
+| `validate()` | ✅ | `GET /api/tags` (server 도달성 — 모델 설치 여부는 호출 시점 404 안내) |
+
+- raw fetch + `fetchImpl` 주입 패턴 (`ollama` npm 의존성 회피, OpenAIApiKeyProvider/CodexLoginProvider 와 일치).
+- localhost 신뢰 모델 — API key 없음, OS Keychain (G-005) 무관.
+- 등록: `providers.set('local', new OllamaProvider())` (services.ts). 채팅 선택: `defaultProviderId='local'` 시 `['local']` 단독 (OpenAI fallback 금지 — 비용/프라이버시 surprise 회피). 검색 embed: searchHandlers 가 워크스페이스 `embedding_model` provider('ollama')→credential('local') 매핑.
+
+### 12.8.2 도입 의의
+
+- **오프라인 가능** — 인터넷 없이 AI 채팅 + 임베딩·검색 사용 (모델 다운로드 후)
 - **민감 페이지** — 의료·법무·금융 콘텐츠 외부 API 미전송
 - **무료** — API 비용 0 (전기료만)
 
-### 12.8.2 도입 부담
+### 12.8.3 도입 부담 / Phase 3 종료 검증 미완
 
-- Ollama 등 외부 LLM 런타임 설치 + 모델 다운로드 (수 GB)
+- Ollama 등 외부 LLM 런타임 설치 + 모델 다운로드 (수 GB) — 사용자 책임 (`ollama pull`)
 - 성능 — 사용자 하드웨어 의존 (M2 Mac 기본 / RTX 4090 강력 등)
-- Phase 3 contract 진입 시 사용자 시연 + 모델별 정량 임계 측정
+- **Phase 3 종료 임계 미충족**: 오프라인 end-to-end 시연 + 모델별 정량 임계(로컬 LLM 응답 < 2초, §16.4.3) 측정은 **미완** — `.flowset/specs/phase3-exit-checklist.md` (S018-T11) 추적
 
 ## 12.9 SSOT 인용
 
@@ -275,4 +289,5 @@ Codex 는 ChatGPT 구독 한도 기반이라 USD 비용 0 (`CodexLoginProvider.t
 ## 12.10 변경 이력
 
 - 2026-05-16 (PR b7): stub → 본문 작성. ProviderAdapter 인터페이스 + 구현체 3종 매트릭스 (OpenAI BYOK / Codex OAuth / Phase 3 Local LLM) + BYOK 디폴트 정책 (G-003 강화, 호출 종류별 매트릭스) + 모델 선택 (gpt-4o-mini 저가 디폴트 / text-embedding-3-small 1024 / Codex gpt-5.5) + 4 단계 fallback 체인 + Rate limit 5종 backoff + UsageLog 비용 추적 + Phase 3 LocalLLMProvider 의의·부담 명시.
+- 2026-05-29 (v0.5.0, Sprint 018 M4 T10): **로컬 LLM 구현 현황 반영**. §12.2 매트릭스 Local LLM 행 — "(Phase 3 future)" → "(Phase 3 ✅ wiring 박힘) `OllamaProvider`" (chat ✅ Sprint 017 T14 / embed ✅ Sprint 018 T17c supportsEmbed=true / chatStream ✗ defer, `providerType='local'`, defaultProviderId='local' fallback 금지). §12.8 "Phase 3 LocalLLMProvider (간략·미래)" → "Local LLM `OllamaProvider` (chat+embed wiring 박힘)" + §12.8.1 구현 현황 표 (실 메서드/엔드포인트) + 명칭 수렴(로드맵 §16.4.1 LocalLLMProvider/LocalEmbeddingProvider 분리 미채택, 단일 클래스) + §12.8.3 Phase 3 종료 검증 미완 명시. codex 019e718f scope 협의.
 - 2026-05-16 (PR b7.1): codex 32건 + evaluator Fail 핫픽스. **실제 코드 grep 정정**: (1) §12.1 ProviderAdapter 인터페이스 정정 — v0.3 현재 (`info / validate / translate / dispose`) vs v0.4 마이그레이션 spec (chat/embed/chatStream M2~M5 도입) 분리. v04-migration-matrix §C KEEP → GENERALIZE 재분류 동반. (2) §12.4.2 Codex 모델 `AVAILABLE_MODELS = gpt-5.5/gpt-5.4-mini/gpt-5.2` 정확 박힘 (gpt-5 코드 주석 "not supported" 충돌 제거). (3) §12.6 UsageLog GENERALIZE 재분류 + v0.3 schema (실제 UsageLogEntry 12 필드) vs v0.4 M3 schema 마이그레이션 (workspaceId/model/durationMs 추가, feature enum 변경). (4) §12.5 rate limit 수치 정정 — "3 RPM/200 TPM" 외부 사실 오류 → "tier 1 gpt-4o-mini ≈ 500 RPM/200K TPM, text-embedding-3-small ≈ 3,000 RPM/1M TPM" (OpenAI 공식). **fallback 안전화**: (5) §12.4.3 능동 채팅 한정 명시 (자동 호출 fallback X). (6) §12.4.4 fallback 제한 신규 (max 3 attempts / cost cap $0.10 / 401 차단 / Codex 명시 동의). **외부 사실**: (7) Codex 한도 "5h/주" → "추정, 429 검증" 시제. (8) Codex token refresh 60초 전 (실제 코드 정합). (9) Ollama endpoint `http://localhost:11434/api` 정확. (10) Local LLM 옵션 다양화 (Ollama + LM Studio + llama.cpp + vLLM). **Provider timeout**: (11) OpenAI 30s / Codex 60s / Local LLM 사용자 설정 명시. **§12.6 durationMs 실측**: (12) Codex "30초 추정" → durationMs 실측 저장 (M3 후).

@@ -94,24 +94,31 @@
 
 ### 16.4.1 Phase 3 신규 컴포넌트
 
-| 컴포넌트 | 파일 | 책임 |
+> **v0.5.0 진행 현황 정정**: v0.4.x 가 명시한 미래 컴포넌트 명칭 일부는 실 구현에서 다르게 수렴. 로컬 LLM/임베딩은 **단일 `OllamaProvider`** (chat+embed) 로 통합 (별도 `LocalLLMProvider`/`LocalEmbeddingProvider` 분리 미채택). 상태 열은 2026-05-29(Sprint 018 M4) 기준.
+
+| 컴포넌트 (실 명칭) | 파일 | 책임 | 상태 |
+|---|---|---|---|
+| **`OllamaProvider`** (chat+embed) | `src/ai/providers/OllamaProvider.ts` | Ollama (`/api/chat` + `/api/embed`). chat=`llama3.2:3b` 등 / embed=`nomic-embed-text` 768. raw fetch, `providerType='local'` | **chat ✅ (S017 T14) / embed ✅ (S018 T17c) / chatStream ✗ defer**. LM Studio/llama.cpp/vLLM = 미도입 후보 |
+| **Schema v06 (vec0 dimension 분리)** | `src/storage/schema/v06.sql` + `migrations/v05_to_v06.ts` | `workspaces.embedding_model` + `vec_pages_{1024,768}`/`vec_notes_{1024,768}` + 워크스페이스별 임베딩 격리 | **✅ 구현 (S018 T17a~e, `V06_SCHEMA_VERSION=3`)** |
+| **`MarkdownExportService`** | `src/main/MarkdownExportService.ts` | 워크스페이스 → Markdown projection + canonical JSON 첨부 (round-trip) | **✅ 구현** |
+| **`ExportArtifactBuilder` (Notion 경로)** | `src/main/ExportArtifactBuilder.ts` (planned, 미생성) | 워크스페이스 → Notion DB (data source + canonical JSON 첨부, lossy projection) | 📝 설계 spec 완료 (T19), **구현 Sprint 020** |
+| **`SharedWorkspaceFormat`** | `src/storage/SharedWorkspaceFormat.ts` (planned, 미생성) | `.fbworkspace` gzip envelope + Ed25519 TOFU 서명 + untrusted validator | 📝 설계 spec 완료 (T21), **구현 Sprint 021** |
+| **Auto-Backup Service** | `src/main/AutoBackup.ts` | 주기적 워크스페이스 JSON 백업 (사용자 디스크 + 옵션 클라우드) | 미착수 (Sprint 021+ 검토) |
+
+### 16.4.2 Phase 3 Sprint 매핑 (v0.5.0 실측 갱신)
+
+| Sprint | milestone 범위 | 상태 |
 |---|---|---|
-| **LocalLLMProvider** | `src/ai/providers/LocalLLMProvider.ts` | Ollama 디폴트 + LM Studio / llama.cpp / vLLM 옵션 (사용자 선택). chat/chatStream/embed 모두 지원 |
-| **LocalEmbeddingProvider** | `src/ai/embedding/LocalEmbeddingProvider.ts` | sentence-transformers 또는 Ollama embed endpoint. 오프라인 임베딩 |
-| **ExportArtifactBuilder** | `src/main/ExportArtifactBuilder.ts` | 워크스페이스 → Notion DB / Markdown 폴더 / JSON 파일 변환 |
-| **SharedWorkspaceFormat** | `src/storage/SharedWorkspaceFormat.ts` | 워크스페이스 import/export 포맷 정의 + 압축·서명 |
-| **Auto-Backup Service** | `src/main/AutoBackup.ts` (Phase 2+ 검토 → Phase 3 확정) | 주기적 워크스페이스 JSON 백업 (사용자 디스크 + 옵션 클라우드) |
+| Sprint 017 | 로컬 LLM spike + `OllamaProvider.chat()` (T14) + Schema v06 spec + 백그라운드 번역 + 하이라이트 SQLite | ✅ 종결 |
+| Sprint 018 | **Schema v06 구현 (T17a~e)** + 로컬 임베딩 통합 (`OllamaProvider.embed()` T17c + write-path) + Notion Export spec (T19) + SharedWorkspaceFormat spec (T21) + **PRD v0.5.0 발행 (T10)** | ✅ M0~M4 종결 (본 발행) |
+| Sprint 019 (예상) | (carryover) UserLevelEstimator 실 학습 (T20, 학습 데이터셋 박힌 후) + Phase 3 잔여 검증 | 시안 |
+| Sprint 020 | `ExportArtifactBuilder` Notion 경로 구현 (S020-a~f) | 설계 spec 완료 |
+| Sprint 021 | `SharedWorkspaceFormat` 구현 (S021-a~k) + Auto-Backup | 설계 spec 완료 |
+| (Sprint 022 검토) | Phase 3 종료 evaluator + MVP 최종 딥검증 (4 시나리오 100% + 1주 실사용) | — |
 
-### 16.4.2 Phase 3 Sprint 매핑 (잠정)
+총 3~4 Sprint 추정 (Sprint 017~018 에서 로컬 LLM/임베딩/Schema v06 선행 박힘 — 본래 Sprint 019 예상이 앞당겨짐).
 
-| Sprint | milestone 범위 |
-|---|---|
-| Sprint 019 (예상) | LocalLLMProvider + LocalEmbeddingProvider (Ollama base + 다른 옵션 비교) |
-| Sprint 020 | ExportArtifactBuilder (Notion + Markdown + JSON) |
-| Sprint 021 | SharedWorkspaceFormat + Auto-Backup |
-| (Sprint 022 검토) | Phase 3 종료 evaluator + MVP 최종 딥검증 |
-
-총 3~4 Sprint 추정.
+> **Phase 3 종료 미충족 (S018-T11 추적)**: 로컬 LLM chat/embed wiring 은 박혔으나 **오프라인 end-to-end 시연 / 모델별 정량 임계(< 2초) / Export 3종 round-trip / 시나리오 100% / 사용자 1주 실사용** 미완. Notion·공유는 설계만. MVP 최종은 Sprint 020~022. 상세 = `.flowset/specs/phase3-exit-checklist.md`.
 
 ### 16.4.3 Phase 3 종료 임계 (MVP 최종)
 
@@ -190,3 +197,4 @@ M2~M6: 약 33 PR (§16.2.2 분배).
 ## 16.9 변경 이력
 
 - 2026-05-16 (PR b9): stub → 본문 작성. MVP 정의 (Phase 1+2+3 전체) + Phase 1 컴포넌트 10 (9 base + ShortcutSettings) + M0~M6 매핑 + 총 PR 약 47 + Phase 2 신규 컴포넌트 6 + Sprint 016~018 매핑 + Phase 3 신규 컴포넌트 5 + Sprint 019~022 매핑 + 시나리오 cover 매트릭스 (Phase 1 평균 95%, Phase 3 100%) + 가드레일 G-001~G-014 14종 + 본 시점 PR 누적 통계 (43 PR / 약 80 PR 예상).
+- 2026-05-29 (v0.5.0, Sprint 018 M4 T10): **Phase 3 진행 실측 반영**. §16.4.1 컴포넌트 — 미래 명칭 `LocalLLMProvider`/`LocalEmbeddingProvider` → 실 구현 단일 `OllamaProvider` (chat ✅/embed ✅/chatStream defer) + Schema v06 ✅ + MarkdownExportService ✅ + ExportArtifactBuilder/SharedWorkspaceFormat 설계 spec 완료. §16.4.2 Sprint 매핑 — Sprint 017~018 에서 로컬 LLM/임베딩/Schema v06 선행 박힘 (본래 Sprint 019 예상 앞당김) + Notion=Sprint 020 / 공유=Sprint 021 + **Phase 3 종료 미충족** 명시 (오프라인 시연/정량 임계/Export round-trip/시나리오 100%/1주 실사용 미완 — `phase3-exit-checklist.md` 추적). codex 019e718f scope 협의 (drift 정정, 구현 선반영 X). ※ §16.6 가드레일 표는 G-001~G-014 시점 유지 (G-015~G-022 누적은 guardrails.md SSOT).

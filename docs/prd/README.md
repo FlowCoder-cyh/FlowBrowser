@@ -1,8 +1,10 @@
-# FlowBrowser AI — PRD v0.4
+# FlowBrowser AI — PRD v0.5
 
 > **본 페이지를 자동 기억하면서, 프로젝트별로 환경이 격리되는 AI 리서치 브라우저**
 
-PRD v0.4.0 **19 섹션 본문 완성 + 정식 발행 완료** (Sprint 015 M6 T31, 2026-05-19 release tag). 후속 핫픽스는 Sprint 016 M5 T24 (v0.4.1 발행) 예정.
+PRD **v0.5.0 정식 발행** (Sprint 018 M4 T10, 2026-05-29) — **Phase 3 (외부 통합) 진입**. 로컬 임베딩 통합 + Schema v06 가 실 코드로 박힘 + Notion Export / 워크스페이스 공유 설계 spec 완료 (구현 Sprint 020/021). 변경 상세 [`00_change_history.md`](./00_change_history.md) §0.8.
+
+> 이전: v0.4.0 19 섹션 본문 완성 + 정식 발행 (Sprint 015 M6 T31, 2026-05-19 release tag) → v0.4.1 Phase 2 진입 (Sprint 016 M5 T24).
 
 이전 버전 (v0.1 / v0.2 / v0.3) 은 [archive/](../../archive/) 디렉토리에 보존:
 - `archive/flowbrowser_ai_prd_crud_v0.1.md` (v0.1 통합본)
@@ -87,3 +89,5 @@ v0.3 → v0.4 방향 전환 배경은 [`00_change_history.md`](./00_change_histo
 - 2026-05-16: PRD v0.4.0 19 섹션 분할 신규 발행. v0.3 13 섹션은 archive 이동.
 - 2026-05-17: Sprint 015 M1 본문 완성 (PR #104 ~ #120, b1~b10). b10.1 hotfix 5건 흡수 후 Pass.
 - 2026-05-19: Sprint 015 M6 T31 정식 발행 (v0.4.0 release tag).
+- 2026-05-21: Sprint 016 M5 T24 v0.4.1 발행 (Phase 2 진입 — cookies partition 격리 + 하이라이트 + 어댑터 일괄 제거 + §11.11 Highlights 신설).
+- 2026-05-29: Sprint 018 M4 T10 **v0.5.0 발행 (Phase 3 진입)** — 로컬 임베딩 통합 + Schema v06 실 코드 반영 + Notion Export/공유 설계 spec 상태 + 로드맵 재정렬. 신규 섹션 추가 없이 §04/§06/§08/§11/§12/§16 drift 정정 (로컬 LLM 명칭 LocalLLMProvider→OllamaProvider 수렴). codex 019e718f 사전 협의 + dual review (evaluator Pass 3/0/0 + codex round-2 0/0). §05/§09/§15 vec_pages 단수 SQL 예시 = 후속 drift sweep (구현 시점 동반).

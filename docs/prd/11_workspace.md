@@ -171,14 +171,13 @@ UI: WorkspaceSidebar "+ 새 워크스페이스" 모달 (M6).
 
 PR b7 에서 Export 를 Phase 3 만으로 미뤘으나, **데이터 portability + 복구 안전망** 위해 Phase 1 시점 최소 JSON export 도입.
 
-| 동작 | Phase | 형식 |
-|---|---|---|
-| **JSON Export (Phase 1, M6)** | Phase 1 | 워크스페이스 단위 JSON (Workspace + Page + Visit + Note + AiChatHistory + Tag 전체) — 백업·복구 용. v0.4 자체 schema |
-| **JSON Import (Phase 1, M6)** | Phase 1 | 동일 schema 파일 import → 새 워크스페이스로 INSERT (id 재생성) |
-| **Notion Export (Phase 3)** | Phase 3 | 워크스페이스 → Notion DB / Markdown 페이지 변환 ([§19](./19_migration_v03_v04.md)) |
-| **Markdown Export (Phase 3)** | Phase 3 | 워크스페이스 → Markdown 폴더 구조 |
+| 동작 | Phase | 상태 | 형식 |
+|---|---|---|---|
+| **JSON Export/Import (Phase 1, M6)** | Phase 1 | ✅ 구현 (`WorkspaceExportImportService`, canonical `WorkspaceExportV1` `schemaVersion: 'v06'`) | 워크스페이스 단위 JSON (Workspace[embedding_model 포함] + Page + Visit + Note + AiChatHistory + Tag + PageTag + NoteTag + Highlight 일괄) — 백업·복구. round-trip import 검증 + id remap (모든 child id + 참조 rewrite). v04/v05 payload graceful import (highlights 빈배열 normalize / embedding_model 부재 시 DEFAULT) |
+| **Markdown Export (Phase 3)** | Phase 3 | ✅ 구현 (`MarkdownExportService`) | presentation projection + `workspace.json` canonical 첨부 (round-trip 보장, KI-008 정합) |
+| **Notion Export (Phase 3)** | Phase 3 | 📝 설계 spec 완료, 구현 **Sprint 020 위임** | canonical JSON round-trip + Notion presentation projection (lossy block 모델). `.flowset/specs/sprint-018-notion-export-spec.md` (T19 옵션 C). `ExportArtifactBuilder` Notion 경로 |
 
-Phase 1 JSON Export 는 마이그레이션·삭제 안전망 — 사용자가 워크스페이스 삭제 직전 자동 백업 옵션 (M6 UI).
+> **v0.5.0 갱신**: JSON·Markdown Export 는 이미 구현 (round-trip 보장). Notion Export 는 **설계 spec 만 완료** (T19, 구현 Sprint 020 — G-013 단계별). 외부 전송 경로는 `ExportPrivacyGate` preflight 필수 (§13, G-004) + Notion 토큰 OS Keychain 위임 (G-005). Phase 1 JSON Export 는 마이그레이션·삭제 안전망 (M6 UI).
 
 ## 11.6 사용자 수준 옵션 (R3-A, Phase 1)
 
@@ -240,6 +239,7 @@ Phase 1 시점: mock (회귀 셋 통과만, 실제 학습 로직 X).
 - 2026-05-16 (PR b7): stub → 본문 작성. 격리 메타포 + Phase 1/2 격리 수준 (메타 vs Electron Partition) + 전환 UX 4 step + 전환 비용 분석 (< 1초) + abort 정책 3종 + "📥 기본" 자동 생성 path 2종 + CRUD 5 동작 + 마지막 워크스페이스 보호 + 사용자 수준 4 분기 (Phase 1 직접 / Phase 2 자동) + 페르소나별 활용 패턴 + 정량 임계 3종.
 - 2026-05-16 (PR b7.1): codex·evaluator 핫픽스. Electron Session 변수명 (partition → wsSession) + addChildView 수명주기 명시 + clearStorageData 다층 storage 정리. abort 함수명 (M3/M4/M5 신규) 시제 명시. §11.5.6 Phase 1 JSON Import/Export 안전망 신규 (Notion·Markdown Export 는 Phase 3 유지).
 - 2026-05-21 (v0.4.1 발행, Sprint 016 M4 T20 + M5 T24): §11.11 Highlights 신설 (KI-026 옵션 B — codex 사전 협의 권고 정합 `§11.5` 가 Workspace CRUD 점유로 § 충돌 회피, `§11.11` 으로 박음). G-013 1단계 옵션 A (in-memory HighlightStore + W3C Range serialize/deserialize) 산출물 보존. Phase 2 옵션 B (SQLite swap + 마이그레이션) 는 Sprint 017 위임.
+- 2026-05-29 (v0.5.0 발행, Sprint 018 M4 T10): §11.5.6 Export 상태 정정 (JSON/Markdown ✅ 구현 / Notion 📝 설계 spec 완료 구현 Sprint 020 위임) + §11.12 **SharedWorkspaceFormat 신규 소절** (T21 설계 spike, 구현 Sprint 021). codex 019e718f scope 협의 (drift 정정, 구현 선반영 X).
 
 ## 11.11 Highlights (Sprint 016 M4 T20 + M5 T24 v0.4.1)
 
@@ -309,3 +309,36 @@ Phase 1 시점: mock (회귀 셋 통과만, 실제 학습 로직 X).
 - `tests/unit/storage/HighlightStore.test.ts` — 24+11 = 35 회귀
 - Sprint 016 M4 T20 (PR #215) — 산출물 4 파일 +1505 / -0
 - Sprint 016 M5 T23 (PR #217) — 후속 안전망 22 회귀 추가 (HighlightStore + highlightAnchor edge case)
+
+## 11.12 워크스페이스 공유 — SharedWorkspaceFormat (Sprint 018 T21 설계 spike, 구현 Sprint 021)
+
+> **상태**: 설계 spec 완료 (`.flowset/specs/v05-collab-spike.md`, Sprint 018 T21). **구현 Sprint 021 위임** (G-013 단계별 — 설계 머지 / 구현 별도). 실시간 협업은 Phase 4 (scope 외).
+
+### 11.12.1 공유 ≠ 자기 백업
+
+§11.5.6 JSON Export/Import 는 **자기 백업·복구** (같은 사용자/기기). SharedWorkspaceFormat 은 **타 사용자/기기로 단방향 전달** — 자기 백업엔 없던 위협을 다룬다:
+
+1. **authenticity / tamper-evidence** — 받은 파일이 변조되지 않았는가
+2. **untrusted import** — 공유 파일 = 공격자 입력 (압축 폭탄 / 악성 payload / DoS)
+3. **노출 메타 프라이버시** — 받는 사람에게 무엇이 보이는가
+
+### 11.12.2 포맷 결정 (설계)
+
+| 항목 | 결정 |
+|---|---|
+| 파일 | `.fbworkspace` = **gzip(envelope)** 단일 파일 |
+| envelope | `{format, formatVersion, producedAt, producer, integrity.payload_sha256, signature?, payload: WorkspaceExportV1(filtered)}` |
+| 서명 | **Ed25519 self-signed per-install** (private key = safeStorage/Keychain, G-005). **신원 증명 아님** — TOFU(trust-on-first-use) = tamper-evidence + 발신자 연속성만 (local-first 무PKI 정직 한정) |
+| canonical | domain-separated signing object (payloadHash 단독 아님) + downgrade 정책 (signed→unsigned 경고) |
+| import | **untrusted deep validator P0** — byte/count/length/depth cap + enum/finite int/FK 무결성, fail-closed. duplicate id reject (정규화 X) |
+| 재사용 | 기존 `WorkspaceExportV1` (v06) + `ExportPrivacyGate` filtered cascade (Notion spec §13 정합) |
+
+### 11.12.3 Sprint 021 구현 분해
+
+`.flowset/specs/v05-collab-spike.md` §11 (S021-a~k) — envelope/canonicalization → Ed25519 TOFU 서명 → Export+ExportPrivacyGate → untrusted import validator → import 흐름 → round-trip → AC-1~6. data model forward-compat: `Workspace.shared_id` (§04 §4.4 Phase 3 컬럼).
+
+### 11.12.4 SSOT 인용
+
+- `.flowset/specs/v05-collab-spike.md` (T21 설계 spike, 14 섹션)
+- [§13 보안·프라이버시](./13_security_privacy.md) (ExportPrivacyGate / OS Keychain G-005)
+- [§16 §16.4.1](./16_roadmap.md) (SharedWorkspaceFormat 컴포넌트 / Sprint 021 매핑)
