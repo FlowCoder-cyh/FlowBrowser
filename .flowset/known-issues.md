@@ -95,7 +95,7 @@
 - **상태**: `closed`
 - **해소 PR**: Sprint 015 M5-5 PR #157 ChatService 도입 시점에 BYOK wiring 완료 (`allowedProviders ['openai']` 디폴트) + M5-7 PR #159 NoteService.opts.autoTagger 미주입 safety 디폴트. Sprint 016 M5 T25 시점 자가 status 전환 (Sprint 015 진행 중 wiring 박힘, 본 T25 시점 명시).
 
-### KI-006 [open] Workspace 전환 시 진행 작업 abort 정책 미배선
+### KI-006 [closed] Workspace 전환 시 진행 작업 abort 정책 미배선
 
 - **Severity**: MEDIUM
 - **Phase**: 1
@@ -105,7 +105,8 @@
 - **재현 절차**: 워크스페이스 A 에서 페이지 인덱싱 중 워크스페이스 B 로 전환 → A 의 임베딩 큐 / Visit INSERT 가 A 워크스페이스로 계속 기록
 - **권고 해소 방향**: `WorkspaceHandlerDeps` 에 abort callback 3종 (`abortIndexing` / `clearEmbeddingQueue` / `abortChatStreaming`) 주입 → `handleWorkspaceSwitch` 진입 시 호출. main `setActive` 후 broadcast `workspace:switched` 활용.
 - **처리 예정 Sprint**: 016 (M0 또는 M1)
-- **상태**: `open`
+- **상태**: `closed`
+- **해소 PR**: **Sprint 016 M0 T02 (인터페이스) + T02-followup (실 wiring)** — 권고 방향 전부 충족: `src/main/workspaceHandlers.ts:107-109` abort callback 3종 interface + `:277-279` `invokeAbortCallback` (prevId !== args.id guard) + `src/main/services.ts:896-900` 실 wiring (`abortIndexing→indexingService.abort` / `clearEmbeddingQueue→embeddingQueue.clearWorkspace` / `abortChatStreaming→ChatService.abortStreaming`). 실 구현: `IndexingService.abort` (race-safe generation counter) / `EmbeddingQueue.clearWorkspace` / `ChatService.abortStreaming` (generation +1). 회귀: `tests/unit/main/workspaceHandlers.test.ts:197-289` (abort callback prevWs id invoke + same-ws skip) + `IndexingService.test.ts` + `ChatService.test.ts`. **status 전환 시점**: Sprint 018 M5 T13 dual review (codex 019e720f NOTABLE) drift 발견 → 본 reconciliation 으로 `closed` 정합 (실 구현은 Sprint 016, PRD §0.8 v0.4.1 :148 이미 closed 기재). ⚠️ `workspaceHandlers.ts:103-104` 의 "실 구현 후속 PR" 주석은 stale → 본 reconciliation 동반 정정.
 
 ### KI-007 [closed] TabManager workspace_id 메타 + 탭 그룹 stash/restore 미구현
 
@@ -178,7 +179,7 @@
 - **상태**: `closed` (Sprint 016 M4 T21 — `AutoTagger.tagNote(input: TagNoteInput)` 신규 메서드 + private `tagContent(input, attach)` helper 추출 (DRY). `tagNote` 는 `tagStore.attachToNote` 호출 — page_tags FK 회피. `NoteService.opts.autoTagger?` optional 주입 + `createNote({enableAutoTagging: true})` + autoTagger 주입 시 tagNote 호출, 그 외 'not_called' safety 디폴트. 회귀 +20: AutoTagger.test.ts tagNote 8 케이스 + maxOutputTokens hotfix 회귀 (TagPageInput maxOutputTokens 가 ChatRequest 로 미전달 잔존 Sprint 015 M4-2 NB-1 정정) + NoteService.test.ts enableAutoTagging path 7 + autoTagger 미주입 safety 3 + codex NEEDS_CHANGES #1 흡수 (try/catch autoTagger throw 격리) 1.)
 - **사전 dual review hotfix 흡수** (학습 #18 정합): codex NEEDS_CHANGES #1 — `await this.autoTagger.tagNote(...)` 가 attach 단계 DB/FK throw 시 createNote 자체 throw 위험. NoteService.createNote 에 try/catch 격리 추가 + autoTaggingStatus='failed' 반환 + 회귀 1 케이스 (throwing tagger stub).
 
-### KI-004 [open] ChatRequest.response_format JSON 강제 API-level 미구현
+### KI-004 [closed] ChatRequest.response_format JSON 강제 API-level 미구현
 
 - **Severity**: MEDIUM
 - **Phase**: 1
@@ -188,7 +189,8 @@
 - **발견 출처**: M4-2 PR #146 codex 정밀 검토 NB-3 / KI 후보 2 (Severity MEDIUM)
 - **권고 해소 방향**: (1) `ChatRequest` 에 `responseFormat?: 'text' | 'json_object'` 추가 (2) OpenAIApiKeyProvider body 에 `response_format` 전달 (3) AutoTagger 가 `responseFormat: 'json_object'` 지정. M5 ChatService 도입 시점에 본 contract 함께 처리.
 - **처리 예정 Sprint**: 015 M5-5 (ChatService 도입) 또는 Sprint 016 정확도 측정 시점
-- **상태**: `open`
+- **상태**: `closed`
+- **해소 PR**: **Sprint 016 M0 T04** — 권고 3단계 전부 구현: (1) `src/ai/types.ts:86` `responseFormat?: 'text' | 'json_object'` (2) `src/ai/providers/OpenAIApiKeyProvider.ts:135-137` `if (responseFormat === 'json_object') body.response_format = { type: 'json_object' }` (3) `src/ai/tagging/AutoTagger.ts:195` `responseFormat: 'json_object'`. 회귀: `tests/unit/ai/ProviderAdapter.test.ts:85-114` (json_object → body.response_format 설정 / text·미주입 → 미설정 3 case) + `tests/unit/ai/AutoTagger.test.ts` (caller 항상 json_object + parse 실패 시 freeform fallback 유지). **status 전환 시점**: Sprint 018 M5 T13 dual review (codex 019e720f NOTABLE) 에서 코드 선행/status 미전환 drift 발견 → 본 reconciliation 으로 `closed` 정합 (실 구현은 Sprint 016, PRD §0.8 v0.4.1 :148 이미 closed 기재).
 
 ### KI-012 [closed] 인덱싱 속도 < 500ms / 페이지 임계 미측정
 
@@ -428,27 +430,28 @@
 
 | Phase | HIGH 누적 | MEDIUM 누적 | LOW 누적 | 해소 | 잔여 |
 |---|---|---|---|---|---|
-| Phase 1 | 1 | 4 | 23 | **22** | **6** |
+| Phase 1 | 1 | 4 | 23 | **24** | **4** |
 | Phase 2 | — | — | 1 | 1 | 0 |
 | Phase 3 | — | — | 2 | — | 2 |
 
-**Phase 1 closed 22 내역** (Sprint 017 M2 4/4 종결 — T10/T12/T13 closed 반영):
+**Phase 1 closed 24 내역** (Sprint 018 M5 T13 후속 reconciliation — KI-004·006 status 정합 반영):
 - **HIGH closed 1**: KI-003 (Sprint 015 M5-5 BYOK wiring 완료, Sprint 016 M5 T25 status 자가 전환)
-- **MEDIUM closed 1**: KI-007 (T03c #173)
+- **MEDIUM closed 3**: KI-007 (T03c #173) / **KI-004 (Sprint 016 M0 T04 — response_format API-level, reconciliation status 정합)** / **KI-006 (Sprint 016 M0 T02-followup — abort 정책 wiring, reconciliation status 정합)**
 - **LOW closed 20**: KI-002 (T12 #202) / KI-005 (T21 #210) / KI-008 (T17 #208) / KI-009 (Sprint 017 M0 T03 — @testing-library/react + MemoryStatsPanel.test.tsx 10 케이스) / KI-010 (T05 #176) / KI-011~016 (T06 perf bench, T25 — 6건) / KI-017 (T03b #172) / KI-018 / KI-019 (T23 #217 산식 cover, T25) / KI-024 (Sprint 017 M1 T08 PR #226) / KI-026 (T24 §11.11 신설, T25) / KI-027 (Sprint 017 M0 T02) / **KI-020 (Sprint 017 M2 T10 PR #230 — SPA did-navigate-in-page hook + debounce + URL guard + hash-only skip + clearWhenEmpty)** / **KI-022 (Sprint 017 M2 T12 PR #232 — Import embedding_queue 자동 re-enqueue)** / **KI-031 (Sprint 017 M2 T13 PR #233 — AutoTagger parseTagsResponse null wording 정합)**
 
-**Phase 1 잔여 6 내역** (open 5 + in-progress 1):
+**Phase 1 잔여 4 내역** (open 3 + in-progress 1):
 - HIGH 0
-- MEDIUM 3 (1 in-progress): KI-001 (in-progress, macOS PoC 1차 + 2차 matrix carryover) / KI-004 (response_format API-level, Sprint 017 M3 또는 carryover) / KI-006 (abort 정책 carryover)
+- MEDIUM 1 (1 in-progress): KI-001 (in-progress, macOS PoC 1차 + 2차 matrix carryover)
 - LOW 3: KI-023 (PDF viewer DOM range) / KI-025 (contentHash 폐기 보수성 — 헤더 Phase 1, 처리는 Phase 3 R&D 후보) / KI-028 (chatHandlers/ChatService nullable FK normalize 후속, Sprint 017 M0 T02 codex separate KI candidate)
 
 **Phase 2 잔여 0** (Sprint 017 M2 T11 KI-021 closed — partition cleanup reconcile 박힘)
 
 **Phase 3 잔여 2**: KI-029 (migrateV04ToV05 sentinel-only idempotency self-healing 부재, Sprint 017 M1 T07 codex 019e4e82 NOTABLE #3) / KI-030 (App.tsx App-level 회귀 cover gap, Sprint 017 M1 T08 codex 019e4eda NOTABLE #7 — App.tsx hook 분해 후 단위 회귀 추가)
 
-**총 잔여 8** (Phase 1 6 + Phase 2 0 + Phase 3 2). Sprint 017 M2 누적 closed: **T10 KI-020 + T11 KI-021 + T12 KI-022 + T13 KI-031 = +4**. Phase 2 잔여 0 도달.
+**총 잔여 6** (Phase 1 4 + Phase 2 0 + Phase 3 2). 등록 31 / closed 25 / 잔여 6 정합. 잔여 severity: HIGH 0 / MEDIUM 1 (KI-001 in-progress) / LOW 5 (KI-023·025·028·029·030).
 
-> **Sprint 018 M5 T12 정정 (2026-05-29)**: 직전 "총 잔여 9 / Phase 1 LOW 누적 24 / 잔여 7 / open LOW 4" 는 off-by-one — Phase 1 open LOW 는 실제 3건(KI-023·025·028)인데 "4"로 표기. 31 KI 전수 실측(Severity/Phase/status 헤더): Phase 1 LOW 등록 = closed 20 + open 3 = **23**, Phase 1 잔여 = MEDIUM 3 + LOW 3 = **6**, 총 잔여 = **8** (Phase 1 6 + Phase 2 0 + Phase 3 2). 등록 31 / closed 23 / 잔여 8 정합.
+> **Sprint 018 M5 T12 정정 (2026-05-29)**: 직전 "총 잔여 9 / Phase 1 LOW 누적 24 / 잔여 7 / open LOW 4" 는 off-by-one — Phase 1 open LOW 는 실제 3건(KI-023·025·028)인데 "4"로 표기. 31 KI 전수 실측(Severity/Phase/status 헤더): Phase 1 LOW 등록 = closed 20 + open 3 = **23**, Phase 1 잔여 = MEDIUM 3 + LOW 3 = **6**, 총 잔여 = **8**. 등록 31 / closed 23 / 잔여 8 정합 (T12 시점).
+> **Sprint 018 M5 T13 후속 reconciliation (2026-05-29)**: T13 dual review (codex 019e720f NOTABLE) 에서 **KI-004·KI-006 코드 선행 / status 미전환 drift** 발견 — 실 구현은 Sprint 016 M0(T04 response_format / T02-followup abort wiring)인데 헤더 status 가 `open` 잔존 (PRD §0.8 v0.4.1 :148 은 이미 closed 기재 — 내부 모순). 본 reconciliation 으로 두 건 `closed` 정합: Phase 1 closed 22→**24** / 잔여 6→**4** (MEDIUM 3→**1**[KI-001 만]), 총 closed 23→**25** / 잔여 8→**6**. 실 구현 시점 불변(Sprint 016) — status 표기만 정합. 검증: `ProviderAdapter.test.ts:85-114` (KI-004) + `workspaceHandlers.test.ts:197-289` (KI-006).
 
 ---
 
@@ -474,3 +477,4 @@
 - 2026-05-21 (Sprint 016 M4 T20 — PR #215 머지 후 본 docs PR): KI-023 LOW (HighlightStore PDF viewer 미지원) + KI-024 LOW (Shadow DOM graceful fallback 부재) + KI-025 LOW (contentHash 미일치 시 path 폐기 보수성 — codex NB-1/NB-3/NB-5 통합 흡수) + KI-026 LOW (contract L62 표기 PRD §11.2.1 불일치) 4건 등록. T20 PR 머지 후 evaluator + codex 권고 batch — 본 feature PR 안 박지 않고 docs PR 에서 통합 등록 (codex 사후 협의 threadId 019e4a2b 권고 정합). 본 docs PR 내 사전 dual review hotfix 흡수 (codex threadId 019e4a3c NC #1 — KI 통계 산식 재집계): Phase 1 LOW 누적 14 → **20** (closed 5 + open 15 — 본 신규 4건 박음 후) + closed 4 → **6** (KI-007 MEDIUM closed M0 T03c + KI-010 LOW closed M0 T05 직전 누계 누락분 명시) / Phase 1 잔여 16 → **19** / Phase 2 잔여 1 유지 / 총 누적 22 → **26 (4 신규)** / 총 잔여 17 → **20**. KI-025 본문에 codex NB-1 (fallback ordering) + NB-3 (element container path canonicalize) + NB-5 (U+241F delimiter → JSON.stringify) sub-section 통합 흡수. KI-026 PRD 경로 `11_phase_1_isolation.md` → `11_workspace.md` 정정 + §11.5 신설 충돌 회피 (`§11.11` 또는 T24 시점 결정 위임).
 - 2026-05-21 (Sprint 016 M5 T23 PR #217 머지 후 T24/T26/T25 본 docs PR — v0.4.1 발행 + Sprint 017 시안 + KI batch status 변동): **KI-018 / KI-019 closed 후보 status 변동** (Sprint 016 M5 T23 scenario-accuracy 신규 통합 회귀 30 케이스 산식 cover 완성 — `tests/integration/scenarios/scenario-accuracy.test.ts` +13 회귀 + `tests/unit/scenarios/accuracyHelpers.test.ts` +5 회귀). **KI-011/012/013/014/015/016 closed 후보 status 변동** (Sprint 016 M0 T06 perf bench infra 6/8 PASS + 2/8 DEFERRED 후 본 M5 시점 카르오버 정합 — `.flowset/eval-results/sprint-016-perf-bench.md` baseline 박음, KI-014 abort wiring 후 재측정 0.283ms → 0.581ms 정합). **KI-003 status `open` → `closed`** (Sprint 015 M5-5 BYOK wiring 완료 자가 status 전환). KI-026 PRD §11.11 Highlights 신설 (T24 시점 옵션 B 결정) → closed. **Phase 1 closed 6 → 15** (HIGH 0 → 1 + LOW closed 5 → 14, MEDIUM closed 1 유지). **Phase 1 잔여 19 → 10** (KI-001 in-progress / KI-004 / KI-006 / KI-009 / KI-020 / KI-022 / KI-023 / KI-024 / KI-025 / 신규 후보 — drainUntil helper / pageId='' validation / freeform fallback). 신규 후보 3건은 Sprint 017 M0 T01/T02/T13 박음 (시안). 총 잔여 20 → **11** (Phase 1 10 + Phase 2 1). 본 docs PR 내 evaluator + codex 병렬 dual review 강제.
 - 2026-05-29 (Sprint 018 M5 T12 — §통계 off-by-one 정정): §통계 표 Phase 1 LOW 누적 24→**23** / 잔여 7→**6** + open 내역 "LOW 4"→"**LOW 3**"(KI-023·025·028) + "총 잔여 9"→"**8**"(Phase 1 6 + Phase 2 0 + Phase 3 2). 31 KI 전수 실측(각 KI 헤더 Severity/Phase/status) 기반 — 등록 31 / closed 23 / 잔여 8 (MEDIUM 3: KI-001·004·006 + LOW 5: KI-023·025·028·029·030) 정합. ⚠️ 본 변경이력 timeline 은 2026-05-21(Sprint 016 M5 T23) 이후 Sprint 017~018 항목 미기재(Sprint 017: KI-024·027 closed + KI-028·029·030 등록 / Sprint 017 M2: KI-020·021·022·031 closed) — §통계 본문(line 431~449) + 각 KI 헤더 status 에는 반영 완료, 본 T12 전수 실측으로 교차 정합 확인.
+- 2026-05-29 (Sprint 018 M5 T13 후속 — KI-004·006 status reconciliation): T13 dual review (codex `019e720f-5975-73a3-8a6b-827e0b475e8a` NOTABLE) 에서 **KI-004·KI-006 코드 선행 / status 미전환 drift** 발견. 실 코드 대조 검증 — KI-004 (response_format API-level: `types.ts:86` + `OpenAIApiKeyProvider.ts:135` + `AutoTagger.ts:195`, 회귀 `ProviderAdapter.test.ts:85-114`) / KI-006 (abort 정책: `workspaceHandlers.ts:107-109,277-279` + `services.ts:896-900` + `IndexingService.abort`/`EmbeddingQueue.clearWorkspace`/`ChatService.abortStreaming`, 회귀 `workspaceHandlers.test.ts:197-289`) 모두 Sprint 016 M0(T04 / T02-followup) 구현 완료인데 헤더 status `open` 잔존 (PRD §0.8 v0.4.1 :148 은 이미 closed 기재 — 내부 모순). 두 건 `open`→`closed` 정합 + §통계 (Phase 1 closed 22→24 / 잔여 6→4, MEDIUM 3→1, 총 closed 23→25 / 잔여 8→6) + PRD §0.8 v0.5.0 :183 KI 집계 동기화 + `workspaceHandlers.ts:103-104` stale 주석 정정. 실 구현 시점 불변(Sprint 016) — status 표기만 정합. dual review (G-021): evaluator + codex 병렬.
