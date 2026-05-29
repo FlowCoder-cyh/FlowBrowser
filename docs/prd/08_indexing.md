@@ -33,9 +33,9 @@
    └─ 백그라운드 탭: priority 1
    ↓
 [비동기 백그라운드 worker]
-   ├─ EmbeddingClient (OpenAI text-embedding-3-small, 1024 차원, BYOK)
+   ├─ EmbeddingClient (워크스페이스 embedding_model 해소 — OpenAI 1024 BYOK 디폴트 / Ollama 768 로컬 옵션)
    ├─ AutoTagger (BYOK, JSON 응답 파싱, freeform fallback)
-   └─ vec_pages / Tag / PageTag UPDATE — 별도 TX
+   └─ vec_pages_{dim} / Tag / PageTag UPDATE — 별도 TX
    ↓
 [indexing:status / embedding:status broadcast (Renderer 갱신)]
 ```
@@ -74,16 +74,19 @@ PR b6 에서 "article/main/section 우선 + title/lang/meta/OpenGraph 추출" �
 - 한계 초과 시: 처음 8000 tokens 만 사용 (truncate). 손실은 KI 등록.
 - Phase 2+ 옵션: 청크 분할 + chunk_id 단위 embedding (의미 정확도 향상, 단 vector index 행 수 증가)
 
-## 8.3 EmbeddingClient (BYOK, OpenAI text-embedding-3-small)
+## 8.3 EmbeddingClient (워크스페이스별 임베딩 모델 — OpenAI BYOK 디폴트 / Ollama 로컬 옵션)
+
+> **Phase 3 (v0.5.0) 갱신**: Phase 1 은 OpenAI `text-embedding-3-small` 단일이었으나, Schema v06 (§04 §4.3.8) + 로컬 임베딩 통합(Sprint 018 T17 라인)으로 **워크스페이스별 `embedding_model` 따라 provider·dimension 해소** (provider-aware). 임베딩 _전_에 dimension 을 해소해 매칭 vec0 테이블(`vec_pages_{dim}`)에 박는다 — `EmbeddingClient.resolveEmbeddingClient` 팩토리(write) + `searchHandlers` query path.
 
 ### 8.3.1 모델·차원
 
 | 항목 | 값 | 비고 |
 |---|---|---|
-| 모델 | OpenAI `text-embedding-3-small` | v04-direction §7 SSOT |
-| 차원 | **1024** | OpenAI 기본 1536 → `dimensions=1024` 축소 (저장·성능 최적화) |
-| 비용 | **$0.00002 / 1k tokens** = $0.02 / 1M tokens (2026-05-16 기준 OpenAI 공식 가격) | ~$0.2~0.6/월 (1만 페이지, 평균 1k tokens/페이지) — PR b6 의 "$1~3/월" 5배 추정 오류 정정 |
-| 호출 방식 | **fetch 기반 REST** (현재 OpenAIApiKeyProvider 패턴 재활용, OpenAI Node SDK 미사용) | M3 SDK 도입 결정 시 PoC |
+| 모델 (디폴트) | OpenAI `text-embedding-3-small` | v04-direction §7 SSOT. 자동 인덱싱 BYOK 디폴트 |
+| 모델 (로컬 옵션, Phase 3) | Ollama `nomic-embed-text` (768 dim) | `OllamaProvider.embed()` (`/api/embed`, `supportsEmbed=true`). 오프라인·민감 페이지. 워크스페이스 생성 시 선택 |
+| 차원 | **1024** (OpenAI) / **768** (Ollama) | OpenAI 기본 1536 → `dimensions=1024` 축소. Ollama nomic 은 768 고정 (축소 파라미터 없음). 워크스페이스 `embedding_model` 이 dim 결정 |
+| 비용 | OpenAI **$0.00002 / 1k tokens** = $0.02 / 1M tokens (2026-05-16 기준) / Ollama **$0** (로컬, 전기료만) | OpenAI ~$0.2~0.6/월 (1만 페이지, 평균 1k tokens/페이지) — PR b6 의 "$1~3/월" 5배 추정 오류 정정 |
+| 호출 방식 | **fetch 기반 REST** (OpenAIApiKeyProvider / OllamaProvider 공통 패턴, Node SDK·`ollama` npm 미사용) | streaming 도입 시 PoC |
 
 ### 8.3.2 BYOK 디폴트 정책 (G-003 강화)
 
@@ -91,9 +94,11 @@ PR b6 에서 "article/main/section 우선 + title/lang/meta/OpenGraph 추출" �
 
 ```
 EmbeddingClient.embed(text)
-  ├─ Provider 선택: UserSetting.defaultProviderId === 'openai-key' 면 즉시 호출
-  ├─ 아니면: 'codex' 또는 'none' → 사용자 settings 알림 + 임베딩 큐에서 보류
-  └─ 큐 보류 시: indexing:status 로 "임베딩 대기 — API Key 등록 필요" broadcast
+  ├─ 워크스페이스 embedding_model 해소 (§04 §4.3.1):
+  │   ├─ 'openai:...:1024' → OpenAIApiKeyProvider (BYOK). API Key 없으면 큐 보류
+  │   └─ 'ollama:nomic-embed-text:768' → OllamaProvider (로컬, BYOK 게이트 무관 — 비용 0)
+  ├─ Codex OAuth 는 embed 미지원 (자동 호출 BYOK 디폴트 G-003 강화)
+  └─ 큐 보류 시: indexing:status 로 "임베딩 대기 — API Key 등록 필요" broadcast (OpenAI 워크스페이스 한정)
 ```
 
 ### 8.3.3 EmbeddingQueue 정책
@@ -115,7 +120,7 @@ EmbeddingClient.embed(text)
 |---|---|---|
 | **신규 페이지** | (workspace_id, url) lookup 결과 없음 | Page (C) + Visit (C) + 임베딩 큐 등록 |
 | **재방문, 본문 동일** | (workspace_id, url) 있음 + content_hash 동일 | Visit (C) 만. visited_count++ |
-| **재방문, 본문 변경** | (workspace_id, url) 있음 + content_hash 다름 | Page (U) + Visit (C) + **임베딩 재생성 큐** (vec_pages UPDATE) |
+| **재방문, 본문 변경** | (workspace_id, url) 있음 + content_hash 다름 | Page (U) + Visit (C) + **임베딩 재생성 큐** (vec_pages_{dim} UPDATE — 워크스페이스 dim) |
 | **재방문, 본문 빈값** | content 빈 문자열 (canvas/PDF 등) | Page (U content_hash=NULL) + Visit (C) + 임베딩 큐 skip |
 
 ### 8.4.1 content_hash 계산
@@ -279,3 +284,4 @@ v04-direction §12.3 정량 임계 6종 중 인덱싱 관련:
 
 - 2026-05-16 (PR b6): stub → 본문 작성. 인덱싱 파이프라인 12 step + ParagraphExtractor 재활용 (M3-13 보존) + EmbeddingClient (1024 차원, BYOK) + EmbeddingQueue (활성 탭 우선, 백오프 5종) + 재방문 4 분기 + DwellTracker + Privacy IndexingGate + DOM 추출 실패 영역 정책 + AutoTagger 6종 kind + JSON schema + 비용 추정 + 정량 임계 3종.
 - 2026-05-16 (PR b6.1): codex 다수 + evaluator 핫픽스. **외부 사실 정정**: OpenAI 임베딩 가격 5배 오류 — $0.0001 → **$0.00002 / 1k tokens** ($0.02 / 1M, 2026-05-16 공식). 월 비용 $1~3 → **$0.2~0.6**. v04-direction §7 동반 갱신. **실제 코드 정합**: ParagraphExtractor 과장 표현 정정 (현재 코드 = 문단 추출 + M3-13 필터만, "article/main/section 우선" / "OpenGraph" / "boilerplate 제외" 는 Phase 1 M3 PoC 결정 또는 Phase 2+). **Privacy 강화**: 디폴트 8 → 11 패턴 (signin/oauth/id/payment/pay/checkout 추가) + path glob (M3 PathMatcher 도입). **PDF**: P1 시나리오 영향 명시 (URL/제목/시간만 저장, 본문 RAG Phase 2+). **embedding_status**: Page schema 침범 회피 — EmbeddingQueue 테이블 status 컬럼으로 격하.
+- 2026-05-29 (v0.5.0, Sprint 018 M4 T10): **로컬 임베딩 통합 반영** (Sprint 018 T17 라인 구현). §8.3 헤더 — Phase 1 OpenAI 단일 → 워크스페이스별 `embedding_model` provider-aware (resolve-then-embed) / §8.3.1 모델·차원 표 — Ollama `nomic-embed-text` 768 옵션 + 비용 0 추가 / §8.1 파이프라인 diagram + §8.3.2 embed 흐름 — 워크스페이스 모델 해소 분기 (OpenAI BYOK 게이트 vs Ollama 로컬 무게이트, Codex embed 미지원). codex 019e718f scope 협의 (drift 정정, 구현 선반영 X).
