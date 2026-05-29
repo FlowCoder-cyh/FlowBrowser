@@ -100,8 +100,9 @@ export interface WorkspaceHandlerDeps {
    *   2. clearEmbeddingQueue(prevWs) — EmbeddingQueue 의 prevWs pending 작업 제거
    *   3. abortChatStreaming(prevWs) — ChatService SSE streaming abort
    *
-   * 본 PR (T02) 은 callback 인터페이스만 박음. 실 구현 (IndexingService.abort / EmbeddingQueue.clear /
-   * ChatService.abortStreaming) 은 후속 PR (G-013 단계별 PR 전략 정합). 호출자가 미주입 시 (테스트) no-op.
+   * T02 (PR #186) 가 callback 인터페이스를 박고, T02-followup (services.ts wiring) 이 실 구현을 연결했다
+   * (IndexingService.abort / EmbeddingQueue.clearWorkspace / ChatService.abortStreaming — KI-006 closed).
+   * 호출자가 미주입 시 (테스트) no-op. G-013 단계별 PR 전략 정합.
    */
   abortIndexing?: (workspaceId: string) => void
   clearEmbeddingQueue?: (workspaceId: string) => void
